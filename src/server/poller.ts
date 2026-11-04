@@ -35,8 +35,8 @@ export interface ReadClock {
 export function readDueAt(c: ReadClock, atWall: boolean): Instant {
   const last = c.lastAttemptAt ?? -Infinity;
   const cadence = Math.max(c.firstAt, last + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
-  const pull = (t: Instant | null) => (t !== null && t > last ? t : Infinity);
-  return Math.max(Math.min(cadence, pull(c.requestedAt), pull(c.wallWanted)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
+  const unservedAt = (t: Instant | null) => (t !== null && t > last ? t : Infinity);
+  return Math.max(Math.min(cadence, unservedAt(c.requestedAt), unservedAt(c.wallWanted)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
 }
 
 export function profileDueAt(c: { readonly firstAt: Instant; readonly attemptAt: Instant | null; readonly okAt: Instant | null; readonly backoffUntil: Instant | null }): Instant {
