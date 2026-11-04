@@ -562,6 +562,8 @@ const QUIET_REASON: Readonly<Record<string, string>> = {
   exhausted: 'grants used up',
   not_usable_now: 'no grant usable now',
 };
+/** Reasons that mean Headroom's own requests are wrong, so the operator has something to fix. */
+const LOUD_REASONS = new Set(['surface', 'cli_version']);
 
 function quietOffer(o: OfferView): string | null {
   const s = o.state;
@@ -569,6 +571,7 @@ function quietOffer(o: OfferView): string | null {
     case 'held':
       return `${PROGRAM_SHORT[o.program]} offered at limit`;
     case 'ineligible':
+      if (LOUD_REASONS.has(s.reason)) return null;
       return QUIET_REASON[s.reason] ?? (s.explain.charAt(0).toLowerCase() + s.explain.slice(1)).replace(/\.$/, '');
     case 'not_enrolled':
       return `${PROGRAM_SHORT[o.program]} not enrolled`;

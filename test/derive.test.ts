@@ -294,6 +294,11 @@ describe('offers and claimability', () => {
       expect(quiet(feeds, true, [...claims])).toBeNull();
     });
 
+    test.each(['surface', 'cli_version'])('stays the full block when Anthropic rejects Headroom itself (%s)', (reason) => {
+      const refused = { ...noGrants, juniper: j({ eligible: false, ineligibleReason: reason }) };
+      expect(quiet(feedsFrom(refused, T0))).toBeNull();
+    });
+
     test('stays the full block when a read is failing', () => {
       const failing = { ...feedsFrom(noGrants, T0), cedar: { ...emptySource<CedarEmber | null>(), error: { value: { kind: 'rate_limited' as const, retryAt: plus(T0, MIN) }, at: T0 } } };
       expect(quiet(failing)).toBeNull();
