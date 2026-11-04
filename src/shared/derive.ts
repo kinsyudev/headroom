@@ -119,7 +119,7 @@ export function deriveAccount(
     email: a.email,
     plan: derivePlan(feeds.profile),
     routing,
-    cooldowns: a.cooldowns.filter((c) => c.retryAt > now).map(({ model, reason, retryAt }) => ({ model, reason, retryAt })),
+    cooldowns: a.cooldowns.filter((c) => c.retryAt > now).map(({ httpStatus: _, ...view }) => view),
     statusMessage: a.statusMessage,
     atWall,
     limits,
@@ -150,7 +150,7 @@ export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limi
   const h = a?.headers;
   if (h?.status === 'rejected' && (h.resetsAt === null || h.resetsAt > now)) return true;
   return (a?.cooldowns ?? []).some(
-    (c) => c.model === null && (c.reason === 'quota' || c.reason === 'credential_quota') && c.retryAt > now,
+    (c) => c.scope === 'credential' && (c.reason === 'quota' || c.reason === 'credential_quota') && c.retryAt > now,
   );
 }
 
@@ -193,7 +193,7 @@ type Eligibility = { readonly ok: true } | { readonly ok: false; readonly until:
  * routing: CPA retries the account after nextRetryAfter whatever the status says.
  */
 export function eligibility(a: CpaAccount, now: Instant): Eligibility {
-  const credential = a.cooldowns.filter((c) => c.model === null && c.retryAt > now);
+  const credential = a.cooldowns.filter((c) => c.scope === 'credential' && c.retryAt > now);
   const unavailable = a.unavailable && (a.nextRetryAfter === null || a.nextRetryAfter > now);
   if (credential.length === 0 && !unavailable) return { ok: true };
   const times = [...credential.map((c) => c.retryAt), ...(unavailable && a.nextRetryAfter !== null ? [a.nextRetryAfter] : [])];

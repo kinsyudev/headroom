@@ -90,9 +90,9 @@ describe('isAtWall', () => {
     ['a poll with session at 100%', bare(a3), pollOf('anthropic-usage-3.json', T0), T0, true],
     ['the same poll after its session reset: the window lapsed', bare(a3), pollOf('anthropic-usage-3.json', T0), AFTER_COOLDOWN, false],
     ['a poll at 12% / 27%', bare(a1), pollOf('anthropic-usage-2.json', T0), T0, false],
-    ['only a model-scoped quota cooldown', { ...bare(a3), cooldowns: a3.cooldowns.filter((c) => c.model !== null) }, null, T0, false],
-    ['a credential cooldown for a non-quota reason', { ...bare(a3), cooldowns: [{ model: null, reason: 'unauthorized', retryAt: plus(T0, MIN), httpStatus: 401 }] }, null, T0, false],
-    ['a credential quota cooldown alone', { ...bare(a3), cooldowns: [{ model: null, reason: 'quota', retryAt: plus(T0, MIN), httpStatus: 429 }] }, null, T0, true],
+    ['only a model-scoped quota cooldown', { ...bare(a3), cooldowns: a3.cooldowns.filter((c) => c.scope === 'model') }, null, T0, false],
+    ['a credential cooldown for a non-quota reason', { ...bare(a3), cooldowns: [{ scope: 'credential', reason: 'unauthorized', retryAt: plus(T0, MIN), httpStatus: 401 }] }, null, T0, false],
+    ['a credential quota cooldown alone', { ...bare(a3), cooldowns: [{ scope: 'credential', reason: 'quota', retryAt: plus(T0, MIN), httpStatus: 429 }] }, null, T0, true],
   ] as const)('%s: %p', (_label, a, poll, now, expected) => {
     expect(isAtWall(a, poll, now)).toBe(expected);
   });

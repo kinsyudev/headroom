@@ -156,9 +156,9 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
 function groupCooldowns(cooldowns: AccountView['cooldowns']) {
   const groups = new Map<string, { key: string; retryAt: number; models: string[]; reasons: string[] }>();
   for (const c of cooldowns) {
-    const key = c.model === null ? 'account' : `models:${c.retryAt}`;
+    const key = c.scope === 'credential' ? 'account' : `models:${c.retryAt}`;
     const g = groups.get(key) ?? { key, retryAt: c.retryAt, models: [], reasons: [] };
-    if (c.model !== null) g.models.push(c.model.replace(/^claude-/, ''));
+    if (c.scope === 'model') g.models.push(c.model.replace(/^claude-/, ''));
     if (!g.reasons.includes(c.reason)) g.reasons.push(c.reason);
     groups.set(key, g);
   }

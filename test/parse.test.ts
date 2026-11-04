@@ -44,8 +44,8 @@ describe('CPA auth-files fixture', () => {
     expect(a.status).toBe('error');
     expect(a.unavailable).toBe(true);
     expect(a.nextRetryAfter).toBe(at('2026-11-04T14:20:17.000Z'));
-    expect(a.cooldowns[0]).toEqual({ model: null, reason: 'credential_quota', retryAt: at('2026-11-04T14:20:17.000Z'), httpStatus: null });
-    expect(a.cooldowns.find((c) => c.model === 'claude-opus-5-5')).toMatchObject({ reason: 'quota', httpStatus: 429 });
+    expect(a.cooldowns[0]).toEqual({ scope: 'credential', reason: 'credential_quota', retryAt: at('2026-11-04T14:20:17.000Z'), httpStatus: null });
+    expect(a.cooldowns.find((c) => c.scope === 'model' && c.model === 'claude-opus-5-5')).toMatchObject({ reason: 'quota', httpStatus: 429 });
     expect(a.statusMessage).toBe("This request would exceed your account's monthly spend limit. Please try again later.");
   });
 

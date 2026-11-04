@@ -2,6 +2,7 @@ import type {
   AccountId,
   ClaimId,
   CooldownReason,
+  CooldownScope,
   GrantId,
   Instant,
   LinkState,
@@ -98,11 +99,10 @@ export interface RoutingView {
   readonly recent: number | null;
 }
 
-export interface CooldownView {
-  readonly model: string | null;
+export type CooldownView = CooldownScope & {
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
-}
+};
 
 /** idle: the session limit is absent from limits[], so no session window is running. */
 export type WindowPhase = 'open' | 'idle' | 'lapsed';

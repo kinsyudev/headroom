@@ -10,6 +10,7 @@ import {
   type AccountId,
   type ActivityBucket,
   type CooldownReason,
+  type CooldownScope,
   type CpaAccount,
   type CpaStatus,
   type HeaderQuota,
@@ -283,7 +284,8 @@ export function parseAuthFiles(json: unknown): {
         const retryAt = parseInstant(c.retry_at);
         if (retryAt === null) return [];
         const reason = (COOLDOWN_REASONS as readonly string[]).includes(c.reason) ? (c.reason as CooldownReason) : 'unknown';
-        return [{ model: c.scope === 'credential' ? null : (c.model_key ?? null), reason, retryAt, httpStatus: c.http_status ?? null }];
+        const scope: CooldownScope = c.scope === 'credential' || c.model_key === undefined ? { scope: 'credential' } : { scope: 'model', model: c.model_key };
+        return [{ ...scope, reason, retryAt, httpStatus: c.http_status ?? null }];
       }),
       headers: f.quota ? parseSignals(f.quota) : null,
       lastRefresh: parseInstant(f.last_refresh),

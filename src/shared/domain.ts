@@ -77,12 +77,13 @@ export const COOLDOWN_REASONS = [
 ] as const;
 export type CooldownReason = (typeof COOLDOWN_REASONS)[number];
 
-export interface Cooldown {
-  readonly model: string | null;
+export type CooldownScope = { readonly scope: 'credential' } | { readonly scope: 'model'; readonly model: string };
+
+export type Cooldown = CooldownScope & {
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
   readonly httpStatus: number | null;
-}
+};
 
 export type HeaderStatus = 'allowed' | 'allowed_warning' | 'rejected';
 
