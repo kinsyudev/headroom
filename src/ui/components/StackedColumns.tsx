@@ -92,7 +92,7 @@ export function StackedColumns(props: {
         })}
       </svg>
       {hover !== null && props.buckets[hover] && (
-        <div className="tooltip" style={{ left: Math.min(width - 210, Math.max(0, PAD.left + hover * band + band / 2 - 100)) }}>
+        <div className="tooltip" style={{ left: tooltipLeft(PAD.left + hover * band, band, PAD.left + plotW) }}>
           <div className="tooltip-title">{props.tooltipTitle(props.buckets[hover].start, props.buckets[hover].end)}</div>
           {props.series.map((s) => (
             <div key={s.key} className="tooltip-row">
@@ -110,6 +110,13 @@ export function StackedColumns(props: {
       )}
     </div>
   );
+}
+
+const TOOLTIP_W = 210;
+
+/** Beside the hovered column, never over it: right of it in the left half, left of it otherwise. */
+function tooltipLeft(columnX: number, band: number, plotRight: number): number {
+  return columnX + band / 2 < plotRight / 2 ? columnX + band + 8 : Math.max(0, columnX - TOOLTIP_W - 8);
 }
 
 function roundedTop(x: number, top: number, w: number, h: number): string {

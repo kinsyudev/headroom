@@ -717,7 +717,7 @@ rect:focus-visible {
 }
 .history-tables {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 .table-wrap {
@@ -751,7 +751,7 @@ table.data .num {
 }
 table.errors td.message {
   white-space: normal;
-  max-width: 340px;
+  width: 60%;
   overflow-wrap: anywhere;
 }
 
@@ -839,9 +839,6 @@ table.errors td.message {
 @media (max-width: 1200px) {
   .overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .history-tables {
-    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 640px) {
