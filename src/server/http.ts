@@ -28,11 +28,13 @@ export interface HttpDeps {
 
 const BASE_HEADERS = { 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 
+export const BUN_MAX_IDLE_TIMEOUT_S = 255;
+
 export function serve(deps: HttpDeps): { readonly url: string; stop(): Promise<void> } {
   const server = Bun.serve({
     hostname: deps.hostname,
     port: deps.port,
-    idleTimeout: 255,
+    idleTimeout: BUN_MAX_IDLE_TIMEOUT_S,
     fetch: (req: Request): Promise<Response> => route(req, deps, server.port!).catch(errorResponse),
   });
   return { url: `http://${deps.hostname}:${server.port}`, stop: () => server.stop(true) };
