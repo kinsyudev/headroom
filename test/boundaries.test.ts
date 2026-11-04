@@ -63,6 +63,11 @@ describe('hard constraints', () => {
   test('only keeper.ts names input_tokens', () => {
     expect(where(/input_tokens/)).toEqual(['server/keeper.ts']);
   });
+
+  test('no package script hot-reloads the deck, which would leave the old pollers running', () => {
+    const scripts = JSON.parse(readFileSync(join(SRC, '../package.json'), 'utf8')).scripts as Record<string, string>;
+    expect(Object.entries(scripts).filter(([, cmd]) => /--(hot|watch)\b/.test(cmd))).toEqual([]);
+  });
 });
 
 describe('layering', () => {

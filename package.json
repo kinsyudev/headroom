@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/main.ts",
-    "dev": "bun --hot run src/main.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

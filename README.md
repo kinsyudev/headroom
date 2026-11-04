@@ -13,11 +13,13 @@ bun install
 bun run src/main.ts
 ```
 
-To try the deck without touching CPA, Anthropic, or keeper, run it against the fake CPA and a generated keeper DB:
+To try or develop the deck without touching CPA, Anthropic, or keeper, run it against the fake CPA and a generated keeper DB:
 
 ```sh
 bun scripts/fake-stack.ts
 ```
+
+Restart the fake stack after a change. There is no hot-reload script, because `bun --hot` keeps the old poller and observer running next to the new ones.
 
 To keep it running, install the LaunchAgent. It starts `bun run src/main.ts` in this checkout, logs to `~/Library/Logs/cpa-deck.log`, and restarts at most once every 30 s:
 
