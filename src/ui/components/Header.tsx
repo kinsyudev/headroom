@@ -13,6 +13,10 @@ import { Status } from './Freshness';
 import { Segments } from './Segments';
 
 const STRATEGIES: readonly RoutingStrategy[] = ['fill-first', 'round-robin'];
+const STRATEGY_HELP: Readonly<Record<RoutingStrategy, string>> = {
+  'fill-first': 'fill-first: send new sessions to the highest-priority account until it is limited',
+  'round-robin': 'round-robin: spread new sessions across available accounts',
+};
 const FLOW_TTL_MS = 5 * 60_000;
 
 export function Header(props: { readonly deck: DeckView; readonly connection: Connection }) {
@@ -33,7 +37,16 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         <div className="segmented" role="group" aria-label="Routing strategy" data-testid="strategy">
           <span className="segmented-label">Routing</span>
           {STRATEGIES.map((s) => (
-            <ActionButton key={s} kind="routing.setStrategy" input={{ strategy: s }} disabled={d.strategy === s} variant={d.strategy === s ? 'selected' : 'quiet'} done="switched" testId={`strategy-${s}`}>
+            <ActionButton
+              key={s}
+              kind="routing.setStrategy"
+              input={{ strategy: s }}
+              disabled={d.strategy === s}
+              variant={d.strategy === s ? 'selected' : 'quiet'}
+              title={STRATEGY_HELP[s]}
+              done="switched"
+              testId={`strategy-${s}`}
+            >
               {s}
             </ActionButton>
           ))}

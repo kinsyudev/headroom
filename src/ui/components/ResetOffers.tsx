@@ -1,6 +1,6 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, OfferView } from '../../shared/view';
-import { claimResultText } from '../format';
+import { claimResultText, resetNameText } from '../format';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
@@ -39,12 +39,12 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <span className="offer-label" title={o.program}>
-        {o.name}
+        <Segments parts={[o.name.what, o.name.source]} />
       </span>
       <span className="offer-state">
         <OfferState offer={o} />
       </span>
-      {o.state.kind === 'claimable' && <ClaimButton name={o.name} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />}
+      {o.state.kind === 'claimable' && <ClaimButton name={resetNameText(o.name)} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />}
       {o.grants.length > 0 && (
         <ul className="grants">
           {o.grants.map((g) => (

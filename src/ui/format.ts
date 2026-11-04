@@ -1,6 +1,6 @@
 import type { ClaimRecord, Money, Percent, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
-import type { ServingWhy } from '../shared/view';
+import type { ResetName, ServingWhy } from '../shared/view';
 
 export const SERVING_WHY: Readonly<Record<ServingWhy, { readonly short: string; readonly long: string }>> = {
   fill_first_target: { short: 'first in line', long: 'first in line (fill-first)' },
@@ -27,6 +27,8 @@ export function reasonTitle(code: string): string {
 }
 
 export const claimResultText = (result: string): string => CLAIM_RESULT[result] ?? result;
+
+export const resetNameText = (n: ResetName): string => `${n.what} · ${n.source}`;
 
 export function duration(ms: number): string {
   if (ms <= 0) return 'now';

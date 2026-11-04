@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
@@ -89,31 +89,59 @@ const OVERAGE_STATUS: Readonly<Record<string, string>> = { allowed: 'allowed', a
 const overage = (o: Overage) =>
   [o.percent !== null && percent(o.percent), o.status && (OVERAGE_STATUS[o.status] ?? o.status), o.reason && `(${reasonText(o.reason)})`].filter(Boolean).join(' ');
 
+const STOPS_AT_PLAN_LIMITS = 'stops at the plan limits';
+
+function overageNote(o: Overage, now: number): readonly ReactNode[] {
+  const reason = o.reason && reasonText(o.reason);
+  const resets = o.resetsAt !== null && o.resetsAt > now && `resets ${clockTime(o.resetsAt, now)}`;
+  switch (o.status) {
+    case 'rejected':
+      return [reason, 'extra-usage requests are rejected', resets];
+    case 'allowed_warning':
+      return [`near the spend cap${o.percent === null ? '' : ` (${percent(o.percent)})`}`, 'extra usage still allowed', resets];
+    default:
+      return [reason, o.percent !== null && percent(o.percent), resets];
+  }
+}
+
+function unmeteredNote(p: SpendView['poll'], live: SpendView['live'], atWall: boolean, now: number): readonly ReactNode[] {
+  if (p?.state === 'off') return [p.disabledReason ? reasonText(p.disabledReason) : 'off', STOPS_AT_PLAN_LIMITS];
+  if (p?.state === 'no_budget') return [`no budget${p.limit ? ` (${money(p.limit)} cap)` : ''}`, STOPS_AT_PLAN_LIMITS];
+  if (live !== null && live.severity !== 'normal') return overageNote(live, now);
+  return [atWall ? 'not read while at the limit' : 'not read yet'];
+}
+
 export function SpendRow(props: { readonly spend: SpendView | null; readonly atWall: boolean }) {
   const now = useNow();
   const s = props.spend;
   if (!s) return null;
   const p = s.poll;
   const live = s.live;
-  const off = p ? ['off', p.disabledReason && reasonText(p.disabledReason)] : [props.atWall ? 'not read at limit' : 'not read yet'];
-  const notable = live !== null && live.severity !== 'normal' && (p === null || p.enabled);
   const codes = [...new Set([p?.disabledReason, live?.reason].filter(Boolean))];
-  const readings = [p && `poll ${age(now - p.at)} ago`, live && `${overage(live)}, live ${age(now - live.at)} ago`, codes.length > 0 && `reason code: ${codes.join(', ')}`]
+  const readings = [
+    p ? `poll ${age(now - p.at)} ago` : props.atWall && 'amounts are not read while the account is at its limit',
+    live && `${overage(live)}, live ${age(now - live.at)} ago`,
+    codes.length > 0 && `reason code: ${codes.join(', ')}`,
+  ]
     .filter(Boolean)
     .join(' · ');
   return (
     <div className="limit spend" data-testid="spend" title={readings}>
       <span className="limit-label">Extra usage</span>
-      {p?.enabled ? (
+      {p?.state === 'budget' ? (
         <>
           <Meter percent={p.percent} severity={p.severity} label="Extra usage spent" />
           <span className="limit-value num">{percent(p.percent)}</span>
           <span className="limit-reset num nowrap">{p.limit ? `${money(p.used)} / ${money(p.limit)}` : money(p.used)}</span>
-          {notable && <span className="spend-note">{overage(live)}</span>}
+          {live !== null && live.severity !== 'normal' && (
+            <span className="spend-note">
+              <Segments parts={overageNote(live, now)} />
+            </span>
+          )}
         </>
       ) : (
         <span className="spend-note">
-          <Segments parts={[...off, notable && overage(live)]} />
+          <Segments parts={unmeteredNote(p, live, props.atWall, now)} />
         </span>
       )}
     </div>

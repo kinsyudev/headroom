@@ -3,7 +3,7 @@ import type { ClaimRecord, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { useAction } from '../api';
 import { usePaused } from '../deck';
-import { claimText } from '../format';
+import { claimText, resetNameText } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ClaimDialog(props: {
@@ -68,13 +68,15 @@ export function ClaimDialog(props: {
           <dd>
             {a.email} <span className="muted">· {a.plan?.label ?? 'plan unknown'}</span>
           </dd>
-          <dt>Reset type</dt>
+          <dt>Offer</dt>
           <dd>
-            <span id="claim-name">{offer.name}</span> <code className="muted">{props.program}</code>
+            <span id="claim-name" title={props.program}>
+              {resetNameText(offer.name)}
+            </span>
           </dd>
           {grant && (
             <>
-              <dt>Grant</dt>
+              <dt>Bonus</dt>
               <dd>
                 “{grant.label}” · <span className="num">{grant.resetsLeft}</span> of <span className="num">{grant.resetsTotal}</span> left, {grant.resetsLeft - 1} after this
               </dd>

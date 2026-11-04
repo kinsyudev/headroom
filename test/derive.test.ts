@@ -59,7 +59,9 @@ describe('routing and serving', () => {
     [1000, { down: 990, up: null }],
   ] as const)('priority %p steps to %p', (priority, stepTo) => {
     const accounts = cpaAccounts().map((a): CpaAccount => (a.id === ACC1 ? { ...a, priority } : a));
-    expect(view(deck({ accounts }), ACC1).routing.stepTo).toEqual(stepTo);
+    const { routing } = view(deck({ accounts }), ACC1);
+    expect(routing.stepTo).toEqual(stepTo);
+    expect(routing.step).toBe(10);
   });
 
   test('keeper evidence wins over CPA headers when keeper answers', () => {
@@ -316,24 +318,24 @@ describe('offers and claimability', () => {
     };
     const names = (feeds: AccountFeeds) => Object.fromEntries(offersOf(feeds).map((o) => [o.program, o.name]));
 
-    test('the weekly allowance and a grant clearing the session limit read as one pattern', () => {
+    test('the weekly reset and a bonus clearing the session limit read as one pattern', () => {
       expect(names(feedsFrom(synthetic, T0))).toEqual({
-        juniper_tide: 'Session reset · weekly allowance',
-        cedar_ember: 'Session reset · grant',
+        juniper_tide: { what: 'Reset session limit', source: 'weekly' },
+        cedar_ember: { what: 'Reset session limit', source: 'bonus' },
       });
     });
 
     test.each([
-      ['a weekly grant', ['seven_day'], 'Weekly reset · grant'],
-      ['a grant clearing both', ['five_hour', 'seven_day'], 'Session and weekly reset · grant'],
-      ['a grant naming nothing', [], 'Limit reset · grant'],
-    ] as const)('%s', (_label, clears, expected) => {
-      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toBe(expected);
+      ['a weekly bonus', ['seven_day'], 'Reset weekly limit'],
+      ['a bonus clearing both', ['five_hour', 'seven_day'], 'Reset session and weekly limits'],
+      ['a bonus naming nothing', [], 'Reset limit'],
+    ] as const)('%s', (_label, clears, what) => {
+      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toEqual({ what, source: 'bonus' });
     });
 
     test('with no usable grant the name still says what the grants clear, or that nothing is named', () => {
-      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toBe('Session reset · grant');
-      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toBe('Limit reset · grant');
+      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toEqual({ what: 'Reset session limit', source: 'bonus' });
+      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toEqual({ what: 'Reset limit', source: 'bonus' });
     });
 
     test('the overview and the card name a claimable reset identically, and the overview groups them by account', () => {
@@ -678,6 +680,32 @@ describe('card status line', () => {
     expect(deriveSpend(emptySource(), headers)?.live).toMatchObject({ percent: 101, status: 'rejected', reason: 'org_spend_cap_reached', severity: 'critical' });
     expect(deriveSpend(emptySource(), withOverage('allowed_warning', 78))?.live?.severity).toBe('warning');
     expect(deriveSpend(emptySource(), withOverage('allowed', 0))?.live?.severity).toBe('normal');
+  });
+
+  test('live overage carries the reset time the headers gave, and null when they gave none', () => {
+    const headers = account(ACC3).headers!;
+    const overage = headers.windows.find((w) => w.key === 'Overage')!;
+    expect(overage.resetsAt).not.toBeNull();
+    expect(deriveSpend(emptySource(), headers)?.live?.resetsAt).toBe(overage.resetsAt);
+    const unreset = { ...headers, windows: headers.windows.map((w) => (w.key === 'Overage' ? { ...w, resetsAt: null } : w)) };
+    expect(deriveSpend(emptySource(), unreset)?.live?.resetsAt).toBeNull();
+  });
+
+  describe('what extra usage means for the account', () => {
+    const stateOf = (name: string) => deriveSpend(feedsFrom(usage(name, 'normal'), T0).spend, null)?.poll?.state;
+
+    test('off, a zero cap and a cap with room are three different states', () => {
+      expect(stateOf('anthropic-usage-1.json')).toBe('off');
+      expect(stateOf('anthropic-usage-2.json')).toBe('no_budget');
+      expect(stateOf('anthropic-usage-3.json')).toBe('budget');
+    });
+
+    test('an enabled account with no cap set still has a budget', () => {
+      const read = usage('anthropic-usage-3.json', 'normal');
+      if (read.mode !== 'normal') throw new Error('fixture is a normal read');
+      const uncapped = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, limit: null }, at: T0 } };
+      expect(deriveSpend(uncapped, null)?.poll?.state).toBe('budget');
+    });
   });
 });
 

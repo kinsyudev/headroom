@@ -123,9 +123,11 @@ try {
   const dialog = page.getByTestId('claim-dialog');
   await dialog.waitFor();
   const facts = await text(dialog);
-  for (const s of ['account3@example.com', 'Team · Max 5x', 'Session reset · weekly allowance', 'juniper_tide', 'Clears the session (5h) limit now', 'This cannot be undone']) {
+  for (const s of ['account3@example.com', 'Team · Max 5x', 'Reset session limit · weekly', 'Clears the session (5h) limit now', 'This cannot be undone']) {
     assert(facts.includes(s), `claim dialog names "${s}"`);
   }
+  assert(!facts.includes('juniper_tide'), 'claim dialog shows no raw program code');
+  assert((await dialog.locator('#claim-name').getAttribute('title')) === 'juniper_tide', 'claim dialog keeps the program code in the name title');
   assert((await text(dialog.getByTestId('claim-confirm'))) === 'Reset session limit on account3@example.com', 'confirm button names account and effect');
   await page.screenshot({ path: join(SHOTS, 'e2e-2-claim-dialog.png') });
   pass('claim dialog names account, program and effect');

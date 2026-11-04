@@ -1,5 +1,6 @@
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
+import { resetNameText } from '../format';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Meter } from './LimitRow';
@@ -103,7 +104,7 @@ export function OverviewStrip(props: {
           <h2>Claimable resets</h2>
           <p className="hero num">{o.claimableCount}</p>
           {o.claimable.length === 0 ? (
-            <p className="tile-sub muted">None right now. Weekly session resets are checked when an account hits its limit.</p>
+            <p className="tile-sub muted">None right now. The weekly reset is checked when an account hits its limit.</p>
           ) : (
             o.claimable.map((g) => (
               <div key={g.account} className="claim-group">
@@ -114,10 +115,9 @@ export function OverviewStrip(props: {
                   {g.resets.map((r) => (
                     <li key={r.program}>
                       <span className="claim-name">
-                        {r.name}
-                        {r.detail && <span className="muted nowrap"> ({r.detail})</span>}
+                        <Segments parts={[r.name.what, r.name.source, r.detail && <span className="muted">{r.detail}</span>]} />
                       </span>
-                      <ClaimButton name={r.name} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
+                      <ClaimButton name={resetNameText(r.name)} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
                     </li>
                   ))}
                 </ul>

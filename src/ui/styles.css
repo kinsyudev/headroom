@@ -820,9 +820,9 @@ span.banner-line {
 }
 .step {
   font: inherit;
-  font-size: 16px;
+  font-size: 12.5px;
   line-height: 1;
-  width: 30px;
+  width: 34px;
   min-height: 29px;
   padding: 0;
   border: 0;

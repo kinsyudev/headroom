@@ -55,7 +55,13 @@ export interface OverviewView {
 export interface ClaimableView {
   readonly account: AccountId;
   readonly email: string;
-  readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: string; readonly detail: string | null }[];
+  readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: ResetName; readonly detail: string | null }[];
+}
+
+/** A reset's name in two parts: what it does ("Reset session limit"), then where it comes from ("weekly", "bonus"). */
+export interface ResetName {
+  readonly what: string;
+  readonly source: string;
 }
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
@@ -110,6 +116,8 @@ export interface PlanView {
 
 export interface RoutingView {
   readonly priority: number;
+  /** How far one press of − or + moves the priority, before the priority range clips it. */
+  readonly step: number;
   /** The priority a step down or up sets; null where the step would change nothing. */
   readonly stepTo: { readonly down: number | null; readonly up: number | null };
   readonly role:
@@ -155,9 +163,12 @@ export interface LimitView {
   readonly other: { readonly kind: 'poll' | 'headers'; readonly percent: Percent; readonly at: Instant } | null;
 }
 
+/** off: extra usage is disabled. no_budget: enabled with a cap of zero. budget: a cap above zero, or none set. */
+export type SpendState = 'off' | 'no_budget' | 'budget';
+
 export interface SpendView {
   readonly poll: {
-    readonly enabled: boolean;
+    readonly state: SpendState;
     readonly used: Money;
     readonly limit: Money | null;
     readonly percent: Percent | null;
@@ -170,6 +181,8 @@ export interface SpendView {
     readonly status: string | null;
     readonly reason: string | null;
     readonly severity: Severity;
+    /** When the overage window resets, if the headers said; null otherwise. */
+    readonly resetsAt: Instant | null;
     readonly at: Instant;
   } | null;
 }
@@ -196,8 +209,7 @@ export interface GrantView {
 
 export interface OfferView {
   readonly program: ProgramId;
-  /** What the reset does and where it comes from: "Session reset · weekly allowance". */
-  readonly name: string;
+  readonly name: ResetName;
   readonly effect: string;
   /** When each limit the reset clears would reset without it; limits with no open window are left out. */
   readonly selfResets: readonly { readonly what: string; readonly at: Instant }[];

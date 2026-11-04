@@ -9,7 +9,7 @@ export function ClaimButton(props: { readonly name: string; readonly email: stri
       onClick={props.onClick}
       disabled={paused !== null}
       title={paused ?? undefined}
-      aria-label={`Claim ${props.name} on ${props.email}`}
+      aria-label={`Claim “${props.name}” on ${props.email}`}
       data-testid={props.testId}
     >
       Claim…

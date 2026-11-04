@@ -38,6 +38,7 @@ import type {
   OverviewView,
   PlanView,
   ReadView,
+  ResetName,
   RoutingView,
   SpendView,
   StatusView,
@@ -316,6 +317,7 @@ export function deriveRouting(
           : { kind: 'standby' };
     out.set(a.id, {
       priority: a.priority,
+      step: PRIORITY_STEP,
       stepTo: stepTo(a.priority),
       role,
       isTarget,
@@ -447,11 +449,16 @@ export function deriveSpend(spend: Source<Spend | null>, headers: HeaderQuota | 
           status: overage?.status ?? null,
           reason: headers.overageDisabledReason,
           severity: overage ? headerSeverity(overage) : 'normal',
+          resetsAt: overage?.resetsAt ?? null,
           at: headers.observedAt,
         }
       : null;
-  const poll = s?.value ? { ...s.value, at: s.at } : null;
+  const poll = s?.value ? pollView(s.value, s.at) : null;
   return poll || live ? { poll, live } : null;
+}
+
+function pollView({ enabled, ...rest }: Spend, at: Instant): NonNullable<SpendView['poll']> {
+  return { ...rest, state: !enabled ? 'off' : rest.limit?.minor === 0 ? 'no_budget' : 'budget', at };
 }
 
 export function derivePlan(profile: Source<Profile>): PlanView | null {
@@ -507,9 +514,10 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
-function resetName(clears: readonly string[], source: string): string {
-  const what = clears.length === 0 ? 'limit' : clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase()).join(' and ');
-  return `${what.charAt(0).toUpperCase()}${what.slice(1)} reset · ${source}`;
+function resetName(clears: readonly string[], source: string): ResetName {
+  const windows = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase());
+  const limits = windows.length === 0 ? 'limit' : `${windows.join(' and ')} ${windows.length === 1 ? 'limit' : 'limits'}`;
+  return { what: `Reset ${limits}`, source };
 }
 
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
@@ -556,7 +564,7 @@ export function deriveOffers(
   return [
     {
       program: 'juniper_tide',
-      name: resetName(JUNIPER_CLEARS, 'weekly allowance'),
+      name: resetName(JUNIPER_CLEARS, 'weekly'),
       effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
       selfResets: selfResets(JUNIPER_CLEARS, limits),
       state: juniper,
@@ -565,7 +573,7 @@ export function deriveOffers(
     },
     {
       program: 'cedar_ember',
-      name: resetName(cedarClears, 'grant'),
+      name: resetName(cedarClears, 'bonus'),
       effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
       selfResets: selfResets(cedarClears, limits),
       state: cedar,

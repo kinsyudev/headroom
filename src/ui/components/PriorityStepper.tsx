@@ -5,12 +5,14 @@ import { useAction } from '../api';
 import { useNow, usePaused } from '../deck';
 import { DONE_SHOWN_MS } from './ActionButton';
 
+const PRIORITY_HELP = 'Higher priority takes new sessions first. Only fill-first routing uses it; round-robin spreads sessions across every available account.';
+
 export function PriorityStepper(props: { readonly account: AccountId; readonly routing: RoutingView }) {
   const set = useAction('account.setPriority');
   const now = useNow();
   const paused = usePaused();
   const [clicked, setClicked] = useState<string | null>(null);
-  const { priority, stepTo } = props.routing;
+  const { priority, step, stepTo } = props.routing;
   const saved = set.status.phase === 'ok' && now - set.status.at < DONE_SHOWN_MS;
   const button = (testId: string, glyph: string, to: number | null, label: string, atBound: string) => (
     <button
@@ -32,14 +34,14 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
   );
   return (
     <span className="action stepper-action">
-      <span className="stepper" role="group" aria-label="Priority" aria-busy={set.pending} data-state={set.status.phase}>
+      <span className="stepper" role="group" aria-label="Priority" aria-busy={set.pending} data-state={set.status.phase} title={PRIORITY_HELP}>
         <span className="stepper-label">Priority</span>
         <span className="stepper-box">
-          {button('priority-down', '−', stepTo.down, `Lower priority to ${stepTo.down}`, 'Already at the lowest priority')}
+          {button('priority-down', `−${step}`, stepTo.down, `Lower priority to ${stepTo.down}`, 'Already at the lowest priority')}
           <span className="stepper-value num" data-testid="priority" data-saved={saved}>
             {priority}
           </span>
-          {button('priority-up', '+', stepTo.up, `Raise priority to ${stepTo.up}`, 'Already at the highest priority')}
+          {button('priority-up', `+${step}`, stepTo.up, `Raise priority to ${stepTo.up}`, 'Already at the highest priority')}
         </span>
       </span>
       {saved && (
