@@ -1,13 +1,14 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
-import { reasonText, reasonTitle, SERVING_WHY } from '../format';
+import { reasonTitle, SERVING_WHY } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivitySparkline } from './ActivitySparkline';
-import { Clock, Countdown } from './Countdown';
+import { Countdown } from './Countdown';
 import { ModeLine } from './Freshness';
 import { LimitRow, SpendRow } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers } from './ResetOffers';
+import { Trouble } from './Trouble';
 
 const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], { readonly short: string; readonly long: string }>> = {
   reading: { short: 'already reading', long: 'A read is already running' },
@@ -33,20 +34,7 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
 
       <ModeLine account={a} />
 
-      {(a.cooldowns.length > 0 || a.statusMessage) && (
-        <div className="problems">
-          {groupCooldowns(a.cooldowns).map((g) => (
-            <div key={g.key} className="cooldown">
-              <span className="badge critical">{g.models.length === 0 ? 'Account cooldown' : g.models.length === 1 ? 'Model cooldown' : `${g.models.length} model cooldowns`}</span> <span title={g.reasons.join(', ')}>{[...new Set(g.reasons.map(reasonText))].join(', ')}</span>
-              {g.models.length > 0 && <span className="muted"> · {g.models.join(', ')}</span>} · until <Clock at={g.retryAt} />{' '}
-              <span className="muted">
-                (<Countdown at={g.retryAt} />)
-              </span>
-            </div>
-          ))}
-          {a.statusMessage && <p className="status-message">“{a.statusMessage}”</p>}
-        </div>
-      )}
+      <Trouble account={a} />
 
       <section className="limits" aria-label="Usage windows">
         {a.limits.length === 0 && <p className="muted">No quota data yet. The first read is on its way.</p>}
@@ -116,18 +104,6 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
       </footer>
     </article>
   );
-}
-
-function groupCooldowns(cooldowns: AccountView['cooldowns']) {
-  const groups = new Map<string, { key: string; retryAt: number; models: string[]; reasons: string[] }>();
-  for (const c of cooldowns) {
-    const key = c.scope === 'credential' ? 'account' : `models:${c.retryAt}`;
-    const g = groups.get(key) ?? { key, retryAt: c.retryAt, models: [], reasons: [] };
-    if (c.scope === 'model') g.models.push(c.model.replace(/^claude-/, ''));
-    if (!g.reasons.includes(c.reason)) g.reasons.push(c.reason);
-    groups.set(key, g);
-  }
-  return [...groups.values()];
 }
 
 export function RoutingBadge(props: { readonly routing: AccountView['routing'] }) {

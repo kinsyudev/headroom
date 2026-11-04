@@ -54,6 +54,12 @@ export function OverviewStrip(props: {
             </p>
             <p className="tile-sub">
               {swatch(o.nextReset.account)} {o.nextReset.email} · {o.nextReset.label} at <Clock at={o.nextReset.at} />
+              {o.nextReset.unblocks && (
+                <>
+                  {' '}
+                  <span className="nowrap">· unblocks then</span>
+                </>
+              )}
             </p>
           </>
         ) : (

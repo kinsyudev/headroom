@@ -16,6 +16,8 @@ import {
   type CedarEmber,
   type ClaimId,
   type ClaimRecord,
+  type Cooldown,
+  type CooldownReason,
   type CpaAccount,
   type GrantId,
   type Instant,
@@ -287,7 +289,6 @@ describe('headroom and next reset', () => {
     expect(d.overview.headroom.session).toEqual({ value: 1.72, of: 3, unknown: 0 });
     expect(d.overview.headroom.weekly).toEqual({ value: 2.12, of: 3, unknown: 0 });
     expect(d.overview.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z') });
-    expect(d.overview.nextUnblock).toEqual({ account: ACC3, email: 'account3@example.com', at: at('2026-11-04T14:20:17.000Z') });
   });
 
   test('an account with no limits data counts as unknown, not as 0 or 100', () => {
@@ -295,6 +296,116 @@ describe('headroom and next reset', () => {
     const d = deriveDeck(snapshot({ accounts: noHeaders }), T0);
     expect(d.overview.headroom.weekly.unknown).toBe(1);
     expect(d.overview.headroom.weekly.of).toBe(3);
+  });
+});
+
+describe('the next reset and the unblock it may repeat', () => {
+  const feeds = {
+    [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
+    [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
+    [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
+  };
+  const overview = (change: (a: CpaAccount) => CpaAccount) => deriveDeck(snapshot({ accounts: cpaAccounts().map(change), feeds }), T0).overview;
+  const unblock = (a: CpaAccount, retryAt: Instant): CpaAccount => ({
+    ...a,
+    cooldowns: a.cooldowns.map((c) => ({ ...c, retryAt })),
+    nextRetryAfter: retryAt,
+    unavailable: true,
+  });
+  const quiet = (a: CpaAccount): CpaAccount => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null });
+
+  test('the same account unblocking within a minute of its reset is said once, on the reset', () => {
+    const o = overview((a) => a);
+    expect(o.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z'), unblocks: true });
+    expect(o.nextUnblock).toBeNull();
+  });
+
+  test('a minute boundary between the two clock times does not split them', () => {
+    const o = overview((a) => (a.id === ACC3 ? unblock(a, at('2026-11-04T14:19:50.000Z')) : a));
+    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: true });
+    expect(o.nextUnblock).toBeNull();
+  });
+
+  test.each([
+    ['half an hour after', '2026-11-04T14:50:17.000Z'],
+    ['70 s before', '2026-11-04T14:18:50.000Z'],
+  ])('an unblock %s the reset stays its own line', (_label, when) => {
+    const o = overview((a) => (a.id === ACC3 ? unblock(a, at(when)) : a));
+    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: false });
+    expect(o.nextUnblock).toEqual({ account: ACC3, email: 'account3@example.com', at: at(when) });
+  });
+
+  test("another account's unblock at the same time is a different event and stays its own line", () => {
+    const o = overview((a) => (a.id === ACC3 ? quiet(a) : a.id === ACC2 ? unblock(a, at('2026-11-04T14:20:30.000Z')) : a));
+    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: false });
+    expect(o.nextUnblock).toEqual({ account: ACC2, email: 'account2@example.com', at: at('2026-11-04T14:20:30.000Z') });
+  });
+
+  test('with no blocked account the reset says nothing about unblocking', () => {
+    const o = overview(quiet);
+    expect(o.nextReset?.unblocks).toBe(false);
+    expect(o.nextUnblock).toBeNull();
+  });
+});
+
+describe('why an account is in trouble', () => {
+  const trouble = (change: (a: CpaAccount) => CpaAccount, id = ACC3, now = T0) =>
+    deriveDeck(snapshot({ accounts: cpaAccounts().map((a) => (a.id === id ? change(a) : a)), now }), now).accounts.find((a) => a.id === id)!.trouble;
+  const model = (name: string, reason: CooldownReason, retryAt: Instant): Cooldown => ({ scope: 'model', model: name, reason, retryAt, httpStatus: null });
+  const credential = (reason: CooldownReason, retryAt: Instant): Cooldown => ({ scope: 'credential', reason, retryAt, httpStatus: null });
+  const END = at('2026-11-04T14:20:17.000Z');
+
+  test('a blocked account says the plain cause, what is cooling down, and until when', () => {
+    expect(trouble((a) => a)).toEqual({ cause: 'Monthly spend limit hit', holds: [{ what: 'account and 3 models cooling down', until: END }] });
+  });
+
+  test('accounts with nothing wrong have no trouble', () => {
+    expect(trouble((a) => a, ACC1)).toBeNull();
+    expect(trouble((a) => a, ACC2)).toBeNull();
+    expect(trouble((a) => ({ ...a, cooldowns: [], unavailable: false, statusMessage: null }))).toBeNull();
+  });
+
+  test.each([
+    ['CPA message with a known phrase wins over the cooldown code', 'This request would exceed your account\'s monthly spend limit.', 'credential_quota', 'Monthly spend limit hit'],
+    ['an unmapped message gives way to the cooldown code', 'Something new broke.', 'unauthorized', 'Token rejected'],
+    ['no message: the cooldown code in plain words', null, 'credential_quota', 'Quota used up'],
+    ['an unmapped message with only an unknown code is shown as it came', 'Something new broke.', 'unknown', 'Something new broke.'],
+    ['no message and an unknown code: said so', null, 'unknown', 'Reason unknown'],
+  ] as const)('%s', (_label, statusMessage, reason, cause) => {
+    expect(trouble((a) => ({ ...a, statusMessage, cooldowns: [credential(reason, END)] }))?.cause).toBe(cause);
+  });
+
+  test('the account-wide reason leads over a model reason', () => {
+    const t = trouble((a) => ({ ...a, statusMessage: null, cooldowns: [model('claude-opus-5-5', 'unauthorized', END), credential('credential_quota', END)] }));
+    expect(t?.cause).toBe('Quota used up');
+  });
+
+  test('one model cooling down on an account that still routes is named, and the account is not called blocked', () => {
+    const t = trouble((a) => ({ ...a, statusMessage: null, unavailable: false, nextRetryAfter: null, cooldowns: [model('claude-opus-5-5', 'quota', END)] }));
+    expect(t).toEqual({ cause: 'Quota used up', holds: [{ what: 'opus-5-5 cooling down', until: END }] });
+  });
+
+  test('model cooldowns that outlast the account get their own time', () => {
+    const later = plus(END, 25 * MIN);
+    const t = trouble((a) => ({ ...a, cooldowns: [credential('credential_quota', END), model('claude-opus-5-5', 'quota', later), model('claude-haiku-5-5', 'quota', later)] }));
+    expect(t?.holds).toEqual([
+      { what: 'account cooling down', until: END },
+      { what: '2 models cooling down', until: later },
+    ]);
+  });
+
+  test('model cooldowns ending seconds after the account are the same stretch', () => {
+    const t = trouble((a) => ({ ...a, cooldowns: [credential('credential_quota', END), model('claude-opus-5-5', 'quota', plus(END, 5_000))] }));
+    expect(t?.holds).toEqual([{ what: 'account and opus-5-5 cooling down', until: END }]);
+  });
+
+  test('CPA saying unavailable with no retry time is a hold with no end', () => {
+    const t = trouble((a) => ({ ...a, cooldowns: [], unavailable: true, nextRetryAfter: null }));
+    expect(t?.holds).toEqual([{ what: 'account cooling down', until: null }]);
+  });
+
+  test('once the cooldown has ended only CPA\'s last error is left, with no holds', () => {
+    expect(trouble((a) => a, ACC3, AFTER_COOLDOWN)).toEqual({ cause: 'Monthly spend limit hit', holds: [] });
   });
 });
 

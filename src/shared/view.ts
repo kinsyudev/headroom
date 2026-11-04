@@ -34,7 +34,9 @@ export interface OverviewView {
   readonly target: { readonly account: AccountId; readonly email: string } | null;
   readonly servingEvidence: 'keeper' | 'cpa_headers';
   readonly headroom: { readonly session: Headroom; readonly weekly: Headroom };
-  readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant } | null;
+  /** unblocks: the same account is blocked until within a minute of this reset, so the tile says it on the reset line. */
+  readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant; readonly unblocks: boolean } | null;
+  /** Null when nextReset already says it. */
   readonly nextUnblock: { readonly account: AccountId; readonly email: string; readonly at: Instant } | null;
   readonly claimable: readonly ClaimableView[];
 }
@@ -62,6 +64,7 @@ export interface AccountView {
   readonly routing: RoutingView;
   readonly cooldowns: readonly CooldownView[];
   readonly statusMessage: string | null;
+  readonly trouble: TroubleView | null;
   readonly atWall: boolean;
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
@@ -111,6 +114,17 @@ export type CooldownView = CooldownScope & {
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
 };
+
+/**
+ * Why the account is in trouble, as the parts of one sentence. `cause` is CPA's message where it
+ * maps to a known phrase, else the cooldown reason. A hold is one stretch of cooling down, and a
+ * second appears only when the model cooldowns outlast the account's. `until` is null when CPA
+ * gives no retry time. No holds means only CPA's last error message is left.
+ */
+export interface TroubleView {
+  readonly cause: string;
+  readonly holds: readonly { readonly what: string; readonly until: Instant | null }[];
+}
 
 /** idle: the session limit is absent from limits[], so no session window is running. */
 export type WindowPhase = 'open' | 'idle' | 'lapsed';

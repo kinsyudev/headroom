@@ -5,6 +5,7 @@ import {
   type AccountId,
   type CedarEmber,
   type ClaimRecord,
+  type Cooldown,
   type CpaAccount,
   type Grant,
   type HeaderQuota,
@@ -39,6 +40,7 @@ import type {
   ReadView,
   RoutingView,
   SpendView,
+  TroubleView,
 } from './view';
 
 export const SERVING_WINDOW_MS = 120_000;
@@ -87,6 +89,26 @@ const WINDOW_WORDS: Readonly<Record<string, string>> = {
   five_hour: 'the session (5h) limit',
   seven_day: 'the weekly limit',
 };
+
+export const REASON_TEXT: Readonly<Record<string, string>> = {
+  quota: 'quota used up',
+  credential_quota: 'quota used up',
+  unauthorized: 'token rejected',
+  payment_required: 'payment required',
+  not_found: 'not found',
+  invalid_grant: 'sign-in expired, log in again',
+  cloudflare_challenge: 'blocked by a Cloudflare challenge',
+  model_not_supported: 'model not supported',
+  transient_error: 'temporary error',
+  org_spend_cap_reached: 'monthly spend cap reached',
+  org_level_disabled: 'extra usage is off for the organization',
+  group_zero_credit_limit: 'no extra-usage credit',
+};
+
+const MESSAGE_CAUSES: readonly (readonly [RegExp, string])[] = [[/monthly spend limit/i, 'Monthly spend limit hit']];
+
+/** The page shows minutes, so two times this close read as one moment. */
+const SAME_MOMENT_MS = MINUTE_MS;
 
 export function deriveDeck(s: Snapshot, now: Instant): DeckView {
   const accounts = s.cpa.last?.value ?? [];
@@ -137,6 +159,7 @@ export function deriveAccount(
     routing,
     cooldowns: a.cooldowns.filter((c) => c.retryAt > now).map(({ httpStatus: _, ...view }) => view),
     statusMessage: a.statusMessage,
+    trouble: deriveTrouble(a, now),
     atWall,
     limits,
     spend: deriveSpend(feeds.spend, a.headers),
@@ -221,6 +244,36 @@ export function eligibility(a: CpaAccount, now: Instant): Eligibility {
   const times = [...credential.map((c) => c.retryAt), ...(unavailable && a.nextRetryAfter !== null ? [a.nextRetryAfter] : [])];
   const until = unavailable && a.nextRetryAfter === null ? null : (Math.max(...times) as Instant);
   return { ok: false, until, reason: credential[0]?.reason ?? a.statusMessage ?? 'unavailable' };
+}
+
+function deriveTrouble(a: CpaAccount, now: Instant): TroubleView | null {
+  const live = a.cooldowns.filter((c) => c.retryAt > now);
+  const holds = deriveHolds(
+    eligibility(a, now),
+    live.flatMap((c) => (c.scope === 'model' ? [c] : [])),
+  );
+  return holds.length === 0 && a.statusMessage === null ? null : { cause: deriveCause(a.statusMessage, live), holds };
+}
+
+function deriveCause(message: string | null, live: readonly Cooldown[]): string {
+  const phrase = MESSAGE_CAUSES.find(([pattern]) => message !== null && pattern.test(message));
+  if (phrase) return phrase[1];
+  const named = live.filter((c) => c.reason !== 'unknown');
+  const reason = (named.find((c) => c.scope === 'credential') ?? named[0])?.reason;
+  const text = reason === undefined ? message : (REASON_TEXT[reason] ?? reason);
+  return text === null ? 'Reason unknown' : text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function deriveHolds(gate: Eligibility, models: readonly { readonly model: string; readonly retryAt: Instant }[]): TroubleView['holds'] {
+  const modelsUntil = models.length === 0 ? null : (Math.max(...models.map((c) => c.retryAt)) as Instant);
+  const named = models.length === 1 ? models[0]!.model.replace(/^claude-/, '') : `${models.length} models`;
+  if (gate.ok) return modelsUntil === null ? [] : [{ what: `${named} cooling down`, until: modelsUntil }];
+  if (modelsUntil === null) return [{ what: 'account cooling down', until: gate.until }];
+  if (gate.until === null || modelsUntil <= gate.until + SAME_MOMENT_MS) return [{ what: `account and ${named} cooling down`, until: gate.until }];
+  return [
+    { what: 'account cooling down', until: gate.until },
+    { what: `${named} cooling down`, until: modelsUntil },
+  ];
 }
 
 export function deriveRouting(
@@ -564,7 +617,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     .sort((x, y) => (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) || x.email.localeCompare(y.email));
   const enabled = accounts.filter((a) => a.routing.role.kind !== 'disabled');
 
-  let nextReset: OverviewView['nextReset'] = null;
+  let nextReset: Omit<NonNullable<OverviewView['nextReset']>, 'unblocks'> | null = null;
   for (const a of accounts) {
     for (const l of a.limits) {
       if (l.phase === 'open' && l.resetsAt !== null && (nextReset === null || l.resetsAt < nextReset.at)) {
@@ -579,6 +632,8 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
       nextUnblock = { account: a.id, email: a.email, at: r.until };
     }
   }
+  const unblocksWithReset =
+    nextReset !== null && nextUnblock !== null && nextUnblock.account === nextReset.account && Math.abs(nextUnblock.at - nextReset.at) <= SAME_MOMENT_MS;
   const claimable: ClaimableView[] = accounts.flatMap((a) =>
     a.offers.flatMap((o) => {
       if (o.state.kind !== 'claimable') return [];
@@ -592,8 +647,8 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     target: targets[0] ? { account: targets[0].id, email: targets[0].email } : null,
     servingEvidence: evidence,
     headroom: { session: headroom(enabled, 'session'), weekly: headroom(enabled, 'weekly') },
-    nextReset,
-    nextUnblock,
+    nextReset: nextReset && { ...nextReset, unblocks: unblocksWithReset },
+    nextUnblock: unblocksWithReset ? null : nextUnblock,
     claimable,
   };
 }

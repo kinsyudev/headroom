@@ -1,26 +1,11 @@
 import type { ClaimRecord, Money, Percent, SourceError } from '../shared/domain';
-import { clearsText, INELIGIBLE_EXPLAIN } from '../shared/derive';
+import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
 import type { ServingWhy } from '../shared/view';
 
 export const SERVING_WHY: Readonly<Record<ServingWhy, { readonly short: string; readonly long: string }>> = {
   fill_first_target: { short: 'first in line', long: 'first in line (fill-first)' },
   affinity: { short: 'session affinity', long: 'session affinity' },
   round_robin: { short: 'round-robin', long: 'round-robin' },
-};
-
-const REASON_TEXT: Readonly<Record<string, string>> = {
-  quota: 'quota used up',
-  credential_quota: 'quota used up',
-  unauthorized: 'token rejected',
-  payment_required: 'payment required',
-  not_found: 'not found',
-  invalid_grant: 'sign-in expired, log in again',
-  cloudflare_challenge: 'blocked by a Cloudflare challenge',
-  model_not_supported: 'model not supported',
-  transient_error: 'temporary error',
-  org_spend_cap_reached: 'monthly spend cap reached',
-  org_level_disabled: 'extra usage is off for the organization',
-  group_zero_credit_limit: 'no extra-usage credit',
 };
 
 const CLAIM_RESULT: Readonly<Record<string, string>> = {
