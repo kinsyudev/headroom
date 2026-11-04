@@ -29,7 +29,6 @@ export const BACKOFF_LADDER_MS = [5, 10, 20, 30].map((m) => m * 60_000);
 export const READ_CAP = 8;
 export const READ_CAP_WINDOW_MS = 15 * 60_000;
 export const READ_TIMEOUT_MS = 20_000;
-/** Claude Code gives the claim 25 s upstream; our wait on CPA must outlast it. */
 export const CLAIM_TIMEOUT_MS = 35_000;
 
 export const READ_PATH: Readonly<Record<ReadMode, string>> = {

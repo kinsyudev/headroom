@@ -46,7 +46,9 @@ export const PROFILE_READ_EVERY_MS = 6 * 3_600_000;
 export const MANUAL_REFRESH_EVERY_MS = 60_000;
 /** One rejected key per 35 min can never reach CPA's 5-strikes-in-30-min ban. */
 export const KEY_REJECT_LATCH_MS = 35 * 60_000;
-export const SETTLE_LAG_MS = 60_000;
+export const CLAUDE_CODE_CLAIM_TIMEOUT_MS = 25_000;
+const MINUTE_MS = 60_000;
+export const SETTLE_LAG_MS = Math.max(MINUTE_MS, 2 * CLAUDE_CODE_CLAIM_TIMEOUT_MS);
 
 const FRESHNESS: Record<Exclude<FeedName, 'headers'>, { readonly aging: number; readonly stale: number }> = {
   cpa: { aging: 15_000, stale: 60_000 },
