@@ -25,7 +25,14 @@ To keep it running, install the LaunchAgent. It starts `bun run src/main.ts` in 
 
 ```sh
 cp launchd/com.kinsyu.cpa-deck.plist ~/Library/LaunchAgents/
-launchctl load -w ~/Library/LaunchAgents/com.kinsyu.cpa-deck.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kinsyu.cpa-deck.plist
+```
+
+To restart it after pulling changes, or to stop it:
+
+```sh
+launchctl kickstart -k gui/$(id -u)/com.kinsyu.cpa-deck
+launchctl bootout gui/$(id -u)/com.kinsyu.cpa-deck
 ```
 
 These environment variables override the defaults. Tests and `scripts/fake-stack.ts` use them.
@@ -49,7 +56,7 @@ bun scripts/e2e.ts
 
 `scripts/e2e.ts` starts the deck on :18338 against the fake CPA and clicks every action in Chromium. It then checks that the fake recorded exactly the expected mutations. Screenshots go to `var/screenshots/` and the step log goes to `var/e2e-report.json`.
 
-To check the real setup without changing it, run `bun scripts/live-check.ts`. It starts the deck against the real CPA and keeper and waits for the first budgeted reads, about six Anthropic calls. It prints what the page shows, probes the guard with requests that can't mutate anything, saves `var/screenshots/live.png`, and stops the deck.
+To check the real setup without changing it, stop the LaunchAgent and run `bun scripts/live-check.ts`. It starts its own deck on :1338 against the real CPA and keeper and waits for the first budgeted reads, about six Anthropic calls. It prints what the page shows, probes the guard with requests that can't mutate anything, saves `var/screenshots/live.png`, and stops the deck.
 
 ## What the page shows
 

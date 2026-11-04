@@ -454,6 +454,9 @@ rect:focus-visible {
   row-gap: 2px;
   align-items: center;
 }
+.limit.spend {
+  grid-template-columns: 112px 1fr 44px auto;
+}
 .limit-label {
   font-size: 13px;
   color: var(--ink);
