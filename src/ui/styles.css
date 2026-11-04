@@ -6,22 +6,19 @@
   --raised: #2b2b29;
   --ink: #f0efec;
   --ink-2: #c3c2b7;
-  --muted: #898781;
+  --muted: #9b9a93;
   --grid: #2c2c2a;
   --axis: #383835;
   --border: rgba(255, 255, 255, 0.1);
   --accent: #3987e5;
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-  --series-5: #d55181;
-  --series-6: #008300;
-  --series-7: #9085e9;
-  --series-8: #e66767;
+  --id-1: #7b5ffa;
+  --id-2: #00829b;
+  --id-3: #d648c2;
+  --id-4: #259dfb;
+  --id-5: #d5a6fe;
+  --id-6: #7abfc6;
   --good: #0ca30c;
   --warning: #fab219;
-  --serious: #ec835a;
   --critical: #d03b3b;
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --radius: 10px;
@@ -140,14 +137,15 @@ code {
 }
 .btn:disabled {
   cursor: default;
-  opacity: 0.45;
+}
+.btn:disabled:not(.primary) {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent);
+  color: var(--muted);
 }
 .btn.primary {
   background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-}
-.btn.primary:disabled {
-  opacity: 1;
 }
 .btn.danger {
   background: color-mix(in srgb, var(--critical) 30%, var(--surface));
@@ -410,7 +408,7 @@ rect:focus-visible {
   border-color: color-mix(in srgb, var(--good) 45%, var(--border));
 }
 .card.role-disabled {
-  opacity: 0.75;
+  opacity: 0.88;
 }
 .card-head {
   display: flex;
@@ -507,13 +505,13 @@ rect:focus-visible {
   position: relative;
   height: 8px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--fill, var(--accent)) 16%, var(--surface-2));
+  background: color-mix(in srgb, var(--fill, var(--muted)) 16%, var(--surface-2));
   overflow: visible;
 }
 .meter-fill {
   height: 100%;
   border-radius: 4px;
-  background: var(--fill, var(--accent));
+  background: var(--fill, var(--muted));
   min-width: 3px;
 }
 .meter-tick {
@@ -522,8 +520,8 @@ rect:focus-visible {
   width: 2px;
   height: 14px;
   margin-left: -1px;
-  background: var(--ink-2);
-  opacity: 0.55;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--surface);
   border-radius: 1px;
 }
 

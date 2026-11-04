@@ -57,14 +57,16 @@ export function StackedColumns(props: {
             return bottom - top > 0.5 ? [{ key: s.key, color: s.color, top, bottom, si }] : [];
           });
           return (
-            <g key={b.start} opacity={hover === null || hover === i ? 1 : 0.55}>
-              {segs.map((g, k) =>
-                k === segs.length - 1 ? (
-                  <path key={g.key} d={roundedTop(x, g.top, bw, g.bottom - g.top)} fill={g.color} />
-                ) : (
-                  <rect key={g.key} x={x} y={g.top} width={bw} height={g.bottom - g.top} fill={g.color} />
-                ),
-              )}
+            <g key={b.start}>
+              <g opacity={hover === null || hover === i ? 1 : 0.55}>
+                {segs.map((g, k) =>
+                  k === segs.length - 1 ? (
+                    <path key={g.key} d={roundedTop(x, g.top, bw, g.bottom - g.top)} fill={g.color} />
+                  ) : (
+                    <rect key={g.key} x={x} y={g.top} width={bw} height={g.bottom - g.top} fill={g.color} />
+                  ),
+                )}
+              </g>
               {i % labelEvery === 0 && (
                 <text x={x + bw / 2} y={H - 8} textAnchor="middle" className="tick">
                   {props.bucketLabel(b.start, i)}

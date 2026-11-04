@@ -4,7 +4,7 @@ import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, duration, money, percent } from '../format';
 
-const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--accent)', warning: 'var(--warning)', critical: 'var(--critical)' };
+const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--muted)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));

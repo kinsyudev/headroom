@@ -9,6 +9,8 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { OverviewStrip } from './components/OverviewStrip';
 import { useDeck } from './deck';
 
+const IDENTITY_HUES = 6;
+
 interface ClaimTarget {
   readonly account: AccountId;
   readonly program: ProgramId;
@@ -21,7 +23,7 @@ export function App() {
   const [claim, setClaim] = useState<ClaimTarget | null>(null);
   if (!deck) return <Splash connection={connection} />;
 
-  const colors = new Map(deck.accounts.map((a, i) => [a.id, `var(--series-${(i % 8) + 1})`]));
+  const colors = new Map(deck.accounts.map((a, i) => [a.id, `var(--id-${(i % IDENTITY_HUES) + 1})`]));
   const claimAccount = claim ? deck.accounts.find((a) => a.id === claim.account) : undefined;
 
   return (
