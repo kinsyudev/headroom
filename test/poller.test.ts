@@ -179,7 +179,7 @@ describe('manual refresh', () => {
     const r = rig({ accounts: one });
     await r.run(40_000);
     expect(reads(r.sent).map((s) => s.path)).toEqual(['/api/oauth/usage?cedar_ember=1']);
-    r.poller.readWallSoon(ACC1);
+    r.poller.wantWall(ACC1, r.clock.now());
     await r.run(15_000);
     expect(reads(r.sent).map((s) => s.path)).toEqual(['/api/oauth/usage?cedar_ember=1', '/api/oauth/usage?at_wall=1&skip_spend=1']);
     await r.run(5 * MIN + 15_000);

@@ -37,14 +37,17 @@ export interface ReadClock {
   readonly firstAt: Instant;
   readonly lastAttemptAt: Instant | null;
   readonly requestedAt: Instant | null;
+  readonly wallWanted: Instant | null;
   readonly backoffUntil: Instant | null;
   readonly capUntil: Instant | null;
 }
 
 export function readDueAt(c: ReadClock, atWall: boolean): Instant {
-  const cadence = Math.max(c.firstAt, c.lastAttemptAt === null ? -Infinity : c.lastAttemptAt + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
-  const requested = c.requestedAt !== null && (c.lastAttemptAt === null || c.requestedAt > c.lastAttemptAt) ? c.requestedAt : null;
-  return Math.max(requested === null ? cadence : Math.min(cadence, requested), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
+  const last = c.lastAttemptAt ?? -Infinity;
+  const cadence = Math.max(c.firstAt, last + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
+  // A request pulls the next read earlier until a read is attempted after it; then the cadence retries.
+  const pull = (t: Instant | null) => (t !== null && t > last ? t : Infinity);
+  return Math.max(Math.min(cadence, pull(c.requestedAt), pull(c.wallWanted)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
 }
 
 export function profileDueAt(c: { readonly firstAt: Instant; readonly attemptAt: Instant | null; readonly okAt: Instant | null; readonly backoffUntil: Instant | null }): Instant {
@@ -58,8 +61,12 @@ interface AccountState {
   readonly firstAt: Instant;
   lastAttemptAt: Instant | null;
   requestedAt: Instant | null;
-  /** The next read must be `wall`, whatever isAtWall says: a claim's result shows only there. */
-  wallRequested: boolean;
+  /**
+   * Reads from this instant on are `wall`, whatever isAtWall says, until one succeeds: a claim's
+   * result shows only there, and an account the claim took off the wall would otherwise get
+   * `normal` reads forever.
+   */
+  wallWanted: Instant | null;
   manualAt: Instant | null;
   profileAttemptAt: Instant | null;
   profileOkAt: Instant | null;
@@ -77,8 +84,8 @@ export interface Poller {
   kick(account: AccountId | 'all'): { account: AccountId; held: RefreshHeld | null }[];
   /** One `wall` read now, behind any read already queued for the account. For claims. */
   readWall(account: AccountId): Promise<Polled<UsageRead>>;
-  /** A `wall` read as soon as the budget allows, without the manual debounce. Used after a claim. */
-  readWallSoon(account: AccountId): void;
+  /** A `wall` read at `at` or later, retried on the normal cadence until one succeeds. Used after a claim. */
+  wantWall(account: AccountId, at: Instant): void;
   profile(account: AccountId): Profile | null;
 }
 
@@ -103,7 +110,7 @@ export function createPoller(deps: {
         firstAt: (now + fresh++ * stagger) as Instant,
         lastAttemptAt: deps.anthropic.budget(a.id).lastReadAt,
         requestedAt: null,
-        wallRequested: false,
+        wallWanted: null,
         manualAt: null,
         profileAttemptAt: null,
         profileOkAt: null,
@@ -127,6 +134,7 @@ export function createPoller(deps: {
         }
         const r = await deps.anthropic.read(id, kind);
         st.lastAttemptAt = r.at;
+        if (kind === 'wall' && r.ok && st.wallWanted !== null && r.at >= st.wallWanted) st.wallWanted = null;
         const f = st.feeds;
         st.feeds = {
           ...f,
@@ -161,9 +169,7 @@ export function createPoller(deps: {
       }
       const atWall = isAtWall(a, st.feeds.limits.last, now);
       if (now < readDueAt({ ...st, backoffUntil, capUntil }, atWall)) continue;
-      const mode = st.wallRequested || atWall ? 'wall' : 'normal';
-      if (mode === 'wall') st.wallRequested = false;
-      void enqueue(a.id, st, mode);
+      void enqueue(a.id, st, atWall || (st.wallWanted !== null && now >= st.wallWanted) ? 'wall' : 'normal');
     }
   }
 
@@ -227,12 +233,9 @@ export function createPoller(deps: {
       if (!st) throw new DeckError('unknown_account', `no reads scheduled for ${account}`);
       return enqueue(account, st, 'wall') as Promise<Polled<UsageRead>>;
     },
-    readWallSoon(account) {
+    wantWall(account, at) {
       const st = states.get(account);
-      if (st) {
-        st.requestedAt = deps.clock.now();
-        st.wallRequested = true;
-      }
+      if (st) st.wallWanted = Math.max(st.wallWanted ?? -Infinity, at) as Instant;
       tick();
     },
     profile(account) {

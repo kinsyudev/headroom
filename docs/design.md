@@ -98,7 +98,7 @@ Per make-operations-idempotent, each step is derived from the state that exists.
   3. Run `deriveOffers` on that fresh sample. If the offer isn't `claimable`, return `not_claimable` with `explainOffer()`.
   4. Send `POST /api/organizations/{org}/reset_rate_limits` once. Use `{program:'juniper_tide'}`, or `{program:'cedar_ember', grant_id, request_id: crypto.randomUUID()}`. Never retry automatically.
   5. On `reset` or `not_limited`, call CPA `POST /reset-quota {auth_index}`. Try at most 3 times, 2 s apart. If it still fails, report that the claim succeeded but CPA's cooldown wasn't cleared, and point at **Clear cooldown**.
-  6. Record the in-memory result: `settled{outcome, followup}`, or `unknown{at}` on a timeout or network error. Then schedule an immediate `wall` read.
+  6. Record the in-memory result: `settled{outcome, followup}`, or `unknown{at}` on a timeout or network error. Then ask the poller for a `wall` read as soon as the budget allows. Reads stay `wall` until one succeeds, still subject to backoff and the read cap, because an account the claim took off the wall would otherwise get only `normal` reads, which never carry juniper_tide.
 - **Crash safety without a journal.** The precondition in step 2 is a fresh upstream read. A claim that landed before a crash shows up as `available:false` or a lower `resets_left`, so a re-claim is refused. A claim that didn't land stays claimable, which is correct. `unknown` is shown as "Outcome unknown, checking", never as failed.
 - The last 20 claim results stay in memory in `Snapshot.claims` so the UI can show the outcome.
 

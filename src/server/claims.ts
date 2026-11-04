@@ -9,7 +9,8 @@
  *   4. One POST reset_rate_limits. Never retried.
  *   5. On `reset` or `not_limited`, CPA reset-quota, at most 3 tries 2 s apart.
  *   6. Record settled or unknown, then ask for a wall read as soon as the budget allows. That
- *      read is what resolves the claim in the UI, so it is `wall` even if the account left the wall.
+ *      read is what resolves the claim in the UI, so it is `wall` even if the account left the
+ *      wall, and it stays wanted through failures until one succeeds.
  * A claim that landed before a crash shows up in the next read as unavailable or fewer resets
  * left, so step 3 refuses a repeat. One that never landed stays claimable, which is correct.
  */
@@ -97,7 +98,7 @@ export function createClaims(deps: {
     }
     const done = { ...record, state: final };
     put(done);
-    deps.poller.readWallSoon(account);
+    deps.poller.wantWall(account, final.at);
     return done;
   }
 
