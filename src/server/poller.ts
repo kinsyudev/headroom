@@ -8,6 +8,8 @@ import {
 } from '../shared/derive';
 import {
   emptySource,
+  failed,
+  succeeded,
   type AccountFeeds,
   type AccountId,
   type CpaAccount,
@@ -226,7 +228,6 @@ export function createPoller(deps: {
 }
 
 function record<T, V>(src: Source<T>, r: Polled<V>, pick: (v: V) => T): Source<T> {
-  return r.ok
-    ? { last: { value: pick(r.value), at: r.at }, error: null, attemptedAt: r.at, nextAt: null }
-    : { ...src, error: { value: r.error, at: r.at }, attemptedAt: r.at };
+  const attempt = { attemptedAt: r.at, nextAt: null };
+  return r.ok ? succeeded(pick(r.value), r.at, attempt) : failed(src, r.error, r.at, attempt);
 }

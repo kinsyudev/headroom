@@ -1,7 +1,7 @@
 /** /auth-files every 5 s and /routing/strategy every 60 s; both are local and cost nothing upstream. */
 import { z } from 'zod';
 import { DeckError } from '../shared/errors';
-import { emptySource, type CpaAccount, type Instant, type RoutingStrategy, type Source, type SourceError } from '../shared/domain';
+import { emptySource, failed, succeeded, type CpaAccount, type Instant, type RoutingStrategy, type Source, type SourceError } from '../shared/domain';
 import type { Cpa } from './cpa';
 
 export const CPA_EVERY_MS = 5_000;
@@ -25,23 +25,25 @@ export function createObserver(deps: { readonly cpa: Cpa; readonly now: () => In
 
   async function readAccounts(): Promise<Instant> {
     const attempted = deps.now();
+    const attempt = { attemptedAt: attempted, nextAt: (attempted + CPA_EVERY_MS) as Instant };
     try {
       const r = await deps.cpa.listAccounts();
-      accounts = { last: { value: r.accounts, at: r.observedAt }, error: null, attemptedAt: attempted, nextAt: (attempted + CPA_EVERY_MS) as Instant };
+      accounts = succeeded(r.accounts, r.observedAt, attempt);
       return r.observedAt;
     } catch (e) {
-      accounts = { ...accounts, error: { value: toSourceError(e), at: deps.now() }, attemptedAt: attempted, nextAt: (attempted + CPA_EVERY_MS) as Instant };
+      accounts = failed(accounts, toSourceError(e), deps.now(), attempt);
       return deps.now();
     }
   }
 
   async function readStrategy(): Promise<void> {
     const attempted = deps.now();
+    const attempt = { attemptedAt: attempted, nextAt: (attempted + STRATEGY_EVERY_MS) as Instant };
     try {
       const value = await deps.cpa.getStrategy();
-      strategy = { last: { value, at: deps.now() }, error: null, attemptedAt: attempted, nextAt: (attempted + STRATEGY_EVERY_MS) as Instant };
+      strategy = succeeded(value, deps.now(), attempt);
     } catch (e) {
-      strategy = { ...strategy, error: { value: toSourceError(e), at: deps.now() }, attemptedAt: attempted, nextAt: (attempted + STRATEGY_EVERY_MS) as Instant };
+      strategy = failed(strategy, toSourceError(e), deps.now(), attempt);
     }
   }
 

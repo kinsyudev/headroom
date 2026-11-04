@@ -61,6 +61,19 @@ export type SourceError =
   | { readonly kind: 'malformed'; readonly message: string }
   | { readonly kind: 'unavailable'; readonly message: string };
 
+export interface Attempt {
+  readonly attemptedAt: Instant;
+  readonly nextAt: Instant | null;
+}
+
+export function succeeded<T>(value: T, at: Instant, attempt: Attempt): Source<T> {
+  return { last: { value, at }, error: null, attemptedAt: attempt.attemptedAt, nextAt: attempt.nextAt };
+}
+
+export function failed<T>(previous: Source<T>, error: SourceError, at: Instant, attempt: Attempt): Source<T> {
+  return { last: previous.last, error: { value: error, at }, attemptedAt: attempt.attemptedAt, nextAt: attempt.nextAt };
+}
+
 export type RoutingStrategy = 'fill-first' | 'round-robin';
 export type CpaStatus = 'active' | 'error' | 'disabled' | 'pending' | 'refreshing' | 'unknown';
 export const COOLDOWN_REASONS = [

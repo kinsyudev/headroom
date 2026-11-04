@@ -4,7 +4,7 @@
  */
 import { Database } from 'bun:sqlite';
 import { DeckError } from '../shared/errors';
-import { emptySource, parseInstant, type AccountId, type Instant, type ServingSeen, type Source } from '../shared/domain';
+import { emptySource, failed, parseInstant, succeeded, type AccountId, type Instant, type ServingSeen, type Source } from '../shared/domain';
 import { SERVING_WINDOW_MS } from '../shared/derive';
 import { RANGE_MS, type ErrorRow, type HistoryRange, type HistoryView, type TokenTotals } from '../shared/history';
 
@@ -94,14 +94,15 @@ export function openKeeper(path: string, now: () => Instant): Keeper {
 
   function readServing(): void {
     const t = now();
+    const attempt = { attemptedAt: t, nextAt: (t + SERVING_EVERY_MS) as Instant };
     try {
       const rows = open()
         .query<{ account: string; last_jd: number | null; recent: number }, { $since: number }>(SQL.serving)
         .all({ $since: toJulian(t - SERVING_WINDOW_MS) });
       const value = rows.flatMap((r) => (r.last_jd === null ? [] : [{ account: r.account as AccountId, lastAt: fromJulian(r.last_jd), recent: r.recent }]));
-      servingSrc = { last: { value, at: t }, error: null, attemptedAt: t, nextAt: (t + SERVING_EVERY_MS) as Instant };
+      servingSrc = succeeded(value, t, attempt);
     } catch (e) {
-      servingSrc = { ...servingSrc, error: { value: { kind: 'unavailable', message: unreadable(e) }, at: t }, attemptedAt: t, nextAt: (t + SERVING_EVERY_MS) as Instant };
+      servingSrc = failed(servingSrc, { kind: 'unavailable', message: unreadable(e) }, t, attempt);
     }
   }
 
