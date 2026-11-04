@@ -3,8 +3,11 @@
  * token. Every Anthropic request leaves through `send`, which enforces the budget:
  * - one call in flight, and at least `gapMs` (10 s) between the starts of any two calls;
  * - a 429 or `rate_limit_error` backs off that account only: `retry-after` when present, else
- *   5, 10, 20, then 30 min; a 2xx resets it; backoff persists in state.json across restarts;
+ *   5, 10, 20, then 30 min; only a successful usage read resets it, because the usage endpoint
+ *   is the one Anthropic limits;
  * - nothing is sent for an account in backoff.
+ * Each account's budget (when its usage reads left, and its backoff with the ladder step) lives
+ * in state.json, so a restarted process continues the same budget instead of starting a new one.
  * Scheduling (which account, which mode, when) belongs to poller.ts. Nothing here retries.
  */
 import { z } from 'zod';
@@ -24,11 +27,13 @@ import type {
 } from '../shared/domain';
 import { parseInstant } from '../shared/domain';
 import type { Cpa, UpstreamResult } from './cpa';
-import type { StateFile } from './state';
+import type { ReadBudget, StateFile } from './state';
 
 const BASE = 'https://api.anthropic.com';
 export const ANTHROPIC_GAP_MS = 10_000;
 export const BACKOFF_LADDER_MS = [5, 10, 20, 30].map((m) => m * 60_000);
+/** How long state.json remembers each usage read. */
+export const READ_LOG_MS = 15 * 60_000;
 export const READ_TIMEOUT_MS = 20_000;
 /** Claude Code gives the claim 25 s upstream; our wait on CPA must outlast it. */
 export const CLAIM_TIMEOUT_MS = 35_000;
@@ -65,8 +70,18 @@ export interface Anthropic {
   profile(account: AccountId): Promise<Polled<Profile>>;
   /** POST reset_rate_limits. IRREVERSIBLE. Only claims.ts calls it, once per user intent. */
   claim(account: AccountId, req: ClaimRequest): Promise<ClaimAttempt>;
-  backoffUntil(account: AccountId): Instant | null;
+  budget(account: AccountId): Budget;
 }
+
+/** One account's read budget as of now, across this process and the ones before it. */
+export interface Budget {
+  /** When the newest usage read left. */
+  readonly lastReadAt: Instant | null;
+  /** A live 429 backoff: nothing is sent for the account until then. */
+  readonly backoffUntil: Instant | null;
+}
+
+const NO_BUDGET: ReadBudget = { reads: [], backoff: null };
 
 /** The one place the Claude Code identity is built. Without it every program reads `ineligible: surface`. */
 export function claudeHeaders(cliVersion: string): Record<string, string> {
@@ -90,43 +105,41 @@ export function createAnthropic(deps: {
   readonly claimTimeoutMs?: number;
 }): Anthropic {
   const gap = deps.gapMs ?? ANTHROPIC_GAP_MS;
-  const streak = new Map<AccountId, number>();
   let tail: Promise<unknown> = Promise.resolve();
   let lastAt = -Infinity;
 
-  function backoffUntil(account: AccountId): Instant | null {
-    const until = deps.state.read().backoff[account];
-    return until !== undefined && until > deps.clock.now() ? (until as Instant) : null;
+  const stored = (account: AccountId): ReadBudget => deps.state.read().budgets[account] ?? NO_BUDGET;
+
+  function write(account: AccountId, fn: (b: ReadBudget) => ReadBudget): void {
+    deps.state.update((s) => ({ ...s, budgets: { ...s.budgets, [account]: fn(s.budgets[account] ?? NO_BUDGET) } }));
+  }
+
+  function budget(account: AccountId): Budget {
+    const b = stored(account);
+    return {
+      lastReadAt: (b.reads.at(-1) ?? null) as Instant | null,
+      backoffUntil: b.backoff !== null && b.backoff.until > deps.clock.now() ? (b.backoff.until as Instant) : null,
+    };
   }
 
   function setBackoff(account: AccountId, retryAfterMs: number | null): void {
-    const n = streak.get(account) ?? 0;
-    streak.set(account, n + 1);
-    const until = deps.clock.now() + (retryAfterMs ?? BACKOFF_LADDER_MS[Math.min(n, BACKOFF_LADDER_MS.length - 1)]!);
-    deps.state.update((s) => ({ ...s, backoff: { ...liveBackoff(s.backoff), [account]: until } }));
-  }
-
-  function clearBackoff(account: AccountId): void {
-    streak.delete(account);
-    if (deps.state.read().backoff[account] === undefined) return;
-    deps.state.update((s) => {
-      const { [account]: _, ...rest } = s.backoff;
-      return { ...s, backoff: liveBackoff(rest) };
+    const now = deps.clock.now();
+    write(account, (b) => {
+      const streak = (b.backoff?.streak ?? 0) + 1;
+      return { ...b, backoff: { streak, until: now + (retryAfterMs ?? BACKOFF_LADDER_MS[Math.min(streak, BACKOFF_LADDER_MS.length) - 1]!) } };
     });
   }
 
-  function liveBackoff(b: Readonly<Record<string, number>>): Record<string, number> {
-    const now = deps.clock.now();
-    return Object.fromEntries(Object.entries(b).filter(([, until]) => until > now));
-  }
-
   function send(account: AccountId, method: 'GET' | 'POST', path: string, data: string | undefined, timeoutMs: number): Promise<Sent> {
+    const usage = (Object.values(READ_PATH) as string[]).includes(path);
     const run = async (): Promise<Sent> => {
       const wait = lastAt + gap - deps.clock.now();
       if (wait > 0) await deps.clock.sleep(wait);
-      const held = backoffUntil(account);
+      const held = budget(account).backoffUntil;
       if (held !== null) return { kind: 'held', until: held };
-      lastAt = deps.clock.now();
+      const sentAt = (lastAt = deps.clock.now());
+      // Recorded before the request leaves, so a process killed mid-read still counts it.
+      if (usage) write(account, (b) => ({ ...b, reads: [...b.reads.filter((t) => t > sentAt - READ_LOG_MS), sentAt] }));
       const r = await deps.cpa.apiCall({
         account,
         method,
@@ -135,10 +148,11 @@ export function createAnthropic(deps: {
         ...(data === undefined ? {} : { data }),
         timeoutMs,
       });
+      if (usage && r.kind === 'not_sent') write(account, (b) => ({ ...b, reads: b.reads.filter((t) => t !== sentAt) }));
       if (r.kind === 'answered') {
         const limited = rateLimit(r);
         if (limited !== undefined) setBackoff(account, limited);
-        else if (r.status < 400) clearBackoff(account);
+        else if (usage && r.status < 400 && stored(account).backoff !== null) write(account, (b) => ({ ...b, backoff: null }));
       }
       return r;
     };
@@ -153,7 +167,7 @@ export function createAnthropic(deps: {
     if (r.kind === 'held') return fail({ kind: 'rate_limited', retryAt: r.until });
     if (r.kind === 'not_sent') return fail(deps.cpa.link().kind === 'ok' ? { kind: 'cpa_unreachable' } : { kind: 'link_down' });
     if (r.kind === 'unknown') return fail({ kind: 'upstream', status: 0, message: r.why });
-    if (rateLimit(r) !== undefined) return fail({ kind: 'rate_limited', retryAt: backoffUntil(account) ?? at });
+    if (rateLimit(r) !== undefined) return fail({ kind: 'rate_limited', retryAt: budget(account).backoffUntil ?? at });
     if (r.status === 401 || r.status === 403) return fail({ kind: 'auth', status: r.status });
     const body = parseJson(r.body);
     if (r.status >= 400) return fail({ kind: 'upstream', status: r.status, message: errorMessage(body) });
@@ -166,7 +180,7 @@ export function createAnthropic(deps: {
   }
 
   return {
-    backoffUntil,
+    budget,
     async read(account, mode) {
       return toPolled(account, await send(account, 'GET', READ_PATH[mode], undefined, READ_TIMEOUT_MS), (json) => parseUsage(json, mode));
     },

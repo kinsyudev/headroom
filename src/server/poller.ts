@@ -5,7 +5,8 @@
  * shows: `wall` every 3 min while at the wall, `normal` every 5 min otherwise. Profile at start,
  * then every 6 h. First reads are staggered 15 s per account. A manual refresh moves the next
  * read to now, once per 60 s per account, and never during backoff. The budget itself (10 s gap,
- * backoff) is enforced in anthropic.ts, where requests leave.
+ * backoff) is enforced in anthropic.ts, where requests leave. Each account's last read comes from
+ * that budget at start, so a restarted process keeps the cadence of the one before it.
  */
 import { DeckError } from '../shared/errors';
 import {
@@ -40,7 +41,7 @@ export interface ReadClock {
 }
 
 export function readDueAt(c: ReadClock, atWall: boolean): Instant {
-  const cadence = c.lastAttemptAt === null ? c.firstAt : c.lastAttemptAt + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS);
+  const cadence = Math.max(c.firstAt, c.lastAttemptAt === null ? -Infinity : c.lastAttemptAt + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
   const requested = c.requestedAt !== null && (c.lastAttemptAt === null || c.requestedAt > c.lastAttemptAt) ? c.requestedAt : null;
   return Math.max(requested === null ? cadence : Math.min(cadence, requested), c.backoffUntil ?? -Infinity) as Instant;
 }
@@ -99,7 +100,7 @@ export function createPoller(deps: {
       if (states.has(a.id)) continue;
       states.set(a.id, {
         firstAt: (now + fresh++ * stagger) as Instant,
-        lastAttemptAt: null,
+        lastAttemptAt: deps.anthropic.budget(a.id).lastReadAt,
         requestedAt: null,
         wallRequested: false,
         manualAt: null,
@@ -152,7 +153,7 @@ export function createPoller(deps: {
     for (const a of list) {
       const st = states.get(a.id)!;
       if (st.pending.length > 0) continue;
-      const backoffUntil = deps.anthropic.backoffUntil(a.id);
+      const { backoffUntil } = deps.anthropic.budget(a.id);
       if (now >= profileDueAt({ firstAt: st.firstAt, attemptAt: st.profileAttemptAt, okAt: st.profileOkAt, backoffUntil })) {
         void enqueue(a.id, st, 'profile');
         continue;
@@ -182,7 +183,7 @@ export function createPoller(deps: {
       for (const a of deps.accounts()) {
         const st = states.get(a.id);
         if (!st) continue;
-        const backoffUntil = deps.anthropic.backoffUntil(a.id);
+        const { backoffUntil } = deps.anthropic.budget(a.id);
         const atWall = isAtWall(a, st.feeds.limits.last, now);
         const due = linkOk ? readDueAt({ ...st, backoffUntil }, atWall) : null;
         const f = st.feeds;
@@ -206,7 +207,7 @@ export function createPoller(deps: {
         const held: RefreshHeld | null =
           st.pending.length > 0
             ? 'reading'
-            : deps.anthropic.backoffUntil(id) !== null
+            : deps.anthropic.budget(id).backoffUntil !== null
               ? 'rate_limited'
               : st.manualAt !== null && now - st.manualAt < MANUAL_REFRESH_EVERY_MS
                 ? 'debounced'

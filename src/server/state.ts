@@ -1,8 +1,9 @@
 /**
- * var/state.json: the only thing the deck persists. Two facts that must survive a LaunchAgent
- * restart loop: the management keys CPA rejected (cpa.ts) and per-account Anthropic backoff
- * (anthropic.ts). Each key has one writer. Writes are synchronous temp-file-plus-rename, so a
- * crash leaves either the old file or the new one, and two writers can't interleave.
+ * var/state.json: the only thing the deck persists. What must survive a LaunchAgent restart loop
+ * so that it spends no more than one long-lived process would: the management keys CPA rejected
+ * (cpa.ts) and each account's Anthropic read budget (anthropic.ts). Each part has one writer.
+ * Writes are synchronous temp-file-plus-rename, so a crash leaves either the old file or the new
+ * one, and two writers can't interleave.
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -14,9 +15,17 @@ export interface RejectedKey {
   readonly at: number;
 }
 
+export interface ReadBudget {
+  /** When each usage read left, oldest first, kept for the last READ_LOG_MS. */
+  readonly reads: readonly number[];
+  /** Set by a 429. `streak` counts 429s since the last successful usage read and picks the ladder step. */
+  readonly backoff: { readonly until: number; readonly streak: number } | null;
+}
+
 export interface DeckState {
   readonly rejectedKeys: readonly RejectedKey[];
-  readonly backoff: Readonly<Record<string, number>>;
+  /** Keyed by account id. */
+  readonly budgets: Readonly<Record<string, ReadBudget>>;
 }
 
 export interface StateFile {
@@ -24,11 +33,19 @@ export interface StateFile {
   update(fn: (s: DeckState) => DeckState): void;
 }
 
-const EMPTY: DeckState = { rejectedKeys: [], backoff: {} };
+const EMPTY: DeckState = { rejectedKeys: [], budgets: {} };
 
 const WireState = z.object({
   rejectedKeys: z.array(z.object({ keyHash: z.string(), at: z.number() })).catch([]),
-  backoff: z.record(z.string(), z.number()).catch({}),
+  budgets: z
+    .record(
+      z.string(),
+      z.object({
+        reads: z.array(z.number()).catch([]),
+        backoff: z.object({ until: z.number(), streak: z.number() }).nullable().catch(null),
+      }),
+    )
+    .catch({}),
 });
 
 export function openStateFile(path: string): StateFile {

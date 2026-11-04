@@ -66,7 +66,8 @@ All three candidates polled two usage endpoints at 60 s, which contradicts the m
 - **Budget rules.** `anthropic.ts` enforces them at the one place requests leave:
   - At least 10 s between any two Anthropic calls, process-wide.
   - Stagger the first poll per account by 15 s after start.
-  - On a 429, back off that account only. Honor `retry-after` when present, otherwise use 5, 10, 20, then 30 min, capped. Reset the backoff on success.
+  - On a 429, back off that account only. Honor `retry-after` when present, otherwise use 5, 10, 20, then 30 min, capped. Reset the backoff on a successful usage read. A profile 2xx does not reset it, because the usage endpoint is the one Anthropic limits.
+  - A restarted process continues the same budget. At start, the scheduler takes each account's last usage read from `var/state.json`, so a restart loop reads no account more often than one long-lived process would.
   - A manual refresh moves an account's next read to now. It is allowed once per 60 s per account and never during backoff.
 - **Claude Code identity.** Send `User-Agent: claude-cli/<version> (external, cli)` and `x-app: cli` on every Anthropic call. At startup, read `<version>` from `claude --version`. If that fails, fall back to `2.1.311`. Without these headers, every program reads `ineligible: surface`.
 
@@ -105,7 +106,7 @@ Per make-operations-idempotent, each step is derived from the state that exists.
 The file is `var/state.json`, gitignored, and always written atomically (temp file plus rename). It holds:
 
 - `rejectedKeys: {keyHash, at}[]`. A 401 or 403 from CPA adds the key's sha256. While the env key's hash is in the list with `at` under 35 min old, send nothing and show the rejected banner. The list holds every key rejected in that window, so switching from key A to key B and back to A does not retry A. The process never exits on a rejected key.
-- `backoff: {[accountId]: untilMs}`, so a LaunchAgent restart loop can't burst Anthropic.
+- `budgets: {[accountId]: {reads, backoff}}`, so a LaunchAgent restart loop can't burst Anthropic. `reads` holds the send time of each usage read in the last 15 min, recorded before the request leaves. `backoff` is `{until, streak} | null`, and `streak` picks the ladder step, so the ladder keeps climbing across restarts.
 
 There is nothing else. No SQLite of our own.
 

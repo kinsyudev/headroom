@@ -109,7 +109,7 @@ describe('poll budget', () => {
     const g = gaps(reads(r.sent, ACC1)).map((x) => Math.round(x / MIN));
     expect(g.slice(0, 5)).toEqual([5, 10, 20, 30, 30]);
     for (const x of gaps(reads(r.sent, ACC2))) expect(x).toBeLessThan(5 * MIN + 30_000);
-    const until = r.state.read().backoff[ACC1]!;
+    const until = r.anthropic.budget(ACC1).backoffUntil!;
     expect(until).toBeGreaterThan(r.clock.now());
     // The UI's "rate-limited, retry 14:02" comes from here.
     expect(r.poller.feeds()[ACC1]!.limits.nextAt).toBe(until as never);
@@ -120,7 +120,7 @@ describe('poll budget', () => {
     await r.run(45 * MIN, 5_000);
     const after = reads(r.sent, ACC1).slice(before - 1);
     expect(gaps(after).slice(1).every((x) => x < 5 * MIN + 30_000)).toBe(true);
-    expect(r.state.read().backoff[ACC1]).toBeUndefined();
+    expect(r.anthropic.budget(ACC1).backoffUntil).toBeNull();
   });
 
   test('retry-after wins over the ladder when present', async () => {
@@ -133,7 +133,7 @@ describe('poll budget', () => {
     const one = [cpaAccounts().find((a) => a.id === ACC1)!];
     const first = rig({ accounts: one, answer: (req) => (req.url.includes('/usage') ? limited() : fixtureAnswer(req)) });
     await first.run(30_000);
-    const until = first.state.read().backoff[ACC1]!;
+    const until = first.anthropic.budget(ACC1).backoffUntil!;
     expect(until).toBeGreaterThan(first.clock.now());
 
     const second = rig({ accounts: one, clock: new FakeClock(first.clock.now()) });
@@ -167,7 +167,7 @@ describe('manual refresh', () => {
     r.setAnswer((req) => (req.url.includes('/usage') ? limited() : fixtureAnswer(req)));
     expect(r.poller.kick(ACC1)).toEqual([{ account: ACC1, held: null }]);
     await r.run(15_000);
-    expect(r.anthropic.backoffUntil(ACC1)).not.toBeNull();
+    expect(r.anthropic.budget(ACC1).backoffUntil).not.toBeNull();
     await r.run(60_000);
     expect(r.poller.kick('all')).toEqual([{ account: ACC1, held: 'rate_limited' }]);
     await r.run(60_000);
