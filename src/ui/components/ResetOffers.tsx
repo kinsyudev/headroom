@@ -1,12 +1,12 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, OfferView } from '../../shared/view';
-import { usePaused } from '../deck';
 import { claimResultText } from '../format';
+import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const rows = props.account.offers.map((o) => (
-    <OfferRow key={o.program} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
+    <OfferRow key={o.program} email={props.account.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
   ));
   const quiet = props.account.quietOffers;
   if (quiet !== null) {
@@ -32,22 +32,17 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
   );
 }
 
-function OfferRow(props: { readonly offer: OfferView; readonly onClaim: () => void }) {
+function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: () => void }) {
   const o = props.offer;
-  const paused = usePaused();
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <span className="offer-label" title={o.program}>
-        {o.label}
+        {o.name}
       </span>
       <span className="offer-state">
         <OfferState offer={o} />
       </span>
-      {o.state.kind === 'claimable' && (
-        <button type="button" className="btn accent" onClick={props.onClaim} disabled={paused !== null} title={paused ?? undefined} data-testid={`claim-${o.program}`}>
-          Claim…
-        </button>
-      )}
+      {o.state.kind === 'claimable' && <ClaimButton name={o.name} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />}
       {o.grants.length > 0 && (
         <ul className="grants">
           {o.grants.map((g) => (

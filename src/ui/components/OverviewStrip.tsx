@@ -1,6 +1,6 @@
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
-import { usePaused } from '../deck';
+import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Meter } from './LimitRow';
 
@@ -10,7 +10,6 @@ export function OverviewStrip(props: {
   readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
 }) {
   const o = props.deck.overview;
-  const paused = usePaused();
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   const [lead, ...alsoServing] = o.serving;
   const nextSession = !o.target ? (
@@ -93,29 +92,28 @@ export function OverviewStrip(props: {
 
       <div className="tile" data-testid="tile-claimable">
         <h2>Claimable resets</h2>
-        <p className="hero num">{o.claimable.length}</p>
+        <p className="hero num">{o.claimableCount}</p>
         {o.claimable.length === 0 ? (
           <p className="tile-sub muted">None right now. Weekly session resets are checked when an account hits its limit.</p>
         ) : (
-          <ul className="claimable">
-            {o.claimable.map((c) => (
-              <li key={`${c.account}:${c.program}`}>
-                <span>
-                  {swatch(c.account)} {c.email} · {c.label}
-                </span>
-                <button
-                  type="button"
-                  className="btn accent"
-                  onClick={() => props.onClaim(c.account, c.program, c.grant)}
-                  disabled={paused !== null}
-                  title={paused ?? undefined}
-                  data-testid={`overview-claim-${c.program}`}
-                >
-                  Claim…
-                </button>
-              </li>
-            ))}
-          </ul>
+          o.claimable.map((g) => (
+            <div key={g.account} className="claim-group">
+              <h3 className="claim-account clip">
+                {swatch(g.account)} {g.email}
+              </h3>
+              <ul className="claimable">
+                {g.resets.map((r) => (
+                  <li key={r.program}>
+                    <span className="claim-name">
+                      {r.name}
+                      {r.detail && <span className="muted nowrap"> ({r.detail})</span>}
+                    </span>
+                    <ClaimButton name={r.name} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
         )}
       </div>
 

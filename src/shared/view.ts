@@ -40,14 +40,14 @@ export interface OverviewView {
   /** Null when nextReset already says it. */
   readonly nextUnblock: { readonly account: AccountId; readonly email: string; readonly at: Instant } | null;
   readonly claimable: readonly ClaimableView[];
+  readonly claimableCount: number;
 }
 
+/** One account's claimable resets, named as the card and the claim dialog name them. detail: what is left of the grant. */
 export interface ClaimableView {
   readonly account: AccountId;
   readonly email: string;
-  readonly program: ProgramId;
-  readonly grant: GrantId | null;
-  readonly label: string;
+  readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: string; readonly detail: string | null }[];
 }
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
@@ -185,8 +185,11 @@ export interface GrantView {
 
 export interface OfferView {
   readonly program: ProgramId;
-  readonly label: string;
+  /** What the reset does and where it comes from: "Session reset · weekly allowance". */
+  readonly name: string;
   readonly effect: string;
+  /** When each limit the reset clears would reset without it; limits with no open window are left out. */
+  readonly selfResets: readonly { readonly what: string; readonly at: Instant }[];
   readonly state: OfferState;
   readonly dataAt: Instant | null;
   readonly grants: readonly GrantView[];

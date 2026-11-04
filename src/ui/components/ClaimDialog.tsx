@@ -4,7 +4,7 @@ import type { AccountView } from '../../shared/view';
 import { useAction } from '../api';
 import { usePaused } from '../deck';
 import { claimText } from '../format';
-import { Age } from './Countdown';
+import { Age, Clock, Countdown } from './Countdown';
 
 export function ClaimDialog(props: {
   readonly account: AccountView;
@@ -61,16 +61,16 @@ export function ClaimDialog(props: {
         props.onClose();
       }}
     >
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="claim-title" data-testid="claim-dialog" ref={dialog}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="claim-title claim-name" data-testid="claim-dialog" ref={dialog}>
         <h2 id="claim-title">Claim a Claude reset</h2>
         <dl className="facts">
           <dt>Account</dt>
           <dd>
             {a.email} <span className="muted">· {a.plan?.label ?? 'plan unknown'}</span>
           </dd>
-          <dt>Program</dt>
+          <dt>Reset type</dt>
           <dd>
-            {offer.label} <code>{props.program}</code>
+            <span id="claim-name">{offer.name}</span> <code className="muted">{props.program}</code>
           </dd>
           {grant && (
             <>
@@ -82,6 +82,20 @@ export function ClaimDialog(props: {
           )}
           <dt>Effect</dt>
           <dd>{offer.effect}</dd>
+          {offer.selfResets.length > 0 && (
+            <>
+              <dt>Without it</dt>
+              <dd>
+                {offer.selfResets.map((r, i) => (
+                  <span key={r.what}>
+                    {i > 0 && ' and '}
+                    {r.what} resets on its own at <Clock at={r.at} /> <span className="muted">(in <Countdown at={r.at} />)</span>
+                  </span>
+                ))}
+                .
+              </dd>
+            </>
+          )}
           <dt>Based on</dt>
           <dd>
             reset data from <Age at={offer.dataAt} /> ago. Headroom reads Anthropic again before sending and sends nothing unless it still says claimable.

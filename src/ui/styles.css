@@ -442,6 +442,19 @@ span.banner-line {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.claim-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.claim-group + .claim-group {
+  margin-top: 6px;
+}
+.claim-account {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
 .claimable {
   list-style: none;
   margin: 0;
@@ -455,6 +468,10 @@ span.banner-line {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+.claim-name,
+.offer-label {
+  text-wrap: balance;
 }
 .rooms {
   display: grid;
@@ -702,7 +719,7 @@ span.banner-line {
 }
 .offer {
   display: grid;
-  grid-template-columns: 150px 1fr auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
   gap: 4px 10px;
   align-items: center;
   font-size: 13px;
@@ -715,7 +732,7 @@ span.banner-line {
   min-width: 0;
 }
 .grants {
-  grid-column: 2 / 4;
+  grid-column: 1 / -1;
   margin: 0;
   padding: 0;
   list-style: none;

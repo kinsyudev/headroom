@@ -14,6 +14,7 @@ import {
 import {
   emptyFeeds,
   emptySource,
+  type AccountFeeds,
   type CedarEmber,
   type ClaimId,
   type ClaimRecord,
@@ -217,8 +218,10 @@ describe('offers and claimability', () => {
   const claim = (state: ClaimRecord['state'], program: ClaimRecord['program'] = 'juniper_tide'): ClaimRecord => ({
     id: 'c1' as ClaimId, account: ACC3, program, grant: null, startedAt: T0, state,
   });
+  const limitsOf = (feeds: AccountFeeds) => mergeLimits(feeds.limits.last, null, T0);
+  const offersOf = (feeds: AccountFeeds, atWall = true, claims: ClaimRecord[] = []) => deriveOffers(ACC3, feeds, atWall, claims, T0, limitsOf(feeds));
   const offers = (feeds = feedsFrom(synthetic, T0), atWall = true, claims: ClaimRecord[] = []) =>
-    Object.fromEntries(deriveOffers(ACC3, feeds, atWall, claims, T0).map((o) => [o.program, o.state])) as Record<ClaimRecord['program'], OfferState>;
+    Object.fromEntries(offersOf(feeds, atWall, claims).map((o) => [o.program, o.state])) as Record<ClaimRecord['program'], OfferState>;
 
   test('at the wall with the synthetic read, both programs are claimable', () => {
     expect(offers()).toEqual({ juniper_tide: { kind: 'claimable', grant: null }, cedar_ember: { kind: 'claimable', grant: 'grant_example_1' as GrantId } });
@@ -255,7 +258,7 @@ describe('offers and claimability', () => {
   });
 
   test('a grant says in plain words what it clears and keeps the raw window codes', () => {
-    const cedarOffer = deriveOffers(ACC3, feedsFrom(synthetic, T0), true, [], T0).find((o) => o.program === 'cedar_ember')!;
+    const cedarOffer = offersOf(feedsFrom(synthetic, T0)).find((o) => o.program === 'cedar_ember')!;
     expect(cedarOffer.grants[0]).toMatchObject({ clears: ['five_hour'], clearsText: 'the session (5h) limit' });
   });
 
@@ -265,17 +268,86 @@ describe('offers and claimability', () => {
     expect(d.banners).toContainEqual({ kind: 'claim_unknown', claim: 'c1' as ClaimId, email: 'account3@example.com', program: 'juniper_tide', label: 'Weekly session reset' });
   });
 
-  test('the overview lists every claimable offer with the grant label', () => {
-    const d = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0);
-    expect(d.overview.claimable).toEqual([
-      { account: ACC3, email: 'account3@example.com', program: 'juniper_tide', grant: null, label: 'Weekly session reset' },
-      { account: ACC3, email: 'account3@example.com', program: 'cedar_ember', grant: 'grant_example_1' as GrantId, label: 'Reset grant · Session reset' },
-    ]);
+  describe('naming a reset by its effect and its source', () => {
+    const withGrants = (grants: CedarEmber['grants']): AccountFeeds => {
+      const f = feedsFrom(synthetic, T0);
+      return { ...f, cedar: { ...f.cedar, last: { value: c({ grants }), at: T0 } } };
+    };
+    const names = (feeds: AccountFeeds) => Object.fromEntries(offersOf(feeds).map((o) => [o.program, o.name]));
+
+    test('the weekly allowance and a grant clearing the session limit read as one pattern', () => {
+      expect(names(feedsFrom(synthetic, T0))).toEqual({
+        juniper_tide: 'Session reset · weekly allowance',
+        cedar_ember: 'Session reset · grant',
+      });
+    });
+
+    test.each([
+      ['a weekly grant', ['seven_day'], 'Weekly reset · grant'],
+      ['a grant clearing both', ['five_hour', 'seven_day'], 'Session and weekly reset · grant'],
+      ['a grant naming nothing', [], 'Limit reset · grant'],
+    ] as const)('%s', (_label, clears, expected) => {
+      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toBe(expected);
+    });
+
+    test('with no usable grant the name still says what the grants clear, or that nothing is named', () => {
+      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toBe('Session reset · grant');
+      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toBe('Limit reset · grant');
+    });
+
+    test('the overview and the card name a claimable reset identically, and the overview groups them by account', () => {
+      const d = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0);
+      const cardNames = d.accounts.find((a) => a.id === ACC3)!.offers.map((o) => o.name);
+      expect(d.overview.claimable).toEqual([
+        {
+          account: ACC3,
+          email: 'account3@example.com',
+          resets: [
+            { program: 'juniper_tide', grant: null, name: cardNames[0]!, detail: null },
+            { program: 'cedar_ember', grant: 'grant_example_1' as GrantId, name: cardNames[1]!, detail: '2 of 3 left' },
+          ],
+        },
+      ]);
+      expect(d.overview.claimableCount).toBe(2);
+    });
+
+    test('an account with nothing claimable is left out of the overview and the count', () => {
+      const d = deriveDeck(snapshot({ feeds: { [ACC1]: feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0) } }), T0);
+      expect(d.overview.claimable).toEqual([]);
+      expect(d.overview.claimableCount).toBe(0);
+    });
+  });
+
+  describe('what a claim saves', () => {
+    const selfResetsOf = (feeds: AccountFeeds, program: ClaimRecord['program']) => offersOf(feeds).find((o) => o.program === program)!.selfResets;
+    const sessionAt = at('2026-11-04T14:20:00.412Z');
+    const weeklyAt = at('2026-11-04T19:00:00.412Z');
+
+    test('the weekly allowance names when the session limit would reset on its own', () => {
+      expect(selfResetsOf(feedsFrom(synthetic, T0), 'juniper_tide')).toEqual([{ what: 'the session limit', at: sessionAt }]);
+    });
+
+    test('a grant that clears both limits names both, session first', () => {
+      const f = feedsFrom(synthetic, T0);
+      const both = { ...f, cedar: { ...f.cedar, last: { value: c({ grants: [{ ...grant, clears: ['five_hour', 'seven_day'] }] }), at: T0 } } };
+      expect(selfResetsOf(both, 'cedar_ember')).toEqual([
+        { what: 'the session limit', at: sessionAt },
+        { what: 'the weekly limit', at: weeklyAt },
+      ]);
+    });
+
+    test('a limit with no open window has nothing to wait for, so nothing is claimed about it', () => {
+      const f = feedsFrom(synthetic, T0);
+      const idle = { ...f, limits: { ...f.limits, last: { value: f.limits.last!.value.filter((l) => l.kind !== 'session'), at: T0 } } };
+      expect(selfResetsOf(idle, 'juniper_tide')).toEqual([]);
+      const lapsed = { ...f, limits: { ...f.limits, last: { value: f.limits.last!.value.map((l) => (l.kind === 'session' ? { ...l, resetsAt: plus(T0, -MIN) } : l)), at: T0 } } };
+      expect(selfResetsOf(lapsed, 'juniper_tide')).toEqual([]);
+    });
   });
 
   describe('the quiet line', () => {
     const noGrants = usage('anthropic-usage-at-wall-1.json', 'wall');
-    const quiet = (feeds = feedsFrom(noGrants, T0), atWall = true, claims: ClaimRecord[] = []) => quietOffers(deriveOffers(ACC3, feeds, atWall, claims, T0));
+    const quiet = (feeds = feedsFrom(noGrants, T0), atWall = true, claims: ClaimRecord[] = []) => quietOffers(offersOf(feeds, atWall, claims));
     const usedThisWeek = { ...noGrants, juniper: { ...j({}), available: false, nextAvailableAt: at('2026-11-11T09:00:00Z') } };
     const enrolledNowhere = () => {
       const f = feedsFrom(noGrants, T0);

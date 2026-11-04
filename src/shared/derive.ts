@@ -90,6 +90,13 @@ const WINDOW_WORDS: Readonly<Record<string, string>> = {
   seven_day: 'the weekly limit',
 };
 
+const WINDOW_LIMIT: Readonly<Record<string, string>> = {
+  five_hour: 'session',
+  seven_day: 'weekly_all',
+};
+
+const JUNIPER_CLEARS: readonly string[] = ['five_hour'];
+
 export const REASON_TEXT: Readonly<Record<string, string>> = {
   quota: 'quota used up',
   credential_quota: 'quota used up',
@@ -152,7 +159,7 @@ export function deriveAccount(
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
   const read = deriveRead(feeds, now);
-  const offers = deriveOffers(a.id, feeds, atWall, mine, now);
+  const offers = deriveOffers(a.id, feeds, atWall, mine, now, limits);
   return {
     id: a.id,
     email: a.email,
@@ -492,12 +499,25 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
+function resetName(clears: readonly string[], source: string): string {
+  const what = clears.length === 0 ? 'limit' : clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase()).join(' and ');
+  return `${what.charAt(0).toUpperCase()}${what.slice(1)} reset · ${source}`;
+}
+
+function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
+  return clears.flatMap((w) => {
+    const l = limits.find((x) => x.key === WINDOW_LIMIT[w]);
+    return l?.phase === 'open' && l.resetsAt !== null ? [{ what: `the ${l.label.toLowerCase()} limit`, at: l.resetsAt }] : [];
+  });
+}
+
 export function deriveOffers(
   account: AccountId,
   feeds: AccountFeeds,
   atWall: boolean,
   claims: readonly ClaimRecord[],
   now: Instant,
+  limits: readonly LimitView[],
 ): OfferView[] {
   const j = feeds.juniper;
   const c = feeds.cedar;
@@ -522,23 +542,27 @@ export function deriveOffers(
   const cv = c.last?.value ?? null;
   const cedar: OfferState = cHolding ? inFlight(cHolding) : c.last ? cedarState(cv, now) : unknown(c);
   const defaultGrant = cedar.kind === 'claimable' ? cv?.grants.find((g) => g.id === cedar.grant) : undefined;
+  const grants = cv?.grants ?? [];
+  const cedarClears = defaultGrant?.clears ?? [...new Set(grants.flatMap((g) => g.clears))];
 
   return [
     {
       program: 'juniper_tide',
-      label: PROGRAM_LABEL.juniper_tide,
-      effect: 'Clears the session (5h) limit now. One per week.',
+      name: resetName(JUNIPER_CLEARS, 'weekly allowance'),
+      effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
+      selfResets: selfResets(JUNIPER_CLEARS, limits),
       state: juniper,
       dataAt: j.last?.at ?? null,
       grants: [],
     },
     {
       program: 'cedar_ember',
-      label: PROGRAM_LABEL.cedar_ember,
+      name: resetName(cedarClears, 'grant'),
       effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
+      selfResets: selfResets(cedarClears, limits),
       state: cedar,
       dataAt: c.last?.at ?? null,
-      grants: (cv?.grants ?? []).map((g) => ({
+      grants: grants.map((g) => ({
         id: g.id,
         label: g.label,
         resetsLeft: g.resetsLeft,
@@ -676,14 +700,15 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   }
   const unblocksWithReset =
     nextReset !== null && nextUnblock !== null && nextUnblock.account === nextReset.account && Math.abs(nextUnblock.at - nextReset.at) <= SAME_MOMENT_MS;
-  const claimable: ClaimableView[] = accounts.flatMap((a) =>
-    a.offers.flatMap((o) => {
+  const claimable: ClaimableView[] = accounts.flatMap((a) => {
+    const resets = a.offers.flatMap((o) => {
       if (o.state.kind !== 'claimable') return [];
       const grant = o.state.grant;
-      const grantLabel = o.grants.find((g) => g.id === grant)?.label;
-      return [{ account: a.id, email: a.email, program: o.program, grant, label: grantLabel ? `${o.label} · ${grantLabel}` : o.label }];
-    }),
-  );
+      const g = o.grants.find((x) => x.id === grant);
+      return [{ program: o.program, grant, name: o.name, detail: g ? `${g.resetsLeft} of ${g.resetsTotal} left` : null }];
+    });
+    return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets }];
+  });
   return {
     serving,
     target: target ? { account: target.id, email: target.email } : null,
@@ -692,6 +717,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     nextReset: nextReset && { ...nextReset, unblocks: unblocksWithReset },
     nextUnblock: unblocksWithReset ? null : nextUnblock,
     claimable,
+    claimableCount: claimable.reduce((n, g) => n + g.resets.length, 0),
   };
 }
 
@@ -724,7 +750,7 @@ function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView)
   }
   for (const v of views) {
     for (const o of v.offers) {
-      if (o.state.kind === 'in_flight' && o.state.phase === 'maybe_sent') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program, label: o.label });
+      if (o.state.kind === 'in_flight' && o.state.phase === 'maybe_sent') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program, label: PROGRAM_LABEL[o.program] });
     }
   }
   if (s.serving.error) {
