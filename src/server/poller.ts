@@ -27,7 +27,7 @@ export interface ReadClock {
   readonly firstAt: Instant;
   readonly lastAttemptAt: Instant | null;
   readonly requestedAt: Instant | null;
-  readonly wallWanted: Instant | null;
+  readonly wallWantedSince: Instant | null;
   readonly backoffUntil: Instant | null;
   readonly capUntil: Instant | null;
 }
@@ -36,7 +36,7 @@ export function readDueAt(c: ReadClock, atWall: boolean): Instant {
   const last = c.lastAttemptAt ?? -Infinity;
   const cadence = Math.max(c.firstAt, last + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
   const unservedAt = (t: Instant | null) => (t !== null && t > last ? t : Infinity);
-  return Math.max(Math.min(cadence, unservedAt(c.requestedAt), unservedAt(c.wallWanted)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
+  return Math.max(Math.min(cadence, unservedAt(c.requestedAt), unservedAt(c.wallWantedSince)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
 }
 
 export function profileDueAt(c: { readonly firstAt: Instant; readonly attemptAt: Instant | null; readonly okAt: Instant | null; readonly backoffUntil: Instant | null }): Instant {
@@ -50,7 +50,7 @@ interface AccountState {
   readonly firstAt: Instant;
   lastAttemptAt: Instant | null;
   requestedAt: Instant | null;
-  wallWanted: Instant | null;
+  wallWantedSince: Instant | null;
   manualAt: Instant | null;
   profileAttemptAt: Instant | null;
   profileOkAt: Instant | null;
@@ -91,7 +91,7 @@ export function createPoller(deps: {
         firstAt: (now + fresh++ * stagger) as Instant,
         lastAttemptAt: deps.anthropic.budget(a.id).lastReadAt,
         requestedAt: null,
-        wallWanted: null,
+        wallWantedSince: null,
         manualAt: null,
         profileAttemptAt: null,
         profileOkAt: null,
@@ -115,7 +115,7 @@ export function createPoller(deps: {
         }
         const r = await deps.anthropic.read(id, kind);
         st.lastAttemptAt = r.at;
-        if (kind === 'wall' && r.ok && st.wallWanted !== null && r.at >= st.wallWanted) st.wallWanted = null;
+        if (kind === 'wall' && r.ok && st.wallWantedSince !== null && r.at >= st.wallWantedSince) st.wallWantedSince = null;
         const f = st.feeds;
         st.feeds = {
           ...f,
@@ -150,7 +150,7 @@ export function createPoller(deps: {
       }
       const atWall = isAtWall(a, st.feeds.limits.last, now);
       if (now < readDueAt({ ...st, backoffUntil, capUntil }, atWall)) continue;
-      void enqueue(a.id, st, atWall || (st.wallWanted !== null && now >= st.wallWanted) ? 'wall' : 'normal');
+      void enqueue(a.id, st, atWall || (st.wallWantedSince !== null && now >= st.wallWantedSince) ? 'wall' : 'normal');
     }
   }
 
@@ -216,7 +216,7 @@ export function createPoller(deps: {
     },
     wantWall(account, at) {
       const st = states.get(account);
-      if (st) st.wallWanted = Math.max(st.wallWanted ?? -Infinity, at) as Instant;
+      if (st) st.wallWantedSince = Math.max(st.wallWantedSince ?? -Infinity, at) as Instant;
       tick();
     },
     profile(account) {
