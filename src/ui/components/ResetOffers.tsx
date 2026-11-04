@@ -1,5 +1,6 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, OfferView } from '../../shared/view';
+import { usePaused } from '../deck';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
@@ -15,6 +16,7 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
 
 function OfferRow(props: { readonly offer: OfferView; readonly onClaim: () => void }) {
   const o = props.offer;
+  const paused = usePaused();
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <span className="offer-label" title={o.program}>
@@ -24,7 +26,7 @@ function OfferRow(props: { readonly offer: OfferView; readonly onClaim: () => vo
         <OfferState offer={o} />
       </span>
       {o.state.kind === 'claimable' && (
-        <button type="button" className="btn primary small" onClick={props.onClaim} data-testid={`claim-${o.program}`}>
+        <button type="button" className="btn primary small" onClick={props.onClaim} disabled={paused !== null} title={paused ?? undefined} data-testid={`claim-${o.program}`}>
           Claim…
         </button>
       )}

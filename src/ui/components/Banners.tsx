@@ -31,7 +31,13 @@ function BannerText(props: { readonly banner: Banner }) {
     case 'cpa_unreachable':
       return (
         <>
-          CPA is not answering. The cards show its last answer{b.lastAt !== null && <>, from <Age at={b.lastAt} /> ago</>}.
+          <strong className="banner-line">{b.lastAt === null ? 'CPA has not answered yet.' : <>CPA has not answered since <Clock at={b.lastAt} />.</>}</strong>
+          {b.lastAt !== null && (
+            <span className="banner-line">
+              Quota, resets and history below are the last known values (CPA last answered <Age at={b.lastAt} /> ago) and keep counting down.
+            </span>
+          )}
+          <span className="banner-line">Routing and account actions are paused until CPA answers. Check that CPA is running.</span>
         </>
       );
     case 'claim_unknown':

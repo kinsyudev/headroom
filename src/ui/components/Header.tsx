@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { RoutingStrategy } from '../../shared/domain';
 import type { DeckView } from '../../shared/view';
 import { useAction, type Connection } from '../api';
+import { usePaused } from '../deck';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
 import { FreshnessChips } from './Freshness';
@@ -15,11 +16,22 @@ const FLOW_TTL_MS = 5 * 60_000;
 
 export function Header(props: { readonly deck: DeckView; readonly connection: Connection }) {
   const d = props.deck;
+  const cpaDown = props.connection === 'live' && d.cpa.kind === 'down';
+  const status = cpaDown ? 'cpa-down' : props.connection;
   return (
     <header className="topbar">
       <div className="brand">
         <h1>Headroom</h1>
-        <span className={`live-dot ${props.connection}`} title={`snapshot ${props.connection}`} aria-label={`connection ${props.connection}`} />
+        <span
+          className={`live-dot ${status}`}
+          title={cpaDown ? 'The Headroom server is live; CPA is not answering' : `snapshot ${props.connection}`}
+          aria-label={cpaDown ? 'CPA down' : `connection ${props.connection}`}
+        />
+        {cpaDown && (
+          <span className="live-label" data-testid="cpa-status">
+            CPA down
+          </span>
+        )}
       </div>
       <div className="topbar-controls">
         <div className="segmented" role="group" aria-label="Routing strategy" data-testid="strategy">
@@ -49,6 +61,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
 function AddAccount(props: { readonly deck: DeckView }) {
   const start = useAction('oauth.start');
   const cancel = useAction('oauth.cancel');
+  const paused = usePaused();
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const flow = props.deck.flows[0];
   const recent = flow && (flow.status === 'waiting' || props.deck.now - flow.startedAt < 2 * FLOW_TTL_MS) ? flow : null;
@@ -58,7 +71,8 @@ function AddAccount(props: { readonly deck: DeckView }) {
       <button
         type="button"
         className="btn quiet"
-        disabled={start.pending}
+        disabled={start.pending || paused !== null}
+        title={paused ?? undefined}
         data-testid="add-account"
         onClick={async () => {
           const tab = window.open('about:blank', '_blank');

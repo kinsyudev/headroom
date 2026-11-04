@@ -7,7 +7,7 @@ import { ClaimDialog } from './components/ClaimDialog';
 import { Header } from './components/Header';
 import { HistoryPanel } from './components/HistoryPanel';
 import { OverviewStrip } from './components/OverviewStrip';
-import { useDeck } from './deck';
+import { CpaProvider, useDeck } from './deck';
 
 const IDENTITY_HUES = 6;
 
@@ -28,19 +28,21 @@ export function App() {
 
   return (
     <RefreshContext.Provider value={refresh}>
-      <div className="page">
-        <Header deck={deck} connection={connection} />
-        <Banners banners={deck.banners} connection={connection} />
-        <OverviewStrip deck={deck} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
-        <section className="cards" aria-label="Accounts">
-          {deck.accounts.length === 0 && <p className="muted">No Claude accounts in CPA yet.</p>}
-          {deck.accounts.map((a) => (
-            <AccountCard key={a.id} account={a} color={colors.get(a.id)!} onClaim={(program, grant) => setClaim({ account: a.id, program, grant })} />
-          ))}
-        </section>
-        <HistoryPanel accounts={deck.accounts.map((a) => ({ id: a.id, email: a.email, color: colors.get(a.id)! }))} />
-      </div>
-      {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}
+      <CpaProvider value={deck.cpa}>
+        <div className={deck.cpa.kind === 'down' ? 'page cpa-down' : 'page'}>
+          <Header deck={deck} connection={connection} />
+          <Banners banners={deck.banners} connection={connection} />
+          <OverviewStrip deck={deck} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
+          <section className="cards" aria-label="Accounts">
+            {deck.accounts.length === 0 && <p className="muted">No Claude accounts in CPA yet.</p>}
+            {deck.accounts.map((a) => (
+              <AccountCard key={a.id} account={a} color={colors.get(a.id)!} onClaim={(program, grant) => setClaim({ account: a.id, program, grant })} />
+            ))}
+          </section>
+          <HistoryPanel accounts={deck.accounts.map((a) => ({ id: a.id, email: a.email, color: colors.get(a.id)! }))} />
+        </div>
+        {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}
+      </CpaProvider>
     </RefreshContext.Provider>
   );
 }

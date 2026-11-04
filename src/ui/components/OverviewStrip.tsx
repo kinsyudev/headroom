@@ -1,5 +1,6 @@
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
+import { usePaused } from '../deck';
 import { Age, Clock, Countdown } from './Countdown';
 import { Meter } from './LimitRow';
 
@@ -15,6 +16,7 @@ export function OverviewStrip(props: {
   readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
 }) {
   const o = props.deck.overview;
+  const paused = usePaused();
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   return (
     <section className="overview" aria-label="Overview" data-testid="overview">
@@ -79,7 +81,14 @@ export function OverviewStrip(props: {
             {o.claimable.map((c) => (
               <li key={`${c.account}:${c.program}`}>
                 {swatch(c.account)} {c.email} · {c.label}{' '}
-                <button type="button" className="btn primary small" onClick={() => props.onClaim(c.account, c.program, c.grant)} data-testid={`overview-claim-${c.program}`}>
+                <button
+                  type="button"
+                  className="btn primary small"
+                  onClick={() => props.onClaim(c.account, c.program, c.grant)}
+                  disabled={paused !== null}
+                  title={paused ?? undefined}
+                  data-testid={`overview-claim-${c.program}`}
+                >
                   Claim…
                 </button>
               </li>

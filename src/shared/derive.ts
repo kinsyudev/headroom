@@ -25,6 +25,7 @@ import type {
   AccountView,
   Banner,
   ClaimableView,
+  CpaView,
   DeckView,
   FeedName,
   FreshnessView,
@@ -89,18 +90,30 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
   const accounts = s.cpa.last?.value ?? [];
   const evidence = servingEvidence(s, accounts);
   const routing = deriveRouting(accounts, s.strategy.last?.value ?? null, evidence.seen, now);
+  const cpa = deriveCpa(s);
   const views = accounts
-    .map((a) => deriveAccount(a, s.feeds[a.id] ?? emptyFeeds(), routing.get(a.id)!, s.claims, now))
+    .map((a) => deriveAccount(a, s.feeds[a.id] ?? emptyFeeds(), routing.get(a.id)!, s.claims, now, cpa))
     .sort((x, y) => x.email.localeCompare(y.email));
   return {
     now,
     overview: deriveOverview(views, evidence.kind),
     accounts: views,
-    banners: deriveBanners(s, views),
+    banners: deriveBanners(s, views, cpa),
     flows: s.flows,
     strategy: s.strategy.last?.value ?? null,
     global: [freshness('cpa', s.cpa, now), freshness('strategy', s.strategy, now), freshness('serving', s.serving, now)],
+    cpa,
   };
+}
+
+function deriveCpa(s: Snapshot): CpaView {
+  return s.link.kind === 'ok' && s.cpa.error !== null && s.cpa.error.value.kind !== 'link_down'
+    ? { kind: 'down', lastAt: s.cpa.last?.at ?? null }
+    : { kind: 'up' };
+}
+
+function cpaStale(cpa: Extract<CpaView, { kind: 'down' }>, now: Instant): FreshnessView {
+  return { feed: 'cpa', state: 'stale', ageMs: cpa.lastAt === null ? null : now - cpa.lastAt, error: null, errorAgeMs: null, nextAt: null };
 }
 
 export function deriveAccount(
@@ -109,6 +122,7 @@ export function deriveAccount(
   routing: RoutingView,
   claims: readonly ClaimRecord[],
   now: Instant,
+  cpa: CpaView,
 ): AccountView {
   const limits = mergeLimits(feeds.limits.last, a.headers, now);
   const atWall = isAtWall(a, feeds.limits.last, now);
@@ -127,6 +141,7 @@ export function deriveAccount(
     offers: deriveOffers(a.id, feeds, atWall, mine, now),
     activity: a.activity,
     freshness: [
+      ...(cpa.kind === 'down' ? [cpaStale(cpa, now)] : []),
       headerFreshness(a.headers, now),
       freshness('limits', feeds.limits, now),
       freshness('spend', feeds.spend, now, atWall),
@@ -591,12 +606,12 @@ function headroom(accounts: readonly AccountView[], which: 'session' | 'weekly')
   return { value: Math.round(value * 100) / 100, of: accounts.length, unknown };
 }
 
-function deriveBanners(s: Snapshot, views: readonly AccountView[]): Banner[] {
+function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView): Banner[] {
   const banners: Banner[] = [];
   if (s.link.kind !== 'ok') {
     banners.push({ kind: 'link', link: s.link, retryAt: s.link.kind === 'rejected' ? ((s.link.at + KEY_REJECT_LATCH_MS) as Instant) : null });
-  } else if (s.cpa.error && s.cpa.error.value.kind !== 'link_down') {
-    banners.push({ kind: 'cpa_unreachable', lastAt: s.cpa.last?.at ?? null });
+  } else if (cpa.kind === 'down') {
+    banners.push({ kind: 'cpa_unreachable', lastAt: cpa.lastAt });
   }
   for (const v of views) {
     for (const o of v.offers) {

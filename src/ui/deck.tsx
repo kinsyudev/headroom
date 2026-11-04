@@ -1,9 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { deriveDeck } from '../shared/derive';
 import type { Instant, Snapshot } from '../shared/domain';
-import type { DeckView } from '../shared/view';
+import type { CpaView, DeckView } from '../shared/view';
 
 const ClockContext = createContext<Instant>(Date.now() as Instant);
+const CpaContext = createContext<CpaView>({ kind: 'up' });
+
+export const CpaProvider = CpaContext.Provider;
+
+export function usePaused(): string | null {
+  return useContext(CpaContext).kind === 'down' ? 'Paused: CPA is not answering' : null;
+}
 
 export function ClockProvider(props: { readonly children: ReactNode }) {
   const [now, setNow] = useState(() => Date.now() as Instant);

@@ -15,6 +15,8 @@ const LABEL: Readonly<Record<FeedName, string>> = {
   profile: 'profile',
 };
 
+const CARD_LABEL: Readonly<Record<FeedName, string>> = { ...LABEL, cpa: 'CPA data' };
+
 const HELD: Partial<Record<FeedName, string>> = { juniper: 'read only at the wall', spend: 'skipped at the wall' };
 
 const ICON: Partial<Record<FreshnessView['state'], string>> = { failing: '✕', stale: '!', never: '○' };
@@ -75,7 +77,7 @@ export function ModeLine(props: { readonly account: AccountView }) {
     clauses.push(
       <span className={`chip state-${state}`}>
         {ICON[state] && <span className="chip-icon" aria-hidden>{ICON[state]}</span>}
-        {feeds.map((f) => LABEL[f.feed]).join(', ')} {state === 'failing' ? 'read failing' : state}
+        {feeds.map((f) => CARD_LABEL[f.feed]).join(', ')} {state === 'failing' ? 'read failing' : state}
       </span>,
     );
   }

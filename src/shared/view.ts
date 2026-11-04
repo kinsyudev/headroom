@@ -23,7 +23,11 @@ export interface DeckView {
   readonly flows: readonly OAuthFlow[];
   readonly strategy: RoutingStrategy | null;
   readonly global: readonly FreshnessView[];
+  readonly cpa: CpaView;
 }
+
+/** down: every action that goes through CPA is paused, and the CPA-sourced data on the page is as old as lastAt. */
+export type CpaView = { readonly kind: 'up' } | { readonly kind: 'down'; readonly lastAt: Instant | null };
 
 export interface OverviewView {
   readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant }[];

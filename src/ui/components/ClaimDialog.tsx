@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ClaimRecord, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { useAction } from '../api';
+import { usePaused } from '../deck';
 import { claimText } from '../format';
 import { Age } from './Countdown';
 
@@ -13,6 +14,7 @@ export function ClaimDialog(props: {
 }) {
   const a = props.account;
   const claim = useAction('claim');
+  const paused = usePaused();
   const [record, setRecord] = useState<ClaimRecord | null>(null);
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
@@ -86,7 +88,8 @@ export function ClaimDialog(props: {
             <button
               type="button"
               className="btn danger"
-              disabled={claim.pending || !stillClaimable}
+              disabled={claim.pending || !stillClaimable || paused !== null}
+              title={paused ?? undefined}
               data-testid="claim-confirm"
               onClick={async () => {
                 const out = await claim.run({ account: a.id, program: props.program, ...(props.grant ? { grant: props.grant } : {}) });

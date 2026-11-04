@@ -22,6 +22,7 @@ import {
   type JuniperTide,
   type Limit,
   type Sample,
+  type SourceError,
 } from '../src/shared/domain';
 import type { OfferState } from '../src/shared/view';
 import { ACC1, ACC2, ACC3, MIN, T0, account, at, cpaAccounts, feedsFrom, plus, snapshot, usage } from './support';
@@ -321,5 +322,43 @@ describe('card status line', () => {
     expect(deriveSpend(emptySource(), headers)?.live).toMatchObject({ percent: 101, status: 'rejected', reason: 'org_spend_cap_reached', severity: 'critical' });
     expect(deriveSpend(emptySource(), withOverage('allowed_warning', 78))?.live?.severity).toBe('warning');
     expect(deriveSpend(emptySource(), withOverage('allowed', 0))?.live?.severity).toBe('normal');
+  });
+});
+
+describe('CPA unreachable', () => {
+  const answeredAt = plus(T0, -17_000);
+  const answered = snapshot({ now: T0 });
+  const failing = (error: SourceError) => ({
+    ...answered,
+    cpa: { ...answered.cpa, last: { ...answered.cpa.last!, at: answeredAt }, error: { value: error, at: T0 } },
+  });
+
+  test('pauses the CPA actions, banners the last answer and marks every card stale', () => {
+    const d = deriveDeck(failing({ kind: 'cpa_unreachable' }), T0);
+    expect(d.cpa).toEqual({ kind: 'down', lastAt: answeredAt });
+    expect(d.banners[0]).toEqual({ kind: 'cpa_unreachable', lastAt: answeredAt });
+    expect(d.accounts).toHaveLength(3);
+    for (const a of d.accounts) expect(a.freshness[0]).toMatchObject({ feed: 'cpa', state: 'stale', ageMs: 17_000 });
+  });
+
+  test('the next answer enables the actions again and clears the banner and the stale marks', () => {
+    const d = deriveDeck(answered, T0);
+    expect(d.cpa).toEqual({ kind: 'up' });
+    expect(d.banners.map((b) => b.kind)).not.toContain('cpa_unreachable');
+    for (const a of d.accounts) expect(a.freshness.map((f) => f.feed)).not.toContain('cpa');
+  });
+
+  test.each([
+    ['CPA answering with an error is down', { kind: 'upstream', status: 500, message: 'boom' }, 'down'],
+    ['a rejected management key is the link banner, not an unreachable CPA', { kind: 'link_down' }, 'up'],
+  ] as const)('%s', (_label, error, kind) => {
+    expect(deriveDeck(failing(error), T0).cpa.kind).toBe(kind);
+  });
+
+  test('a CPA that never answered is down with no last answer, and there are no cards to mark', () => {
+    const never = { ...answered, cpa: { ...emptySource<readonly CpaAccount[]>(), error: { value: { kind: 'cpa_unreachable' } as const, at: T0 } } };
+    const d = deriveDeck(never, T0);
+    expect(d.cpa).toEqual({ kind: 'down', lastAt: null });
+    expect(d.accounts).toEqual([]);
   });
 });

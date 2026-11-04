@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { ActionInput, ActionKind, ActionOutput } from '../../shared/actions';
 import { useAction } from '../api';
-import { useNow } from '../deck';
+import { useNow, usePaused } from '../deck';
 
 const DONE_SHOWN_MS = 4_000;
 
@@ -18,14 +18,15 @@ export function ActionButton<K extends ActionKind>(props: {
 }) {
   const a = useAction(props.kind);
   const now = useNow();
+  const paused = usePaused();
   const [doneText, setDoneText] = useState('Done');
   return (
     <span className="action">
       <button
         type="button"
         className={`btn ${props.variant ?? 'quiet'}`}
-        disabled={props.disabled || a.pending}
-        title={props.title}
+        disabled={props.disabled || a.pending || paused !== null}
+        title={paused ?? props.title}
         aria-busy={a.pending}
         data-testid={props.testId}
         data-state={a.status.phase}

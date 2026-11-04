@@ -102,8 +102,16 @@ code {
 .live-dot.live {
   background: var(--good);
 }
-.live-dot.lost {
+.live-dot.lost,
+.live-dot.cpa-down {
   background: var(--critical);
+}
+.live-label {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--critical) 22%, var(--surface));
 }
 .topbar-controls {
   display: flex;
@@ -146,6 +154,10 @@ code {
 .btn.primary {
   background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.page.cpa-down .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .btn.danger {
   background: color-mix(in srgb, var(--critical) 30%, var(--surface));
@@ -315,6 +327,12 @@ rect:focus-visible {
 .banner.warning {
   border-left-color: var(--warning);
   background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+.banner-line {
+  display: block;
+}
+span.banner-line {
+  color: var(--ink-2);
 }
 
 .overview {
