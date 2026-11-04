@@ -17,7 +17,7 @@ import {
 } from '../src/shared/domain';
 
 export const FIXTURES = join(import.meta.dir, 'fixtures');
-export const T0 = Date.parse('2026-11-04T12:26:12.507Z') as Instant;
+export const T0 = parseAuthFiles(fixture('cpa-auth-files.json')).observedAt;
 export const at = (iso: string) => Date.parse(iso) as Instant;
 export const plus = (t: Instant, ms: number) => (t + ms) as Instant;
 export const MIN = 60_000;
@@ -26,13 +26,11 @@ export function fixture(name: string): unknown {
   return JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'));
 }
 
-export function accountId(n: 1 | 2 | 3): AccountId {
-  return readFileSync(join(FIXTURES, `auth-index-${n}.txt`), 'utf8').trim() as AccountId;
-}
+const accountIdOf = (email: string): AccountId => cpaAccounts().find((a) => a.email === email)!.id;
 
-export const ACC2 = accountId(1);
-export const ACC1 = accountId(2);
-export const ACC3 = accountId(3);
+export const ACC1 = accountIdOf('account1@example.com');
+export const ACC2 = accountIdOf('account2@example.com');
+export const ACC3 = accountIdOf('account3@example.com');
 
 export function cpaAccounts(): readonly CpaAccount[] {
   return parseAuthFiles(fixture('cpa-auth-files.json')).accounts;
