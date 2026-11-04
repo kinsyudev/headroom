@@ -1,0 +1,13 @@
+/* Design tokens only; components use these variables. Severity colours are the single source for bars, badges, and chips. */
+:root {
+  color-scheme: light dark;
+  --font: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sev-normal: #3a8f5c;
+  --sev-warning: #c98a1b;
+  --sev-critical: #c8453a;
+  --muted: color-mix(in srgb, currentColor 55%, transparent);
+  --stale: #c98a1b;
+  --failing: #c8453a;
+  --card-bg: color-mix(in srgb, Canvas 92%, currentColor 8%);
+}

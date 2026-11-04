@@ -1,0 +1,630 @@
+{
+  "files": [
+    {
+      "account": "account2@example.com",
+      "account_type": "oauth",
+      "auth_index": "979fe1390e4d50a9",
+      "cooldowns": [],
+      "created_at": "2026-11-04T02:02:43.573637827+01:00",
+      "disabled": false,
+      "email": "account2@example.com",
+      "failed": 1,
+      "id": "claude-793879e9-account2@example.com.json",
+      "label": "account2@example.com",
+      "last_refresh": "2026-11-04T10:28:37.352433+01:00",
+      "model_quotas": {
+        "claude-opus-5-5": {
+          "observed_at": "2026-11-04T13:25:39.44912+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1794301200",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.01",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "org_level_disabled",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "seven_day",
+            "Anthropic-Ratelimit-Unified-Reset": "1794301200",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        }
+      },
+      "modtime": "2026-11-04T10:28:37.378258419+01:00",
+      "name": "claude-793879e9-account2@example.com.json",
+      "path": "/home/user/.cli-proxy-api/claude-793879e9-account2@example.com.json",
+      "priority": 10,
+      "provider": "claude",
+      "quota": {
+        "observed_at": "2026-11-04T13:25:39.44912+01:00",
+        "signals": {
+          "Anthropic-Ratelimit-Unified-7d-Reset": "1794301200",
+          "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+          "Anthropic-Ratelimit-Unified-7d-Utilization": "0.01",
+          "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+          "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "org_level_disabled",
+          "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+          "Anthropic-Ratelimit-Unified-Representative-Claim": "seven_day",
+          "Anthropic-Ratelimit-Unified-Reset": "1794301200",
+          "Anthropic-Ratelimit-Unified-Status": "allowed"
+        }
+      },
+      "recent_requests": [
+        {
+          "time": "10:10-10:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:20-10:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:30-10:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:40-10:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:50-11:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:00-11:10",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:10-11:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:20-11:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:30-11:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:40-11:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:50-12:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:00-12:10",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:10-12:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:20-12:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:30-12:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:40-12:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:50-13:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "13:00-13:10",
+          "success": 25,
+          "failed": 1
+        },
+        {
+          "time": "13:10-13:20",
+          "success": 4,
+          "failed": 0
+        },
+        {
+          "time": "13:20-13:30",
+          "success": 2,
+          "failed": 0
+        }
+      ],
+      "runtime_only": false,
+      "size": 695,
+      "source": "file",
+      "status": "active",
+      "status_message": "",
+      "success": 31,
+      "type": "claude",
+      "unavailable": false,
+      "updated_at": "2026-11-04T13:25:39.44912+01:00"
+    },
+    {
+      "account": "account1@example.com",
+      "account_type": "oauth",
+      "auth_index": "db7530a6fb8c3450",
+      "cooldowns": [],
+      "created_at": "2026-11-03T06:02:42.719523599+01:00",
+      "disabled": false,
+      "email": "account1@example.com",
+      "failed": 0,
+      "id": "claude-92802d49-account1@example.com.json",
+      "label": "account1@example.com",
+      "model_quotas": {
+        "claude-fable-5-1": {
+          "observed_at": "2026-11-04T13:24:13.094928+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "0.15",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793937600",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.27",
+            "Anthropic-Ratelimit-Unified-7d_oi-Reset": "1793937600",
+            "Anthropic-Ratelimit-Unified-7d_oi-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d_oi-Utilization": "0.08",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "group_zero_credit_limit",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        },
+        "claude-haiku-5-5": {
+          "observed_at": "2026-11-04T13:10:39.649279+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "0.01",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793937600",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.25",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "group_zero_credit_limit",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        },
+        "claude-opus-5-5": {
+          "observed_at": "2026-11-04T13:26:12.209411+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "0.17",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793937600",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.27",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "group_zero_credit_limit",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        },
+        "claude-sonnet-5-5": {
+          "observed_at": "2026-11-04T13:26:08.450835+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "0.17",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793937600",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.27",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "group_zero_credit_limit",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793811600",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        }
+      },
+      "modtime": "2026-11-04T13:06:28.064246029+01:00",
+      "name": "claude-92802d49-account1@example.com.json",
+      "path": "/home/user/.cli-proxy-api/claude-92802d49-account1@example.com.json",
+      "priority": 50,
+      "provider": "claude",
+      "quota": {
+        "observed_at": "2026-11-04T13:26:12.209411+01:00",
+        "signals": {
+          "Anthropic-Ratelimit-Unified-5h-Reset": "1793811600",
+          "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+          "Anthropic-Ratelimit-Unified-5h-Utilization": "0.17",
+          "Anthropic-Ratelimit-Unified-7d-Reset": "1793937600",
+          "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+          "Anthropic-Ratelimit-Unified-7d-Utilization": "0.27",
+          "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+          "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "group_zero_credit_limit",
+          "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+          "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+          "Anthropic-Ratelimit-Unified-Reset": "1793811600",
+          "Anthropic-Ratelimit-Unified-Status": "allowed"
+        }
+      },
+      "recent_requests": [
+        {
+          "time": "10:10-10:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:20-10:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:30-10:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:40-10:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:50-11:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:00-11:10",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:10-11:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:20-11:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:30-11:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:40-11:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "11:50-12:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:00-12:10",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:10-12:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:20-12:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:30-12:40",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:40-12:50",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "12:50-13:00",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "13:00-13:10",
+          "success": 15,
+          "failed": 0
+        },
+        {
+          "time": "13:10-13:20",
+          "success": 241,
+          "failed": 0
+        },
+        {
+          "time": "13:20-13:30",
+          "success": 149,
+          "failed": 0
+        }
+      ],
+      "runtime_only": false,
+      "size": 648,
+      "source": "file",
+      "status": "active",
+      "status_message": "",
+      "success": 405,
+      "type": "claude",
+      "unavailable": false,
+      "updated_at": "2026-11-04T13:26:12.209411+01:00"
+    },
+    {
+      "account": "account3@example.com",
+      "account_type": "oauth",
+      "auth_index": "77d7097981c81ee1",
+      "cooldowns": [
+        {
+          "scope": "credential",
+          "reason": "credential_quota",
+          "retry_at": "2026-11-04T14:20:17.000592Z",
+          "remaining_seconds": 6845
+        },
+        {
+          "scope": "model",
+          "model_key": "claude-haiku-5-5",
+          "reason": "credential_quota",
+          "retry_at": "2026-11-04T14:20:17.000592Z",
+          "remaining_seconds": 6845
+        },
+        {
+          "scope": "model",
+          "model_key": "claude-opus-5-5",
+          "reason": "quota",
+          "retry_at": "2026-11-04T14:20:17.000592Z",
+          "remaining_seconds": 6845,
+          "backoff_level": 0,
+          "http_status": 429
+        },
+        {
+          "scope": "model",
+          "model_key": "claude-sonnet-5-5",
+          "reason": "credential_quota",
+          "retry_at": "2026-11-04T14:20:17.000592Z",
+          "remaining_seconds": 6845
+        }
+      ],
+      "created_at": "2026-11-04T02:02:42.651674411+01:00",
+      "disabled": false,
+      "email": "account3@example.com",
+      "failed": 2,
+      "id": "claude-92802d49-account3@example.com.json",
+      "label": "account3@example.com",
+      "last_refresh": "2026-11-04T10:28:37.262779+01:00",
+      "model_quotas": {
+        "claude-haiku-5-5": {
+          "observed_at": "2026-11-04T10:44:32.736961+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-5h-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "0.12",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793818800",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.5",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Reset": "1796083200",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-Overage-Utilization": "0.0",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-Status": "allowed"
+          }
+        },
+        "claude-opus-5-5": {
+          "observed_at": "2026-11-04T13:04:26.665875+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-5h-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-5h-Surpassed-Threshold": "1.0",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "1.0",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793818800",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.59",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "org_spend_cap_reached",
+            "Anthropic-Ratelimit-Unified-Overage-Reset": "1796083200",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Overage-Surpassed-Threshold": "1.0",
+            "Anthropic-Ratelimit-Unified-Overage-Utilization": "1.01",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Upgrade-Paths": "overage",
+            "Retry-After": "8133"
+          }
+        },
+        "claude-sonnet-5-5": {
+          "observed_at": "2026-11-04T12:51:57.607218+01:00",
+          "signals": {
+            "Anthropic-Ratelimit-Unified-5h-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-5h-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-5h-Surpassed-Threshold": "1.0",
+            "Anthropic-Ratelimit-Unified-5h-Utilization": "1.0",
+            "Anthropic-Ratelimit-Unified-7d-Reset": "1793818800",
+            "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7d-Utilization": "0.59",
+            "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+            "Anthropic-Ratelimit-Unified-Overage-In-Use": "true",
+            "Anthropic-Ratelimit-Unified-Overage-Reset": "1796083200",
+            "Anthropic-Ratelimit-Unified-Overage-Status": "allowed_warning",
+            "Anthropic-Ratelimit-Unified-Overage-Surpassed-Threshold": "0.75",
+            "Anthropic-Ratelimit-Unified-Overage-Utilization": "0.78",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+            "Anthropic-Ratelimit-Unified-Reset": "1793802000",
+            "Anthropic-Ratelimit-Unified-Status": "rejected",
+            "Anthropic-Ratelimit-Unified-Upgrade-Paths": "overage"
+          }
+        }
+      },
+      "modtime": "2026-11-04T10:28:37.296023788+01:00",
+      "name": "claude-92802d49-account3@example.com.json",
+      "next_retry_after": "2026-11-04T15:20:17.000592+01:00",
+      "path": "/home/user/.cli-proxy-api/claude-92802d49-account3@example.com.json",
+      "priority": 50,
+      "provider": "claude",
+      "quota": {
+        "observed_at": "2026-11-04T13:04:26.665875+01:00",
+        "signals": {
+          "Anthropic-Ratelimit-Unified-5h-Reset": "1793802000",
+          "Anthropic-Ratelimit-Unified-5h-Status": "rejected",
+          "Anthropic-Ratelimit-Unified-5h-Surpassed-Threshold": "1.0",
+          "Anthropic-Ratelimit-Unified-5h-Utilization": "1.0",
+          "Anthropic-Ratelimit-Unified-7d-Reset": "1793818800",
+          "Anthropic-Ratelimit-Unified-7d-Status": "allowed",
+          "Anthropic-Ratelimit-Unified-7d-Utilization": "0.59",
+          "Anthropic-Ratelimit-Unified-Fallback-Percentage": "0.5",
+          "Anthropic-Ratelimit-Unified-Overage-Disabled-Reason": "org_spend_cap_reached",
+          "Anthropic-Ratelimit-Unified-Overage-Reset": "1796083200",
+          "Anthropic-Ratelimit-Unified-Overage-Status": "rejected",
+          "Anthropic-Ratelimit-Unified-Overage-Surpassed-Threshold": "1.0",
+          "Anthropic-Ratelimit-Unified-Overage-Utilization": "1.01",
+          "Anthropic-Ratelimit-Unified-Representative-Claim": "five_hour",
+          "Anthropic-Ratelimit-Unified-Reset": "1793802000",
+          "Anthropic-Ratelimit-Unified-Status": "rejected",
+          "Anthropic-Ratelimit-Unified-Upgrade-Paths": "overage",
+          "Retry-After": "8133"
+        }
+      },
+      "recent_requests": [
+        {
+          "time": "10:10-10:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:20-10:30",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "10:30-10:40",
+          "success": 2,
+          "failed": 0
+        },
+        {
+          "time": "10:40-10:50",
+          "success": 12,
+          "failed": 1
+        },
+        {
+          "time": "10:50-11:00",
+          "success": 32,
+          "failed": 0
+        },
+        {
+          "time": "11:00-11:10",
+          "success": 52,
+          "failed": 0
+        },
+        {
+          "time": "11:10-11:20",
+          "success": 71,
+          "failed": 0
+        },
+        {
+          "time": "11:20-11:30",
+          "success": 57,
+          "failed": 0
+        },
+        {
+          "time": "11:30-11:40",
+          "success": 35,
+          "failed": 0
+        },
+        {
+          "time": "11:40-11:50",
+          "success": 6,
+          "failed": 0
+        },
+        {
+          "time": "11:50-12:00",
+          "success": 5,
+          "failed": 0
+        },
+        {
+          "time": "12:00-12:10",
+          "success": 10,
+          "failed": 0
+        },
+        {
+          "time": "12:10-12:20",
+          "success": 147,
+          "failed": 0
+        },
+        {
+          "time": "12:20-12:30",
+          "success": 96,
+          "failed": 0
+        },
+        {
+          "time": "12:30-12:40",
+          "success": 26,
+          "failed": 0
+        },
+        {
+          "time": "12:40-12:50",
+          "success": 56,
+          "failed": 0
+        },
+        {
+          "time": "12:50-13:00",
+          "success": 46,
+          "failed": 0
+        },
+        {
+          "time": "13:00-13:10",
+          "success": 12,
+          "failed": 1
+        },
+        {
+          "time": "13:10-13:20",
+          "success": 0,
+          "failed": 0
+        },
+        {
+          "time": "13:20-13:30",
+          "success": 0,
+          "failed": 0
+        }
+      ],
+      "runtime_only": false,
+      "size": 652,
+      "source": "file",
+      "status": "error",
+      "status_message": "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your account's monthly spend limit. Please try again later.\"},\"request_id\":\"req_011CghrdN5y89BXjkyDBeciu\"}",
+      "success": 665,
+      "type": "claude",
+      "unavailable": true,
+      "updated_at": "2026-11-04T13:04:26.665875+01:00"
+    }
+  ],
+  "observed_at": "2026-11-04T12:26:12.507808Z"
+}

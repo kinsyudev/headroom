@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  KeepAlive restarts the deck on crash. ThrottleInterval keeps a crash loop to one start per 30 s.
+  A bad management key is not a crash: the process stays up in the 'rejected' link state, so
+  restarts never spend CPA auth attempts (see src/main.ts).
+  Replace /Users/kinsyu/src/cpa-deck with the checkout path, and the bun path if it isn't Homebrew's.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.kinsyu.cpa-deck</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bun</string>
+    <string>run</string>
+    <string>src/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/kinsyu/src/cpa-deck</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/kinsyu/Library/Logs/cpa-deck.log</string>
+  <key>StandardErrorPath</key><string>/Users/kinsyu/Library/Logs/cpa-deck.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key><string>production</string>
+  </dict>
+</dict>
+</plist>

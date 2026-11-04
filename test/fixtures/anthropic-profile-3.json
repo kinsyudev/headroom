@@ -1,0 +1,34 @@
+{
+  "account": {
+    "uuid": "00000000-0000-4000-8000-df6308e7a058",
+    "full_name": "Example User",
+    "display_name": "Example",
+    "email": "account3@example.com",
+    "has_claude_max": false,
+    "has_claude_pro": false,
+    "created_at": "2026-07-06T12:00:19.569264Z"
+  },
+  "organization": {
+    "uuid": "00000000-0000-4000-8000-282a25e894f0",
+    "name": "Example Org",
+    "organization_type": "claude_team",
+    "billing_type": "stripe_subscription",
+    "rate_limit_tier": "default_claude_max_5x",
+    "seat_tier": "team_tier_1",
+    "has_extra_usage_enabled": true,
+    "subscription_status": "active",
+    "subscription_created_at": "2026-01-28T15:58:19.272039Z",
+    "cc_onboarding_flags": {},
+    "claude_code_trial_ends_at": null,
+    "claude_code_trial_duration_days": null,
+    "payment_auth_hosted_invoice_url": null,
+    "claude_ai_completion_feedback_enabled": true,
+    "claude_ai_safety_feedback_enabled": true
+  },
+  "application": {
+    "uuid": "00000000-0000-4000-8000-95f4f7b0c0a2",
+    "name": "Claude Code",
+    "slug": "claude-code"
+  },
+  "enabled_plugins": []
+}
