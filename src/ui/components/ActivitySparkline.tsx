@@ -5,7 +5,7 @@ import { clockTime } from '../format';
 import { Segments } from './Segments';
 
 const W = 240;
-const H = 34;
+const H = 18;
 const TEN_MIN = 600_000;
 
 export function ActivitySparkline(props: { readonly buckets: AccountView['activity']; readonly color: string }) {
@@ -20,23 +20,17 @@ export function ActivitySparkline(props: { readonly buckets: AccountView['activi
   const h = hover === null ? null : b[hover]!;
   return (
     <figure className="spark">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests in the last ${b.length * 10} minutes`} onPointerLeave={() => setHover(null)}>
-        <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} className="axis" />
-        {b.map((x, i) => {
-          const all = ((x.success + x.failed) / max) * (H - 3);
-          const failed = (x.failed / max) * (H - 3);
-          const left = i * band + (band - bw) / 2;
-          return (
-            <g key={x.start} onPointerEnter={() => setHover(i)} opacity={hover === null || hover === i ? 1 : 0.45}>
-              <rect x={i * band} y={0} width={band} height={H} fill="transparent" />
-              {all - failed > 0 && <rect x={left} y={H - 1 - all + failed} width={bw} height={all - failed} fill={props.color} rx={1.5} />}
-              {failed > 0 && <rect x={left} y={H - 1 - all} width={bw} height={Math.max(failed, 1.5)} fill="var(--critical)" rx={1.5} />}
-            </g>
-          );
-        })}
-      </svg>
-      <figcaption className="spark-caption">
-        {h ? (
+      <figcaption className="spark-caption" data-hover={h !== null}>
+        <Segments
+          parts={[
+            <>
+              <strong className="num">{total}</strong> requests in {Math.round((b.length * 10) / 60 * 10) / 10} h
+            </>,
+            'per 10 min',
+            'from CPA',
+          ]}
+        />
+        {h && (
           <Segments
             parts={[
               <>
@@ -52,18 +46,23 @@ export function ActivitySparkline(props: { readonly buckets: AccountView['activi
               </span>,
             ]}
           />
-        ) : (
-          <Segments
-            parts={[
-              <>
-                <strong className="num">{total}</strong> requests in {Math.round((b.length * 10) / 60 * 10) / 10} h
-              </>,
-              'per 10 min',
-              'from CPA',
-            ]}
-          />
         )}
       </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests in the last ${b.length * 10} minutes`} onPointerLeave={() => setHover(null)}>
+        <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} className="axis" />
+        {b.map((x, i) => {
+          const all = ((x.success + x.failed) / max) * (H - 3);
+          const failed = (x.failed / max) * (H - 3);
+          const left = i * band + (band - bw) / 2;
+          return (
+            <g key={x.start} onPointerEnter={() => setHover(i)} opacity={hover === null || hover === i ? 1 : 0.45}>
+              <rect x={i * band} y={0} width={band} height={H} fill="transparent" />
+              {all - failed > 0 && <rect x={left} y={H - 1 - all + failed} width={bw} height={all - failed} fill={props.color} rx={1.5} />}
+              {failed > 0 && <rect x={left} y={H - 1 - all} width={bw} height={Math.max(failed, 1.5)} fill="var(--critical)" rx={1.5} />}
+            </g>
+          );
+        })}
+      </svg>
     </figure>
   );
 }

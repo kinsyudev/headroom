@@ -41,36 +41,36 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
       <span className="offer-label" title={o.program}>
         <Segments parts={[o.name.what, o.name.source]} />
       </span>
-      <span className="offer-state">
+      <div className="offer-state">
         <OfferState offer={o} />
-      </span>
+        {o.grants.length > 0 && (
+          <ul className="grants">
+            {o.grants.map((g) => (
+              <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
+                <Segments
+                  parts={[
+                    <>
+                      {several && <>“{g.label}” </>}
+                      <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
+                    </>,
+                    several && g.clears.length > 0 && (
+                      <>
+                        clears <span title={g.clears.join(', ')}>{g.clearsText}</span>
+                      </>
+                    ),
+                    g.endsAt !== null && (
+                      <>
+                        ends <Clock at={g.endsAt} />
+                      </>
+                    ),
+                  ]}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {o.state.kind === 'claimable' && <ClaimButton name={resetNameText(o.name)} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />}
-      {o.grants.length > 0 && (
-        <ul className="grants">
-          {o.grants.map((g) => (
-            <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
-              <Segments
-                parts={[
-                  <>
-                    {several && <>“{g.label}” </>}
-                    <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
-                  </>,
-                  several && g.clears.length > 0 && (
-                    <>
-                      clears <span title={g.clears.join(', ')}>{g.clearsText}</span>
-                    </>
-                  ),
-                  g.endsAt !== null && (
-                    <>
-                      ends <Clock at={g.endsAt} />
-                    </>
-                  ),
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

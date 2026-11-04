@@ -103,7 +103,7 @@ export function ModeLine(props: { readonly account: AccountView }) {
   const cadence = atWall ? 'At limit: limits and claimable resets are read every 3 min' : 'Normal: usage is read every 5 min';
   return (
     <div className="mode num" data-testid="freshness" title={[cadence, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
-      {atWall ? <span className="badge warning">At limit</span> : <span className="badge neutral">Normal</span>}{' '}
+      {atWall && <span className="badge warning">At limit</span>}{' '}
       <div className="mode-text muted">
         <Segments parts={clauses} />
       </div>
