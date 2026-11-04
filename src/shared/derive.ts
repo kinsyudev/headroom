@@ -388,7 +388,7 @@ function ineligible(reason: string): OfferState {
   return { kind: 'ineligible', reason, explain: INELIGIBLE_EXPLAIN[reason] ?? reason };
 }
 
-export function openClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, readAt: Instant | null): ClaimRecord | undefined {
+export function holdingClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, readAt: Instant | null): ClaimRecord | undefined {
   return claims.find(
     (c) => c.account === account && c.program === program && (c.state.kind === 'sending' || readAt === null || readAt < c.state.at + SETTLE_LAG_MS),
   );
@@ -407,8 +407,8 @@ export function deriveOffers(
 ): OfferView[] {
   const j = feeds.juniper;
   const c = feeds.cedar;
-  const jOpen = openClaim(claims, account, 'juniper_tide', programReadAt(feeds, 'juniper_tide'));
-  const cOpen = openClaim(claims, account, 'cedar_ember', programReadAt(feeds, 'cedar_ember'));
+  const jHolding = holdingClaim(claims, account, 'juniper_tide', programReadAt(feeds, 'juniper_tide'));
+  const cHolding = holdingClaim(claims, account, 'cedar_ember', programReadAt(feeds, 'cedar_ember'));
   const inFlight = (r: ClaimRecord): OfferState => ({
     kind: 'in_flight',
     claim: r.id,
@@ -417,8 +417,8 @@ export function deriveOffers(
   });
   const unknown = (src: Source<unknown>): OfferState => ({ kind: 'unknown', why: src.error ? 'failing' : 'never_read' });
 
-  const juniper: OfferState = jOpen
-    ? inFlight(jOpen)
+  const juniper: OfferState = jHolding
+    ? inFlight(jHolding)
     : !atWall
       ? { kind: 'held', lastAt: j.last?.at ?? null, lastClaimable: j.last ? juniperState(j.last.value).kind === 'claimable' : false }
       : j.last
@@ -426,7 +426,7 @@ export function deriveOffers(
         : unknown(j);
 
   const cv = c.last?.value ?? null;
-  const cedar: OfferState = cOpen ? inFlight(cOpen) : c.last ? cedarState(cv, now) : unknown(c);
+  const cedar: OfferState = cHolding ? inFlight(cHolding) : c.last ? cedarState(cv, now) : unknown(c);
   const defaultGrant = cedar.kind === 'claimable' ? cv?.grants.find((g) => g.id === cedar.grant) : undefined;
 
   return [

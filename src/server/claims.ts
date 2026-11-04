@@ -1,5 +1,5 @@
 import { DeckError } from '../shared/errors';
-import { cedarState, explainOffer, juniperState, openClaim, programReadAt, SETTLE_LAG_MS, usableGrant } from '../shared/derive';
+import { cedarState, explainOffer, holdingClaim, juniperState, programReadAt, SETTLE_LAG_MS, usableGrant } from '../shared/derive';
 import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, Instant, ProgramId, SourceError } from '../shared/domain';
 import { READ_CAP, type Anthropic, type Clock } from './anthropic';
 import type { Cpa } from './cpa';
@@ -41,13 +41,13 @@ export function createClaims(deps: {
   }
 
   function refuseWhileHeld(account: AccountId, program: ProgramId, readAt: Instant | null): void {
-    const open = openClaim(records, account, program, readAt);
-    if (!open) return;
+    const holding = holdingClaim(records, account, program, readAt);
+    if (!holding) return;
     throw new DeckError(
       'not_claimable',
-      open.state.kind === 'sending'
+      holding.state.kind === 'sending'
         ? 'a claim for this program is already in flight'
-        : `held: the last claim's outcome shows only in a read taken at or after ${new Date(open.state.at + SETTLE_LAG_MS).toISOString()}`,
+        : `held: the last claim's outcome shows only in a read taken at or after ${new Date(holding.state.at + SETTLE_LAG_MS).toISOString()}`,
     );
   }
 
