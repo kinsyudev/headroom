@@ -153,8 +153,8 @@ export function createAnthropic(deps: {
       });
       if (usage && r.kind === 'not_sent') refundUnsentRead(account, sentAt);
       if (r.kind === 'answered') {
-        const limited = rateLimit(r);
-        if (limited !== undefined) setBackoff(account, limited);
+        const limit = rateLimit(r);
+        if (limit.limited) setBackoff(account, limit.retryAfterMs);
         else if (usage && r.status < 400 && stored(account).backoff !== null) write(account, (b) => ({ ...b, backoff: null }));
       }
       return r;
@@ -170,7 +170,7 @@ export function createAnthropic(deps: {
     if (r.kind === 'held') return fail({ kind: r.why === 'read_cap' ? 'read_cap' : 'rate_limited', retryAt: r.until });
     if (r.kind === 'not_sent') return fail(deps.cpa.link().kind === 'ok' ? { kind: 'cpa_unreachable' } : { kind: 'link_down' });
     if (r.kind === 'unknown') return fail({ kind: 'upstream', status: 0, message: r.why });
-    if (rateLimit(r) !== undefined) return fail({ kind: 'rate_limited', retryAt: budget(account).backoffUntil ?? at });
+    if (rateLimit(r).limited) return fail({ kind: 'rate_limited', retryAt: budget(account).backoffUntil ?? at });
     if (r.status === 401 || r.status === 403) return fail({ kind: 'auth', status: r.status });
     const body = parseJson(r.body);
     if (r.status >= 400) return fail({ kind: 'upstream', status: r.status, message: errorMessage(body) });
@@ -198,7 +198,7 @@ export function createAnthropic(deps: {
       const r = await send(account, 'POST', `/api/organizations/${req.orgUuid}/reset_rate_limits`, JSON.stringify(body), deps.claimTimeoutMs ?? CLAIM_TIMEOUT_MS);
       if (r.kind === 'held') return { kind: 'not_sent', why: `rate-limited until ${new Date(r.until).toISOString()}` };
       if (r.kind !== 'answered') return r;
-      if (rateLimit(r) !== undefined) return { kind: 'answered', outcome: { result: 'rate_limited', status: r.status } };
+      if (rateLimit(r).limited) return { kind: 'answered', outcome: { result: 'rate_limited', status: r.status } };
       if (r.status === 401 || r.status === 403) return { kind: 'answered', outcome: { result: 'auth_error', status: r.status } };
       const parsed = r.status < 300 ? WireClaimResponse.safeParse(parseJson(r.body)) : null;
       if (!parsed?.success) return { kind: 'unknown', why: `Anthropic answered ${r.status} with an unreadable body` };
@@ -233,11 +233,13 @@ function errorMessage(body: unknown): string {
   return typeof m === 'string' ? m : '';
 }
 
-function rateLimit(r: Extract<UpstreamResult, { kind: 'answered' }>): number | null | undefined {
+type RateLimit = { readonly limited: false } | { readonly limited: true; readonly retryAfterMs: number | null };
+
+function rateLimit(r: Extract<UpstreamResult, { kind: 'answered' }>): RateLimit {
   const body = parseJson(r.body) as { error?: { type?: unknown } } | undefined;
-  if (r.status !== 429 && body?.error?.type !== 'rate_limit_error') return undefined;
+  if (r.status !== 429 && body?.error?.type !== 'rate_limit_error') return { limited: false };
   const s = Number(r.headers['retry-after']);
-  return Number.isFinite(s) && s > 0 ? s * 1000 : null;
+  return { limited: true, retryAfterMs: Number.isFinite(s) && s > 0 ? s * 1000 : null };
 }
 
 const WireSeverity = z.enum(['normal', 'warning', 'critical']).catch('normal');
