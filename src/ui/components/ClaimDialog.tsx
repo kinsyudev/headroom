@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ClaimRecord, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { useAction } from '../api';
@@ -15,6 +15,8 @@ export function ClaimDialog(props: {
   const a = props.account;
   const claim = useAction('claim');
   const paused = usePaused();
+  const dialog = useRef<HTMLDivElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
   const [record, setRecord] = useState<ClaimRecord | null>(null);
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
@@ -23,19 +25,43 @@ export function ClaimDialog(props: {
     props.program === 'juniper_tide' ? `Reset session limit on ${a.email}` : `Use 1 “${grant?.label ?? 'grant'}” reset on ${a.email}`;
 
   useEffect(() => {
+    const opener = document.activeElement;
+    close.current?.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
+      if (e.key === 'Escape') return props.onClose();
+      if (e.key !== 'Tab') return;
+      const stops = Array.from(dialog.current!.querySelectorAll<HTMLElement>('button:not(:disabled)'));
+      const at = stops.indexOf(document.activeElement as HTMLElement);
+      const last = stops.length - 1;
+      e.preventDefault();
+      stops[e.shiftKey ? (at <= 0 ? last : at - 1) : at === last ? 0 : at + 1]!.focus();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [props.onClose]);
 
   const done = record !== null || claim.status.phase === 'error';
+  useEffect(() => {
+    if (done) close.current?.focus();
+  }, [done]);
   const tone = record?.state.kind === 'settled' && record.state.outcome.result === 'reset' ? 'good' : record?.state.kind === 'maybe_sent' ? 'warning' : 'neutral';
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="claim-title" data-testid="claim-dialog">
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        props.onClose();
+      }}
+    >
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="claim-title" data-testid="claim-dialog" ref={dialog}>
         <h2 id="claim-title">Claim a Claude reset</h2>
         <dl className="facts">
           <dt>Account</dt>
@@ -81,7 +107,7 @@ export function ClaimDialog(props: {
         {!stillClaimable && !claim.pending && !done && <p className="claim-status warning">No longer claimable in the latest data. Close and check the card.</p>}
 
         <div className="modal-actions">
-          <button type="button" className="btn quiet" onClick={props.onClose} data-testid="claim-close">
+          <button type="button" className="btn quiet" onClick={props.onClose} data-testid="claim-close" ref={close}>
             {done ? 'Close' : claim.pending ? 'Close (the claim continues)' : 'Cancel'}
           </button>
           {!done && (
