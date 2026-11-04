@@ -1,53 +1,67 @@
 /**
- * Composition root. One long-lived process, kept alive by launchd (launchd/com.kinsyu.cpa-deck.plist).
+ * Composition root. One long-lived process, kept alive by launchd.
  *
- * The process never exits on a bad or missing management key. Exiting would make launchd restart
- * it, and each restart would spend one CPA auth attempt. It stays up instead, shows the link banner,
- * and waits for the env file to change.
- *
- * Order matters:
- *   0. Construct every module. Constructors do no network I/O.
- *   1. serve(). Binding the port is the single-instance lock, so a second copy dies here before
- *      touching CPA. Until step 5, POST /api/act answers 503 link_down.
- *   2. cpa.validate(): one GET /auth-files, or none if the persisted auth-failure budget is spent.
- *   3. observer.start(): loads persisted poll slots, so a restart resumes the schedule.
- *   4. claims.recover(): sending → in_doubt, resume followups.
- *   5. server.acceptActions().
+ * It never exits on a bad or missing management key: launchd would restart it, and every restart
+ * would spend a CPA auth attempt. It stays up, shows the banner, and re-reads the env file.
+ * Binding the port comes before any CPA traffic, so a second copy dies there without sending.
  */
-import app from './ui/index.html';
-import { loadConfig, readManagementKey, watchManagementKey } from './server/config';
-import { createCpa } from './server/cpa';
-import { createAnthropic } from './server/anthropic';
-import { createObserver } from './server/observer';
+import { join } from 'node:path';
+import { createAnthropic, realClock } from './server/anthropic';
 import { createClaims } from './server/claims';
-import { createOAuthFlows } from './server/oauth';
-import { openKeeper } from './server/keeper';
+import { loadConfig, readManagementKey } from './server/config';
+import { createCpa } from './server/cpa';
 import { handlers } from './server/handlers';
-import { serve } from './server/http';
-import type { Instant } from './shared/domain';
+import { buildUi, serve } from './server/http';
+import { openKeeper } from './server/keeper';
+import { createOAuthFlows } from './server/oauth';
+import { createObserver } from './server/observer';
+import { createPoller } from './server/poller';
+import { openStateFile } from './server/state';
+import type { Snapshot } from './shared/domain';
 
-async function main(): Promise<void> {
-  // TODO:
-  // const now = () => Date.now() as Instant
-  // const config = loadConfig()
-  // const store = openStore(config.deckDbPath)
-  // const cpa = createCpa({ baseUrl: config.cpaBaseUrl, key: readManagementKey(config.envPath), envPath, authFailures: store.authFailures, now })
-  // const anthropic = createAnthropic({ cpa, cliVersion: config.claudeCliVersion, now })
-  // const observer = createObserver({ cpa, anthropic, slots: store.pollSlots, now })
-  // const claims = createClaims({ table: store.claims, anthropic, cpa, observer, now })
-  // const oauth = createOAuthFlows({ cpa, observer, now })
-  // const keeper = openKeeper(config.keeperDbPath, { timeZone: config.timeZone })
-  // const server = serve({ port: config.port, app, cpa, observer, claims, oauth, keeper, handlers, now })   // 1
-  // await cpa.validate()
-  // observer.onPrograms((id, p) => claims.reconcile(id, p))
-  // observer.start()
-  // await claims.recover()
-  // server.acceptActions()                                                                                 // 5
-  // watchManagementKey(config.envPath, (k) => void cpa.setKey(k))
-  // SIGTERM → observer.stop(); server.stop(); store.close()
-  void [app, loadConfig, readManagementKey, watchManagementKey, createCpa, createAnthropic, createObserver, createClaims, createOAuthFlows, openKeeper, handlers, serve];
-  void (0 as unknown as Instant);
-  throw new Error('not implemented');
+const config = loadConfig();
+const clock = realClock;
+const state = openStateFile(join(config.stateDir, 'state.json'));
+const cpa = createCpa({ baseUrl: config.cpaBaseUrl, envPath: config.envPath, readKey: () => readManagementKey(config.envPath), state, now: clock.now });
+const anthropic = createAnthropic({ cpa, cliVersion: config.claudeCliVersion, clock, state });
+const observer = createObserver({ cpa, now: clock.now });
+const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: () => cpa.link().kind === 'ok', clock });
+const keeper = openKeeper(config.keeperDbPath, clock.now);
+const claims = createClaims({ anthropic, cpa, poller, clock });
+const oauth = createOAuthFlows({ cpa, observer, now: clock.now });
+
+const snapshot = (): Snapshot => ({
+  generatedAt: clock.now(),
+  link: cpa.link(),
+  cpa: observer.cpa(),
+  strategy: observer.strategy(),
+  feeds: poller.feeds(),
+  serving: keeper.serving(),
+  claims: claims.list(),
+  flows: oauth.list(),
+});
+
+const server = serve({
+  hostname: config.hostname,
+  port: config.port,
+  assets: await buildUi(join(import.meta.dir, 'ui/index.html')),
+  snapshot,
+  history: (range) => keeper.history(range, observer.accounts().map((a) => a.id)),
+  handlers,
+  ctx: { cpa, observer, poller, claims, oauth },
+});
+
+observer.start();
+keeper.start();
+poller.start();
+console.log(`cpa-deck on ${server.url} (CPA ${config.cpaBaseUrl}, claude-cli/${config.claudeCliVersion}, link ${cpa.link().kind})`);
+
+async function shutdown(): Promise<void> {
+  poller.stop();
+  observer.stop();
+  keeper.stop();
+  await server.stop();
+  process.exit(0);
 }
-
-void main();
+process.on('SIGTERM', () => void shutdown());
+process.on('SIGINT', () => void shutdown());

@@ -73,7 +73,6 @@ export type DeckErrorCode =
   | 'cpa_unreachable'
   | 'cpa_error'
   | 'not_claimable'
-  | 'flow_busy'
   | 'unavailable';
 
 export const DECK_ERROR_STATUS: Readonly<Record<DeckErrorCode, number>> = {
@@ -83,7 +82,6 @@ export const DECK_ERROR_STATUS: Readonly<Record<DeckErrorCode, number>> = {
   cpa_unreachable: 502,
   cpa_error: 502,
   not_claimable: 409,
-  flow_busy: 409,
   unavailable: 503,
 };
 

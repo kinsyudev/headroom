@@ -1,79 +1,80 @@
 /**
- * One handler per row of ACTIONS (shared/actions.ts). The mapped type makes a missing or misspelled
- * handler a compile error.
- *
- * The pattern every CPA mutation follows (copy it):
- *   1. resolve and check the account (ctx.account(id) throws unknown_account)
- *   2. call the Cpa method
- *   3. `cpaAt: await ctx.observer.refreshCpa()`. The response is sent only after the new CPA state
- *      is published, so the UI never has to keep optimistic state.
- *
- * Handlers never write observations, claims, or flows directly. They call the owning module.
+ * One handler per row of ACTIONS; the mapped type makes a missing handler a compile error.
+ * Every CPA mutation answers only after `observer.refresh()` has published CPA's new state, so
+ * the UI keeps no optimistic copy. Handlers never write observations directly.
  */
+import { DeckError, type ActionInput, type ActionKind, type ActionOutput } from '../shared/actions';
 import { planMakePrimary } from '../shared/derive';
 import type { AccountId, CpaAccount } from '../shared/domain';
-import type { ActionInput, ActionKind, ActionOutput } from '../shared/actions';
 import type { Claims } from './claims';
 import type { Cpa } from './cpa';
 import type { OAuthFlows } from './oauth';
 import type { Observer } from './observer';
+import type { Poller } from './poller';
 
 export interface HandlerCtx {
   readonly cpa: Cpa;
   readonly observer: Observer;
+  readonly poller: Poller;
   readonly claims: Claims;
   readonly oauth: OAuthFlows;
-  /** The current CPA view of one account. Throws DeckError('unknown_account'). */
-  account(id: AccountId): CpaAccount;
 }
 
 export type Handler<K extends ActionKind> = (input: ActionInput<K>, ctx: HandlerCtx) => Promise<ActionOutput<K>>;
 export type Handlers = { readonly [K in ActionKind]: Handler<K> };
 
+function known(ctx: HandlerCtx, id: AccountId): CpaAccount {
+  const a = ctx.observer.accounts().find((x) => x.id === id);
+  if (!a) throw new DeckError('unknown_account', `CPA has no Claude account ${id}`);
+  return a;
+}
+
 export const handlers: Handlers = {
   'account.setDisabled': async ({ account, disabled }, ctx) => {
-    ctx.account(account);
+    known(ctx, account);
     await ctx.cpa.setDisabled(account, disabled);
-    return { cpaAt: await ctx.observer.refreshCpa() };
+    return { cpaAt: await ctx.observer.refresh() };
   },
 
   'account.setPriority': async ({ account, priority }, ctx) => {
-    ctx.account(account);
+    known(ctx, account);
     await ctx.cpa.setPriority(account, priority);
-    return { cpaAt: await ctx.observer.refreshCpa() };
+    return { cpaAt: await ctx.observer.refresh() };
   },
 
   'account.makePrimary': async ({ account }, ctx) => {
-    // TODO:
-    // await ctx.observer.refreshCpa()   (plan against fresh priorities, not a 5 s old copy)
-    // plan = planMakePrimary(accounts, account)
-    // plan.enable → cpa.setDisabled(account, false)
-    // plan.priority != null → cpa.setPriority(account, plan.priority)
-    // return { cpaAt: await refreshCpa(), priority: plan.priority ?? current, changed: plan.priority != null || plan.enable }
-    void planMakePrimary;
-    throw new Error('not implemented');
+    await ctx.observer.refresh();
+    const current = known(ctx, account);
+    const plan = planMakePrimary(ctx.observer.accounts(), account);
+    if (plan.enable) await ctx.cpa.setDisabled(account, false);
+    if (plan.priority !== null) await ctx.cpa.setPriority(account, plan.priority);
+    return {
+      cpaAt: await ctx.observer.refresh(),
+      priority: plan.priority ?? current.priority,
+      changed: plan.priority !== null || plan.enable,
+    };
   },
 
   'account.clearCooldown': async ({ account }, ctx) => {
-    ctx.account(account);
+    known(ctx, account);
     await ctx.cpa.clearCooldown(account);
-    return { cpaAt: await ctx.observer.refreshCpa() };
+    return { cpaAt: await ctx.observer.refresh() };
   },
 
   'account.refreshToken': async ({ account }, ctx) => {
-    ctx.account(account);
-    const { ok } = await ctx.cpa.refreshToken(account); // token material was already dropped inside cpa.ts
-    return { ok, cpaAt: await ctx.observer.refreshCpa() };
+    known(ctx, account);
+    const { ok } = await ctx.cpa.refreshToken(account);
+    return { ok, cpaAt: await ctx.observer.refresh() };
   },
 
   'routing.setStrategy': async ({ strategy }, ctx) => {
     await ctx.cpa.setStrategy(strategy);
-    return { cpaAt: await ctx.observer.refreshCpa() };
+    return { cpaAt: await ctx.observer.refresh() };
   },
 
   'quota.refresh': async ({ account }, ctx) => {
-    if (account !== 'all') ctx.account(account);
-    return { scheduled: ctx.observer.kick(account) };
+    if (account !== 'all') known(ctx, account);
+    return { scheduled: ctx.poller.kick(account) };
   },
 
   'oauth.start': async (_input, ctx) => ctx.oauth.start(),
@@ -81,5 +82,12 @@ export const handlers: Handlers = {
   'oauth.cancel': async ({ flow }, ctx) => {
     ctx.oauth.cancel(flow);
     return { ok: true };
+  },
+
+  claim: async ({ account, program, grant }, ctx) => {
+    known(ctx, account);
+    const record = await ctx.claims.claim({ account, program, grant });
+    await ctx.observer.refresh();
+    return record;
   },
 };

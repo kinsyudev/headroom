@@ -149,8 +149,6 @@ export function deriveAccount(
   };
 }
 
-// Read mode and the poll budget
-
 /**
  * At the wall means any of: a current limit at 100% or more, the passive header status
  * `rejected` for a window that hasn't reset, or a live credential-scope quota cooldown.
@@ -180,8 +178,6 @@ function deriveRead(feeds: AccountFeeds, atWall: boolean, now: Instant): ReadVie
           : null;
   return { mode: atWall ? 'wall' : 'normal', nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, refreshHeld };
 }
-
-// Routing
 
 interface Seen {
   readonly lastAt: Instant;
@@ -258,8 +254,6 @@ export function planMakePrimary(accounts: readonly CpaAccount[], target: Account
   const outranks = others.every((p) => t.priority > p);
   return { priority: outranks ? null : Math.max(...others) + 10, enable: t.disabled };
 }
-
-// Limits: authoritative poll merged with passive headers
 
 interface Observation {
   readonly kind: string;
@@ -378,8 +372,6 @@ export function derivePlan(profile: Source<Profile>): PlanView | null {
   const tier = max ? `Max ${max[1]}x` : /pro/.test(p.rateLimitTier) ? 'Pro' : p.rateLimitTier;
   return { label: p.orgType === 'claude_team' ? `Team · ${tier}` : tier, orgName: p.orgName };
 }
-
-// Reset offers
 
 export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = {
   juniper_tide: 'Weekly session reset',
@@ -509,8 +501,6 @@ export function explainOffer(state: OfferState): string {
   }
 }
 
-// Freshness
-
 export function freshness<T>(feed: Exclude<FeedName, 'headers'>, src: Source<T>, now: Instant, held = false): FreshnessView {
   const ageMs = src.last ? now - src.last.at : null;
   const t = FRESHNESS[feed];
@@ -545,8 +535,6 @@ export function headerFreshness(headers: HeaderQuota | null, now: Instant): Fres
     nextAt: null,
   };
 }
-
-// Overview and banners
 
 export function deriveOverview(accounts: readonly AccountView[], evidence: 'keeper' | 'cpa_headers'): OverviewView {
   const serving = accounts

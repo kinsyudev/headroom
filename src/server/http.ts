@@ -1,103 +1,126 @@
 /**
- * The HTTP shell: Bun.serve, the request guard, five API routes, and the SSE hub.
- * It stays thin. It parses, guards, and dispatches. Every decision lives in a module it calls.
+ * The HTTP shell: the guard, four routes, and the UI bundle. It parses and dispatches; every
+ * decision lives in a module it calls.
  *
- * Guard (all routes):
- *   Host must be exactly `127.0.0.1:<port>` or `localhost:<port>`. A DNS-rebinding attacker's page
- *   reaches us with Host `evil.example:<port>` and gets 421 before any route runs.
- * Guard (POST /api/act, in addition):
- *   - Origin is present and is http://127.0.0.1:<port> or http://localhost:<port>
- *   - Sec-Fetch-Site, when the browser sends it, is 'same-origin'
- *   - Content-Type is application/json. That forces a CORS preflight for any cross-site fetch, and we
- *     answer no preflight (OPTIONS → 405, and no Access-Control-* header anywhere).
- *   - X-Deck-Csrf equals the per-process secret. Only a same-origin page can read it from /api/session.
- * Each layer alone stops a cross-site form or fetch. Together they cover old browsers, rebinding, and extensions.
+ * Guard, every route: Host must be exactly 127.0.0.1:<port> or localhost:<port>, which stops DNS
+ * rebinding. POST also needs `X-CPA-Deck: 1` and `Content-Type: application/json`; a cross-origin
+ * page can't send either without a preflight, and nothing here answers preflights or sends CORS
+ * headers. An `Origin`, when present, must be this origin.
  *
- * SSE: Bun.serve's default idleTimeout is 10 s, which would cut /api/stream. Call server.timeout(req, 0)
- * for that request and send a ':ka' comment every 5 s anyway.
+ * The UI is bundled in memory at startup and served through the same guard as the API.
  */
-import { ACTIONS, DECK_ERROR_STATUS, DeckError, type ActionKind } from '../shared/actions';
-import type { Instant, Snapshot } from '../shared/domain';
-import type { HistoryRange } from '../shared/history';
-import type { Claims } from './claims';
-import type { Cpa } from './cpa';
-import type { Handlers, HandlerCtx } from './handlers';
-import type { Keeper } from './keeper';
-import type { OAuthFlows } from './oauth';
-import type { Observer } from './observer';
+import { ZodError } from 'zod';
+import { ACTIONS, DECK_ERROR_STATUS, DeckError, type ActionInput, type ActionKind } from '../shared/actions';
+import type { Snapshot } from '../shared/domain';
+import { HISTORY_RANGES, type HistoryRange, type HistoryView } from '../shared/history';
+import type { Handler, HandlerCtx, Handlers } from './handlers';
+
+export interface Asset {
+  readonly body: ArrayBuffer;
+  readonly type: string;
+}
 
 export interface HttpDeps {
+  readonly hostname: '127.0.0.1';
   readonly port: number;
-  /** The HTML import: `import app from '../ui/index.html'`. Bun bundles the TSX behind it. */
-  readonly app: unknown;
-  readonly cpa: Cpa;
-  readonly observer: Observer;
-  readonly claims: Claims;
-  readonly oauth: OAuthFlows;
-  readonly keeper: Keeper;
+  readonly assets: ReadonlyMap<string, Asset>;
+  readonly snapshot: () => Snapshot;
+  readonly history: (range: HistoryRange) => HistoryView;
   readonly handlers: Handlers;
-  readonly now: () => Instant;
+  readonly ctx: HandlerCtx;
 }
 
-/**
- * Binds 127.0.0.1:<port>. Call it FIRST in main.ts. Port acquisition doubles as the single-instance
- * lock: a second deck process fails here before it sends anything to CPA.
- *
- * Routes:
- *   GET  /               deps.app
- *   GET  /api/session    { csrf }
- *   GET  /api/snapshot   Snapshot
- *   GET  /api/stream     text/event-stream: `event: snapshot` + JSON on every hub change
- *   GET  /api/history    ?range=24h|7d|30d → keeper.history(range)
- *   POST /api/act        { kind, input } → handlers[kind](ACTIONS[kind].input.parse(input), ctx)
- *   *                    404
- * Errors: DeckError → { error: { code, message } } with DECK_ERROR_STATUS[code]; ZodError → 400 invalid;
- *         anything else → 500 { error: { code: 'internal' } }, and the message is logged without bodies.
- */
-export interface DeckServer {
-  /** Until called, POST /api/act answers 503 link_down. main.ts calls it after claims.recover(). */
-  acceptActions(): void;
-  stop(): Promise<void>;
+const BASE_HEADERS = { 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
+
+export function serve(deps: HttpDeps): { readonly url: string; stop(): Promise<void> } {
+  const server = Bun.serve({
+    hostname: deps.hostname,
+    port: deps.port,
+    // A claim can wait on a queued read, the 10 s gap, and a 35 s upstream timeout.
+    idleTimeout: 255,
+    fetch: (req: Request): Promise<Response> => route(req, deps, server.port!).catch(errorResponse),
+  });
+  return { url: `http://${deps.hostname}:${server.port}`, stop: () => server.stop(true) };
 }
 
-export function serve(deps: HttpDeps): DeckServer {
-  void ACTIONS;
-  void DECK_ERROR_STATUS;
-  void DeckError;
-  throw new Error('not implemented');
+async function route(req: Request, deps: HttpDeps, port: number): Promise<Response> {
+  const url = new URL(req.url);
+  const blocked = guard(req, { port, mutate: req.method !== 'GET' && req.method !== 'HEAD' });
+  if (blocked) return blocked;
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    if (url.pathname === '/api/snapshot') return json(deps.snapshot());
+    if (url.pathname === '/api/history') return json(deps.history(parseRange(url.searchParams.get('range'))));
+    const asset = deps.assets.get(url.pathname);
+    if (asset) return new Response(asset.body, { headers: { ...BASE_HEADERS, 'Content-Type': asset.type } });
+    return json({ error: { code: 'not_found', message: url.pathname } }, 404);
+  }
+  if (req.method === 'POST' && url.pathname === '/api/act') {
+    const body: unknown = await req.json().catch(() => {
+      throw new DeckError('invalid', 'body is not JSON');
+    });
+    const { kind, input } = parseActBody(body);
+    return json(await dispatch(kind, input, deps.handlers, deps.ctx));
+  }
+  return json({ error: { code: 'method_not_allowed', message: req.method } }, 405);
 }
 
-/** Returns a Response to send instead of routing, or null to continue. Pure apart from reading the request. */
-export function guard(req: Request, opts: { port: number; mutate: boolean }): Response | null {
-  throw new Error('not implemented');
+function dispatch<K extends ActionKind>(kind: K, raw: unknown, handlers: Handlers, ctx: HandlerCtx): Promise<unknown> {
+  const input = ACTIONS[kind].input.parse(raw) as ActionInput<K>;
+  return (handlers[kind] as Handler<K>)(input, ctx);
 }
 
-/** The request body for /api/act, before per-kind parsing. */
+/** A Response to send instead of routing, or null to continue. */
+export function guard(req: Request, opts: { readonly port: number; readonly mutate: boolean }): Response | null {
+  const host = req.headers.get('host');
+  if (host !== `127.0.0.1:${opts.port}` && host !== `localhost:${opts.port}`) {
+    return json({ error: { code: 'forbidden', message: 'host not allowed' } }, 421);
+  }
+  if (!opts.mutate) return null;
+  if (req.headers.get('x-cpa-deck') !== '1') return json({ error: { code: 'forbidden', message: 'missing X-CPA-Deck header' } }, 403);
+  if (!(req.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+    return json({ error: { code: 'forbidden', message: 'Content-Type must be application/json' } }, 415);
+  }
+  const origin = req.headers.get('origin');
+  if (origin !== null && origin !== `http://${host}`) return json({ error: { code: 'forbidden', message: 'cross-origin request' } }, 403);
+  return null;
+}
+
 export function parseActBody(body: unknown): { kind: ActionKind; input: unknown } {
-  // TODO: body is an object with a string `kind` that's a key of ACTIONS → else DeckError('invalid')
-  throw new Error('not implemented');
+  const b = body as { kind?: unknown; input?: unknown } | null;
+  if (typeof b !== 'object' || b === null || typeof b.kind !== 'string' || !Object.hasOwn(ACTIONS, b.kind)) {
+    throw new DeckError('invalid', 'unknown action');
+  }
+  return { kind: b.kind as ActionKind, input: b.input ?? {} };
 }
 
-/**
- * Builds the Snapshot at the read boundary from each owner's part. No owner writes another's part,
- * so there's nothing to lock. The hub subscribes to every owner's onChange, debounces 100 ms, bumps
- * `version`, and pushes the new Snapshot to every SSE client.
- */
-export interface Hub {
-  snapshot(): Snapshot;
-  subscribe(send: (s: Snapshot) => void): () => void;
-}
-
-export function createHub(deps: Pick<HttpDeps, 'cpa' | 'observer' | 'claims' | 'oauth' | 'now'>): Hub {
-  // TODO: snapshot = { version, generatedAt: now(), link: cpa.link(), ...observer.state(), claims: claims.list(), flows: oauth.list() }
-  throw new Error('not implemented');
-}
-
-export function handlerCtx(deps: HttpDeps): HandlerCtx {
-  throw new Error('not implemented');
-}
-
-/** `?range=` → HistoryRange; anything else → DeckError('invalid'). */
 export function parseRange(q: string | null): HistoryRange {
-  throw new Error('not implemented');
+  if (q === null) return '24h';
+  if ((HISTORY_RANGES as readonly string[]).includes(q)) return q as HistoryRange;
+  throw new DeckError('invalid', `range must be one of ${HISTORY_RANGES.join(', ')}`);
+}
+
+function json(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { ...BASE_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  });
+}
+
+function errorResponse(e: unknown): Response {
+  if (e instanceof DeckError) return json({ error: { code: e.code, message: e.message } }, DECK_ERROR_STATUS[e.code]);
+  if (e instanceof ZodError) return json({ error: { code: 'invalid', message: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') } }, 400);
+  console.error('cpa-deck internal error:', e instanceof Error ? e.message : String(e));
+  return json({ error: { code: 'internal', message: 'internal error' } }, 500);
+}
+
+/** Bundles src/ui/index.html in memory. Paths map to `/` for the HTML and `/<chunk>` for assets. */
+export async function buildUi(entry: string): Promise<Map<string, Asset>> {
+  const r = await Bun.build({ entrypoints: [entry], target: 'browser', minify: true, define: { 'process.env.NODE_ENV': '"production"' } });
+  if (!r.success) throw new AggregateError(r.logs, 'UI build failed');
+  const assets = new Map<string, Asset>();
+  for (const o of r.outputs) {
+    const path = o.path.replace(/^\.\//, '/');
+    assets.set(path.endsWith('.html') ? '/' : path, { body: await o.arrayBuffer(), type: o.type });
+  }
+  return assets;
 }
