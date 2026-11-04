@@ -228,7 +228,8 @@ const WireCooldown = z.object({
   http_status: z.number().optional(),
 });
 
-const WireQuota = z.object({ observed_at: z.string(), signals: z.record(z.string(), z.string()) });
+/** An account with no traffic since CPA started reports `{signals: {}}` without observed_at. */
+const WireQuota = z.object({ observed_at: z.string().optional(), signals: z.record(z.string(), z.string()).default({}) });
 
 const WireAuthFile = z.object({
   auth_index: z.string(),
@@ -248,7 +249,11 @@ const WireAuthFile = z.object({
   last_refresh: z.string().optional(),
 });
 
-const WireAuthFiles = z.object({ files: z.array(WireAuthFile), observed_at: z.string() });
+/** Other providers' entries can take any shape, so only Claude entries meet the strict schema. */
+const WireAuthFiles = z.object({
+  files: z.array(z.looseObject({ provider: z.unknown() })).transform((files) => files.filter((f) => f.provider === 'claude')).pipe(z.array(WireAuthFile)),
+  observed_at: z.string(),
+});
 
 const CPA_STATUSES: readonly CpaStatus[] = ['active', 'error', 'disabled', 'pending', 'refreshing', 'unknown'];
 const HEADER_PREFIX = 'Anthropic-Ratelimit-Unified-';
@@ -263,31 +268,29 @@ export function parseAuthFiles(json: unknown): {
   const wire = WireAuthFiles.parse(json);
   const observedAt = parseInstant(wire.observed_at) ?? (Date.now() as Instant);
   const names = new Map<AccountId, string>();
-  const accounts = wire.files
-    .filter((f) => f.provider === 'claude')
-    .map((f): CpaAccount => {
-      const id = f.auth_index as AccountId;
-      names.set(id, f.name);
-      return {
-        id,
-        email: f.email ?? f.account ?? f.name,
-        disabled: f.disabled,
-        priority: f.priority,
-        status: (CPA_STATUSES as readonly string[]).includes(f.status) ? (f.status as CpaStatus) : 'unknown',
-        statusMessage: parseStatusMessage(f.status_message),
-        unavailable: f.unavailable,
-        nextRetryAfter: parseInstant(f.next_retry_after),
-        cooldowns: f.cooldowns.flatMap((c) => {
-          const retryAt = parseInstant(c.retry_at);
-          if (retryAt === null) return [];
-          const reason = (COOLDOWN_REASONS as readonly string[]).includes(c.reason) ? (c.reason as CooldownReason) : 'unknown';
-          return [{ model: c.scope === 'credential' ? null : (c.model_key ?? null), reason, retryAt, httpStatus: c.http_status ?? null }];
-        }),
-        headers: f.quota ? parseSignals(f.quota) : null,
-        lastRefresh: parseInstant(f.last_refresh),
-        activity: anchorActivity(f.recent_requests, observedAt),
-      };
-    });
+  const accounts = wire.files.map((f): CpaAccount => {
+    const id = f.auth_index as AccountId;
+    names.set(id, f.name);
+    return {
+      id,
+      email: f.email ?? f.account ?? f.name,
+      disabled: f.disabled,
+      priority: f.priority,
+      status: (CPA_STATUSES as readonly string[]).includes(f.status) ? (f.status as CpaStatus) : 'unknown',
+      statusMessage: parseStatusMessage(f.status_message),
+      unavailable: f.unavailable,
+      nextRetryAfter: parseInstant(f.next_retry_after),
+      cooldowns: f.cooldowns.flatMap((c) => {
+        const retryAt = parseInstant(c.retry_at);
+        if (retryAt === null) return [];
+        const reason = (COOLDOWN_REASONS as readonly string[]).includes(c.reason) ? (c.reason as CooldownReason) : 'unknown';
+        return [{ model: c.scope === 'credential' ? null : (c.model_key ?? null), reason, retryAt, httpStatus: c.http_status ?? null }];
+      }),
+      headers: f.quota ? parseSignals(f.quota) : null,
+      lastRefresh: parseInstant(f.last_refresh),
+      activity: anchorActivity(f.recent_requests, observedAt),
+    };
+  });
   return { accounts, observedAt, names };
 }
 
@@ -303,7 +306,7 @@ function parseStatusMessage(raw: string): string | null {
 
 function parseSignals(q: z.infer<typeof WireQuota>): HeaderQuota | null {
   const observedAt = parseInstant(q.observed_at);
-  if (observedAt === null) return null;
+  if (observedAt === null || Object.keys(q.signals).length === 0) return null;
   const overall = new Map<string, string>();
   const groups = new Map<string, Map<string, string>>();
   for (const [name, value] of Object.entries(q.signals)) {

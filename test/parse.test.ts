@@ -71,6 +71,20 @@ describe('CPA auth-files fixture', () => {
     expect(act.at(-3)).toEqual({ start: at('2026-11-04T12:00:00Z'), success: 25, failed: 1 });
   });
 
+  test('an account with no traffic since CPA started has quota {signals: {}} and parses with no headers', () => {
+    const json = fixture('cpa-auth-files.json') as { files: Record<string, unknown>[] };
+    json.files[0]!.quota = { signals: {} };
+    const parsed = parseAuthFiles(json);
+    expect(parsed.accounts).toHaveLength(3);
+    expect(account(ACC2, parsed.accounts).headers).toBeNull();
+  });
+
+  test('other providers never block the Claude accounts, whatever their shape', () => {
+    const json = fixture('cpa-auth-files.json') as { files: Record<string, unknown>[] };
+    json.files.push({ provider: 'codex', auth_index: 42, quota: { weird: true } });
+    expect(parseAuthFiles(json).accounts.map((a) => a.id)).toEqual([ACC2, ACC1, ACC3]);
+  });
+
   test('the file name stays private but resolvable', () => {
     const { names } = parseAuthFiles(fixture('cpa-auth-files.json'));
     expect(names.get(ACC2)).toBe('claude-793879e9-account2@example.com.json');
