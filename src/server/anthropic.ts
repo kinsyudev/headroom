@@ -125,6 +125,14 @@ export function createAnthropic(deps: {
     });
   }
 
+  function countReadBeforeSend(account: AccountId, sentAt: Instant): void {
+    write(account, (b) => ({ ...b, reads: b.reads.since(sentAt - READ_CAP_WINDOW_MS).append(sentAt) }));
+  }
+
+  function refundUnsentRead(account: AccountId, sentAt: Instant): void {
+    write(account, (b) => ({ ...b, reads: b.reads.without(sentAt) }));
+  }
+
   function send(account: AccountId, method: 'GET' | 'POST', path: string, data: string | undefined, timeoutMs: number): Promise<Sent> {
     const usage = (Object.values(READ_PATH) as string[]).includes(path);
     const run = async (): Promise<Sent> => {
@@ -134,7 +142,7 @@ export function createAnthropic(deps: {
       if (b.backoffUntil !== null) return { kind: 'held', why: 'backoff', until: b.backoffUntil };
       if (usage && b.capUntil !== null) return { kind: 'held', why: 'read_cap', until: b.capUntil };
       const sentAt = (lastAt = deps.clock.now());
-      if (usage) write(account, (x) => ({ ...x, reads: x.reads.since(sentAt - READ_CAP_WINDOW_MS).append(sentAt) }));
+      if (usage) countReadBeforeSend(account, sentAt);
       const r = await deps.cpa.apiCall({
         account,
         method,
@@ -143,7 +151,7 @@ export function createAnthropic(deps: {
         ...(data === undefined ? {} : { data }),
         timeoutMs,
       });
-      if (usage && r.kind === 'not_sent') write(account, (b) => ({ ...b, reads: b.reads.without(sentAt) }));
+      if (usage && r.kind === 'not_sent') refundUnsentRead(account, sentAt);
       if (r.kind === 'answered') {
         const limited = rateLimit(r);
         if (limited !== undefined) setBackoff(account, limited);
