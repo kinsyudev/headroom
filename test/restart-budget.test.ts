@@ -1,10 +1,3 @@
-/**
- * The Anthropic budget across process restarts, the way a LaunchAgent restart loop produces
- * them. Each life is a fresh createAnthropic and createPoller over the same state.json on one
- * virtual clock. The stub stands in for CPA's api-call and behaves like Anthropic's measured
- * limiter: a 13th usage call for one account inside 15 minutes answers 429.
- * Ported from the adversarial review's restart repros.
- */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -29,7 +22,6 @@ const LIMITED: UpstreamResult = {
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
 
-/** Runs `totalMs` of deck time as lives of `lifeMs` each and returns every usage read that left. */
 async function restartLoop(opts: { readonly totalMs: number; readonly lifeMs: number; readonly accounts?: readonly CpaAccount[]; readonly always429?: boolean; readonly step?: number }) {
   const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-restart-'));
   dirs.push(dir);

@@ -1,7 +1,3 @@
-/**
- * One 1 Hz clock for the whole page, aligned to the second so every countdown ticks together,
- * and the derived deck: deriveDeck(snapshot, now) once per tick at the App level.
- */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { deriveDeck } from '../shared/derive';
 import type { Instant, Snapshot } from '../shared/domain';

@@ -1,8 +1,3 @@
-/**
- * Stacked columns in plain SVG, one segment per account. Marks follow the dataviz specs: columns
- * at most 24px wide, a 2px surface gap between segments, a 4px rounded top, hairline solid grid,
- * compact ticks. Each column is its own hover target and lists every series, values first.
- */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface Series {
@@ -114,7 +109,6 @@ export function StackedColumns(props: {
 
 const TOOLTIP_W = 210;
 
-/** Beside the hovered column, never over it: right of it in the left half, left of it otherwise. */
 function tooltipLeft(columnX: number, band: number, plotRight: number): number {
   return columnX + band / 2 < plotRight / 2 ? columnX + band + 8 : Math.max(0, columnX - TOOLTIP_W - 8);
 }
@@ -125,7 +119,6 @@ function roundedTop(x: number, top: number, w: number, h: number): string {
   return `M${x},${bottom}V${top + r}Q${x},${top} ${x + r},${top}H${x + w - r}Q${x + w},${top} ${x + w},${top + r}V${bottom}Z`;
 }
 
-/** 0 plus 3-5 round steps of 1, 2 or 5 times a power of ten. */
 function niceTicks(max: number): number[] {
   if (max <= 0) return [0, 1];
   const raw = max / 4;

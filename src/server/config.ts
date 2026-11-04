@@ -1,22 +1,14 @@
-/**
- * Startup configuration and the management key. The key lives in keeper's env file and is held in
- * a `Secret`, which prints "[redacted]" through JSON.stringify, template literals and inspect.
- * Only cpa.ts calls `reveal()`, once per request, to build the Authorization header.
- */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface Config {
-  /** Not configurable on purpose. */
   readonly hostname: '127.0.0.1';
   readonly port: number;
   readonly cpaBaseUrl: string;
   readonly envPath: string;
   readonly keeperDbPath: string;
-  /** Holds state.json. */
   readonly stateDir: string;
-  /** Sent as `User-Agent: claude-cli/<v> (external, cli)`. */
   readonly claudeCliVersion: string;
 }
 
@@ -48,7 +40,6 @@ export class Secret {
   private constructor(value: string) {
     this.#value = value;
   }
-  /** null for a missing or blank value, so a Secret always holds a non-empty string. */
   static from(value: string | undefined | null): Secret | null {
     const v = value?.trim();
     return v ? new Secret(v) : null;
@@ -56,7 +47,6 @@ export class Secret {
   reveal(): string {
     return this.#value;
   }
-  /** sha256 hex, so state.json can remember a rejected key without storing it. */
   hash(): string {
     return createHash('sha256').update(this.#value).digest('hex');
   }
@@ -71,7 +61,6 @@ export class Secret {
   }
 }
 
-/** `CPA_MANAGEMENT_KEY=` from the env file, with optional quotes. null if the file or line is missing. */
 export function readManagementKey(envPath: string): Secret | null {
   let text: string;
   try {

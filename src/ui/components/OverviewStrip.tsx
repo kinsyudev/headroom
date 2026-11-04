@@ -1,7 +1,3 @@
-/**
- * The at-a-glance row, first on the page: who is serving now (evidence) and where the next
- * session lands (prediction), the next reset, claimable resets, and headroom.
- */
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
 import { Age, Clock, Countdown } from './Countdown';

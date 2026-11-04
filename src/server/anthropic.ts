@@ -1,16 +1,7 @@
 /**
- * Anthropic's OAuth endpoints, reached through CPA's /api-call, which substitutes the account's
- * token. Every Anthropic request leaves through `send`, which enforces the budget:
- * - one call in flight, and at least `gapMs` (10 s) between the starts of any two calls;
- * - a 429 or `rate_limit_error` backs off that account only: `retry-after` when present, else
- *   5, 10, 20, then 30 min; only a successful usage read resets it, because the usage endpoint
- *   is the one Anthropic limits;
- * - nothing is sent for an account in backoff;
- * - at most READ_CAP usage reads per account in any READ_CAP_WINDOW_MS, whatever asked for them:
- *   the schedule, Read now, or a claim's fresh read.
- * Each account's budget (when its usage reads left, and its backoff with the ladder step) lives
- * in state.json, so a restarted process continues the same budget instead of starting a new one.
- * Scheduling (which account, which mode, when) belongs to poller.ts. Nothing here retries.
+ * A 429 or `rate_limit_error` backs off that account only: `retry-after` when present, else
+ * 5, 10, 20, then 30 min; only a successful usage read resets it, because the usage endpoint
+ * is the one Anthropic limits.
  */
 import { z } from 'zod';
 import type {
@@ -71,18 +62,14 @@ export type ClaimAttempt =
 export interface Anthropic {
   read(account: AccountId, mode: ReadMode): Promise<Polled<UsageRead>>;
   profile(account: AccountId): Promise<Polled<Profile>>;
-  /** POST reset_rate_limits. IRREVERSIBLE. Only claims.ts calls it, once per user intent. */
+  /** POST reset_rate_limits. IRREVERSIBLE. */
   claim(account: AccountId, req: ClaimRequest): Promise<ClaimAttempt>;
   budget(account: AccountId): Budget;
 }
 
-/** One account's read budget as of now, across this process and the ones before it. */
 export interface Budget {
-  /** When the newest usage read left. */
   readonly lastReadAt: Instant | null;
-  /** A live 429 backoff: nothing is sent for the account until then. */
   readonly backoffUntil: Instant | null;
-  /** The read cap is full: the next usage read is allowed then. */
   readonly capUntil: Instant | null;
 }
 
@@ -147,7 +134,6 @@ export function createAnthropic(deps: {
       if (b.backoffUntil !== null) return { kind: 'held', why: 'backoff', until: b.backoffUntil };
       if (usage && b.capUntil !== null) return { kind: 'held', why: 'read_cap', until: b.capUntil };
       const sentAt = (lastAt = deps.clock.now());
-      // Recorded before the request leaves, so a process killed mid-read still counts it.
       if (usage) write(account, (x) => ({ ...x, reads: [...x.reads.filter((t) => t > sentAt - READ_CAP_WINDOW_MS), sentAt] }));
       const r = await deps.cpa.apiCall({
         account,
@@ -239,15 +225,12 @@ function errorMessage(body: unknown): string {
   return typeof m === 'string' ? m : '';
 }
 
-/** undefined when not rate limited; otherwise the retry-after in ms, or null when absent. */
 function rateLimit(r: Extract<UpstreamResult, { kind: 'answered' }>): number | null | undefined {
   const body = parseJson(r.body) as { error?: { type?: unknown } } | undefined;
   if (r.status !== 429 && body?.error?.type !== 'rate_limit_error') return undefined;
   const s = Number(r.headers['retry-after']);
   return Number.isFinite(s) && s > 0 ? s * 1000 : null;
 }
-
-// Wire schemas: lenient, unknown keys dropped.
 
 const WireSeverity = z.enum(['normal', 'warning', 'critical']).catch('normal');
 
@@ -334,7 +317,6 @@ const WireClaimResponse = z.object({
   cooldown_until: z.string().nullable().optional(),
 });
 
-/** Exported for tests. `normal` keeps spend and drops juniper; `wall` keeps juniper and drops spend. */
 export function parseUsage(json: unknown, mode: ReadMode): UsageRead {
   const w = WireUsage.parse(json);
   const limits: Limit[] = w.limits.map((l) => ({

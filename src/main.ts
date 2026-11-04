@@ -1,10 +1,3 @@
-/**
- * Composition root. One long-lived process, kept alive by launchd.
- *
- * It never exits on a bad or missing management key: launchd would restart it, and every restart
- * would spend a CPA auth attempt. It stays up, shows the banner, and re-reads the env file.
- * Binding the port comes before any CPA traffic, so a second copy dies there without sending.
- */
 import { join } from 'node:path';
 import { createAnthropic, realClock } from './server/anthropic';
 import { createClaims } from './server/claims';

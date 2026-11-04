@@ -1,9 +1,3 @@
-/**
- * The irreversible action. The dialog names the account, the program, the grant and the effect,
- * and says how old the data behind the offer is. On confirm the server reads fresh reset data
- * first and refuses unless it is still claimable, so this dialog never decides on its own.
- * Closing it while the claim runs doesn't cancel anything; the card shows the outcome.
- */
 import { useEffect, useState } from 'react';
 import type { ClaimRecord, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';

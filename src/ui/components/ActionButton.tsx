@@ -1,8 +1,3 @@
-/**
- * One control for one action row. It shows the three states every action owes the operator:
- * pending (spinner, disabled), done (a check for a few seconds) and failed (the server's
- * message, kept until the next try).
- */
 import { useState, type ReactNode } from 'react';
 import type { ActionInput, ActionKind, ActionOutput } from '../../shared/actions';
 import { useAction } from '../api';
@@ -15,7 +10,6 @@ export function ActionButton<K extends ActionKind>(props: {
   readonly input: ActionInput<K>;
   readonly children: ReactNode;
   readonly pendingLabel?: string;
-  /** Text after success; a function reads the action's output. */
   readonly done?: string | ((out: ActionOutput<K>) => string);
   readonly disabled?: boolean;
   readonly title?: string;

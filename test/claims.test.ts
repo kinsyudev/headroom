@@ -1,8 +1,3 @@
-/**
- * Reset claims end to end against the fake CPA: the real cpa, anthropic, poller and claims
- * modules, with the 10 s gap and the follow-up spacing shrunk so the suite runs in seconds.
- * The fake records every reset_rate_limits and reset-quota it receives.
- */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,7 +19,6 @@ const KEY = 'test-management-key';
 const cleanups: (() => void)[] = [];
 afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
-/** Pass `fake` to start a second deck process against the same CPA. */
 async function rig(opts: { claimTimeoutMs?: number; before?: (fake: FakeCpa) => void; fake?: FakeCpa } = {}) {
   const fake = opts.fake ?? startFakeCpa({ key: KEY });
   const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-claims-'));

@@ -1,8 +1,3 @@
-/**
- * GET /api/history. keeper.ts returns sparse rows bucketed by UTC hour, per account and model.
- * The browser folds them into local hours or days with `foldHistory`, so time zone and DST rules
- * stay out of SQL and come from the operator's own clock.
- */
 import type { AccountId, Instant } from './domain';
 
 export type HistoryRange = '24h' | '7d' | '30d';
@@ -15,8 +10,7 @@ export const RANGE_MS: Readonly<Record<HistoryRange, number>> = {
 
 /**
  * `freshInput` is input_tokens minus cache reads and cache creation. For Claude, keeper's
- * input_tokens already includes both, so raw input would double-count cache. Raw input is not
- * exposed, so nobody can sum it by mistake.
+ * input_tokens already includes both, so raw input would double-count cache.
  */
 export interface TokenTotals {
   readonly requests: number;
@@ -29,7 +23,6 @@ export interface TokenTotals {
 }
 
 export interface HourRow {
-  /** Start of the UTC hour. */
   readonly hour: Instant;
   readonly account: AccountId;
   readonly model: string;
@@ -58,12 +51,9 @@ export interface ErrorRow {
 export interface HistoryView {
   readonly range: HistoryRange;
   readonly generatedAt: Instant;
-  /** keeper's newest usage_events row. */
   readonly keeperLatestAt: Instant | null;
   readonly hours: readonly HourRow[];
-  /** Per account and model over exactly the last range. */
   readonly models: readonly ModelRow[];
-  /** The 50 newest error_events for the known accounts, newest first. */
   readonly errors: readonly ErrorRow[];
 }
 
@@ -89,7 +79,7 @@ export interface HistoryBucket {
 
 /**
  * Contiguous, zero-filled local buckets: 24 hours for '24h', else one bucket per local day,
- * stepping by calendar date so a DST day is 23 or 25 hours long. Uses the runtime's time zone.
+ * stepping by calendar date so a DST day is 23 or 25 hours long.
  */
 export function foldHistory(rows: readonly HourRow[], range: HistoryRange, now: Instant): { bucket: 'hour' | 'day'; buckets: HistoryBucket[] } {
   const starts: number[] = [];

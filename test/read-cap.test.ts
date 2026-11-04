@@ -1,9 +1,3 @@
-/**
- * The per-account cap on Anthropic usage reads: at most 8 in any rolling 15 minutes, whatever
- * asked for them (the schedule, Read now, a claim's fresh read). Real anthropic, poller and
- * claims on a virtual clock; the stub stands in for CPA's api-call and logs every request.
- * Ported from the adversarial review's manual-refresh and claim pre-read repros.
- */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -32,7 +26,6 @@ interface Sent {
   readonly path: string;
 }
 
-/** account3's wall read is the synthetic claimable body, so a claim that gets past the cap would send. */
 function stubCpa(clock: FakeClock, sent: Sent[]): Cpa {
   return {
     link: () => ({ kind: 'ok' }),
@@ -68,7 +61,6 @@ function rig(opts: { readonly accounts?: readonly CpaAccount[]; readonly clock?:
   };
   const reads = (id: AccountId) => sent.filter((s) => s.account === id && s.path.startsWith('/api/oauth/usage')).map((s) => s.at);
   const worst15 = (id: AccountId) => Math.max(0, ...reads(id).map((t) => reads(id).filter((u) => u >= t && u < t + 15 * MIN).length));
-  /** When the 9th read is allowed: once the oldest of the last 8 is 15 minutes old. */
   const nextAllowed = (id: AccountId) => (reads(id).at(-CAP)! + 15 * MIN) as Instant;
   const view = (id: AccountId) => deriveDeck(snapshot({ accounts, feeds: poller.feeds(), claims: claims.list(), now: clock.now() }), clock.now()).accounts.find((a) => a.id === id)!;
   return { clock, sent, dir, poller, claims, run, reads, worst15, nextAllowed, view };

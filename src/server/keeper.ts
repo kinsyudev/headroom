@@ -1,14 +1,6 @@
 /**
- * keeper's SQLite, read-only. keeper owns ingestion; the deck opens the file with `mode=ro`,
- * sets `query_only`, and runs SELECTs only. This is the only file that names `input_tokens`.
- *
- * - Serving evidence: every 5 s, the newest 500 usage_events grouped by account, giving the last
- *   successful request and how many succeeded in the last 2 minutes.
- * - History: sparse rows per UTC hour, account and model (the browser folds them into local hours
- *   or days), per-model totals over the range, and the newest 50 errors. Memoized 30 s per range,
- *   because a 30-day scan blocks the event loop for about 0.3 s.
- * - Timestamps carry keeper's +08:00 offset. Every comparison goes through julianday(), which
- *   normalizes the offset; the text is never compared directly.
+ * Timestamps carry keeper's +08:00 offset. Every comparison goes through julianday(), which
+ * normalizes the offset; the text is never compared directly.
  */
 import { Database } from 'bun:sqlite';
 import { DeckError } from '../shared/errors';
@@ -23,7 +15,6 @@ export interface Keeper {
   start(): void;
   stop(): void;
   serving(): Source<readonly ServingSeen[]>;
-  /** Throws DeckError('unavailable') when the DB can't be read. */
   history(range: HistoryRange, accounts: readonly AccountId[]): HistoryView;
 }
 
@@ -197,7 +188,6 @@ function errorMessage(body: string | null): string {
     const m = (JSON.parse(body) as { error?: { message?: unknown } }).error?.message;
     if (typeof m === 'string') return m;
   } catch {
-    // SQL.errors cuts bodies at 600 chars, so long ones no longer parse
   }
   return /"message"\s*:\s*"([^"]{1,300})/.exec(body)?.[1] ?? body.slice(0, 300);
 }

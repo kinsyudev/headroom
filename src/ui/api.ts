@@ -1,11 +1,3 @@
-/**
- * The UI's only I/O; components never call fetch.
- * - useSnapshotPoll(): GET /api/snapshot every 2 s, and at once after every action.
- * - act(kind, input): the only way to mutate, typed by the action table.
- * - useAction(kind): act() plus pending / ok / error for one control. While pending the control
- *   is disabled and run() is a no-op, which is the UI half of double-click safety.
- * - useHistory(range): GET /api/history on mount, on range change and every 60 s.
- */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ActionInput, ActionKind, ActionOutput } from '../shared/actions';
 import { DeckError, type DeckErrorCode } from '../shared/errors';

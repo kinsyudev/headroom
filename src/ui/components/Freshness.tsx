@@ -1,7 +1,3 @@
-/**
- * One chip per feed: "limits 4m · rate-limited 1m ago · retry 14:02". Passive headers read
- * "headers 3s" in plain ink: their age is the last request, not a failure.
- */
 import type { FeedName, FreshnessView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, sourceError } from '../format';

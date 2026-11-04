@@ -1,9 +1,3 @@
-/**
- * Failed management authentications as CPA counts them, against the fake CPA with a 40 ms key
- * check so concurrent requests overlap the way they do against CPA's bcrypt compare. CPA bans
- * the IP after 5 strikes in 30 minutes, and the ban locks keeper out too.
- * Ported from the adversarial review's strike repros (startup, restart loop, key rotation).
- */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,7 +32,6 @@ function stateFile(): StateFile {
   return openStateFile(join(dir, 'state.json'));
 }
 
-/** One deck process. `env.key` is what the env file holds right now. */
 function deck(fake: FakeCpa, state: StateFile, env: { key: string }) {
   const cpa = createCpa({ baseUrl: fake.url, envPath: '/dev/null', readKey: () => Secret.from(env.key), state, now: realClock.now });
   const anthropic = createAnthropic({ cpa, cliVersion: '2.1.311', clock: realClock, state, gapMs: 0 });

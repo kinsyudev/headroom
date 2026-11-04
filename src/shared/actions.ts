@@ -1,9 +1,3 @@
-/**
- * Every mutation the deck can perform, as one table. The input and output types, the request
- * parser (http.ts), the handler map (handlers.ts, where a missing row fails the build) and the
- * UI's `act()` all derive from ACTIONS. Inputs are zod schemas because they come from request
- * bodies; outputs are phantom types because the server builds them.
- */
 import { z } from 'zod';
 import type { AccountId, ClaimRecord, FlowId, GrantId, Instant, ProgramId, RoutingStrategy } from './domain';
 
@@ -14,7 +8,6 @@ const accountId = z
   .regex(/^[0-9a-f]{16}$/)
   .transform((s) => s as AccountId);
 
-/** Every CPA mutation resolves only after the server has re-read CPA. */
 export interface Applied {
   readonly cpaAt: Instant;
 }
@@ -34,18 +27,12 @@ export const ACTIONS = {
     input: z.object({ strategy: z.enum(['fill-first', 'round-robin']).transform((s) => s as RoutingStrategy) }),
     output: out<Applied>(),
   },
-  /** Moves the next Anthropic read to now. Never bypasses backoff or the read cap. */
   'quota.refresh': {
     input: z.object({ account: z.union([accountId, z.literal('all')]) }),
     output: out<{ scheduled: readonly { account: AccountId; held: RefreshHeld | null }[] }>(),
   },
   'oauth.start': { input: z.object({}), output: out<{ flow: FlowId; url: string }>() },
   'oauth.cancel': { input: z.object({ flow: z.uuid().transform((s) => s as FlowId) }), output: out<{ ok: true }>() },
-  /**
-   * Claims a Claude reset. IRREVERSIBLE. The server reads fresh `wall` data first and refuses
-   * with `not_claimable` unless that read says the offer is claimable. A second call while one is
-   * in flight for the same account and program gets the same result back.
-   */
   claim: {
     input: z.object({
       account: accountId,

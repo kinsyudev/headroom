@@ -1,19 +1,7 @@
-/**
- * Facts the server knows about the outside world, in domain terms. `Snapshot` is what
- * GET /api/snapshot returns and the only input to `deriveDeck` (shared/derive.ts).
- *
- * - Facts, not conclusions. "claimable", "serving", "lapsed" and "headroom" are derived from
- *   these facts plus `now`. CPA's `remaining_seconds` is dropped because it is `retryAt - now`.
- * - JSON-safe values only. Every time is an `Instant` (epoch ms) and every percent is a
- *   `Percent` on the 0..100 scale; the conversion happens once, at the parse boundary.
- * - Each top-level part of `Snapshot` has exactly one writer, named next to it.
- */
-
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };
 
 export type Instant = Brand<number, 'Instant'>;
-/** CPA `auth_index`: the join key across CPA, api-call and keeper rows. */
 export type AccountId = Brand<string, 'AccountId'>;
 /** Percent of a window used. It can exceed 100 (header overage utilization 1.01 is 101). */
 export type Percent = Brand<number, 'Percent'>;
@@ -53,11 +41,6 @@ export interface Sample<T> {
   readonly at: Instant;
 }
 
-/**
- * One feed, owned by one writer. A success clears `error`, so a non-null `error` is always newer
- * than `last`. `attemptedAt` is the last try of either outcome; `nextAt` is when the owner will
- * try again, or null when nothing is scheduled.
- */
 export interface Source<T> {
   readonly last: Sample<T> | null;
   readonly error: Sample<SourceError> | null;
@@ -71,18 +54,13 @@ export function emptySource<T>(): Source<T> {
 
 export type SourceError =
   | { readonly kind: 'rate_limited'; readonly retryAt: Instant }
-  /** The deck's own cap on usage reads is full, so nothing was sent. */
   | { readonly kind: 'read_cap'; readonly retryAt: Instant }
-  /** Anthropic said 401/403 for this account's token. */
   | { readonly kind: 'auth'; readonly status: number }
   | { readonly kind: 'cpa_unreachable' }
-  /** The management link is down (see LinkState), so nothing was sent. */
   | { readonly kind: 'link_down' }
   | { readonly kind: 'upstream'; readonly status: number; readonly message: string }
   | { readonly kind: 'malformed'; readonly message: string }
   | { readonly kind: 'unavailable'; readonly message: string };
-
-// CPA (writer: server/observer.ts)
 
 export type RoutingStrategy = 'fill-first' | 'round-robin';
 export type CpaStatus = 'active' | 'error' | 'disabled' | 'pending' | 'refreshing' | 'unknown';
@@ -101,7 +79,6 @@ export const COOLDOWN_REASONS = [
 export type CooldownReason = (typeof COOLDOWN_REASONS)[number];
 
 export interface Cooldown {
-  /** null is credential scope (blocks the whole account); a string is that model only. */
   readonly model: string | null;
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
@@ -110,7 +87,6 @@ export interface Cooldown {
 
 export type HeaderStatus = 'allowed' | 'allowed_warning' | 'rejected';
 
-/** One `Anthropic-Ratelimit-Unified-<key>-*` group: '5h', '7d', '7d_oi', 'Overage', ... */
 export interface HeaderWindow {
   readonly key: string;
   readonly percent: Percent | null;
@@ -130,36 +106,29 @@ export interface HeaderQuota {
   readonly overageDisabledReason: string | null;
 }
 
-/** A 10-minute bucket of CPA's recent_requests, anchored to absolute time at parse. */
 export interface ActivityBucket {
   readonly start: Instant;
   readonly success: number;
   readonly failed: number;
 }
 
-/** One Claude credential. The file `name` CPA needs for PATCH stays private to cpa.ts. */
 export interface CpaAccount {
   readonly id: AccountId;
   readonly email: string;
   readonly disabled: boolean;
   readonly priority: number;
   readonly status: CpaStatus;
-  /** `error.message` from CPA's raw `status_message` JSON, or the raw text when it isn't JSON. */
   readonly statusMessage: string | null;
   readonly unavailable: boolean;
   readonly nextRetryAfter: Instant | null;
   readonly cooldowns: readonly Cooldown[];
   readonly headers: HeaderQuota | null;
   readonly lastRefresh: Instant | null;
-  /** Oldest first, contiguous. */
   readonly activity: readonly ActivityBucket[];
 }
 
-// Anthropic (writer: server/poller.ts)
-
 export type Severity = 'normal' | 'warning' | 'critical';
 
-/** One entry of `/api/oauth/usage` `limits[]`. Unknown kinds pass through. */
 export interface Limit {
   readonly kind: 'session' | 'weekly_all' | 'weekly_scoped' | (string & {});
   readonly percent: Percent;
@@ -203,7 +172,6 @@ export interface Grant {
   readonly resetsTotal: number;
   readonly resetsLeft: number;
   readonly endsAt: Instant | null;
-  /** Window names this grant clears, such as 'five_hour'. */
   readonly clears: readonly string[];
   readonly paused: boolean;
   readonly usableNow: boolean;
@@ -231,10 +199,6 @@ export interface Profile {
 
 export type ReadMode = 'normal' | 'wall';
 
-/**
- * Feeds are split by which read writes them. `normal` writes limits, spend and cedar; `wall`
- * writes limits, juniper and cedar. A null value means upstream sent null (not enrolled).
- */
 export interface AccountFeeds {
   readonly limits: Source<readonly Limit[]>;
   readonly spend: Source<Spend | null>;
@@ -244,10 +208,8 @@ export interface AccountFeeds {
   readonly gate: ReadGate;
 }
 
-/** The poll budget's facts for one account. The UI derives "can refresh now" from them. */
 export interface ReadGate {
   readonly backoffUntil: Instant | null;
-  /** The per-account read cap is full until then. */
   readonly capUntil: Instant | null;
   readonly manualAt: Instant | null;
   readonly reading: ReadMode | 'profile' | null;
@@ -264,16 +226,11 @@ export function emptyFeeds(): AccountFeeds {
   };
 }
 
-// Serving evidence (writer: server/keeper.ts)
-
 export interface ServingSeen {
   readonly account: AccountId;
-  /** Newest successful request keeper recorded for this account. */
   readonly lastAt: Instant;
   readonly recent: number;
 }
-
-// Claims (writer: server/claims.ts, in memory)
 
 export type ProgramId = 'juniper_tide' | 'cedar_ember';
 
@@ -294,10 +251,8 @@ export type ClaimState =
       readonly kind: 'settled';
       readonly at: Instant;
       readonly outcome: ClaimOutcome;
-      /** CPA reset-quota after `reset` or `not_limited`. */
       readonly followup: 'not_needed' | 'done' | 'failed';
     }
-  /** The request may have reached Anthropic. Never resent; the next wall read shows the truth. */
   | { readonly kind: 'unknown'; readonly at: Instant; readonly why: string };
 
 export interface ClaimRecord {
@@ -309,8 +264,6 @@ export interface ClaimRecord {
   readonly state: ClaimState;
 }
 
-// Add-account flows (writer: server/oauth.ts, in memory)
-
 export interface OAuthFlow {
   readonly id: FlowId;
   readonly url: string;
@@ -320,13 +273,9 @@ export interface OAuthFlow {
   readonly account: AccountId | null;
 }
 
-// Management link (writer: server/cpa.ts)
-
-/** Anything but 'ok' means no management request is sent, which also stops every Anthropic call. */
 export type LinkState =
   | { readonly kind: 'ok' }
   | { readonly kind: 'missing_key'; readonly envPath: string }
-  /** CPA answered 401/403. Nothing is sent until KEY_REJECT_LATCH_MS has passed. */
   | { readonly kind: 'rejected'; readonly at: Instant; readonly envPath: string };
 
 export interface Snapshot {
@@ -334,8 +283,8 @@ export interface Snapshot {
   readonly link: LinkState; // cpa.ts
   readonly cpa: Source<readonly CpaAccount[]>; // observer.ts
   readonly strategy: Source<RoutingStrategy>; // observer.ts
-  readonly feeds: Readonly<Record<AccountId, AccountFeeds>>; // poller.ts
-  readonly serving: Source<readonly ServingSeen[]>; // keeper.ts
-  readonly claims: readonly ClaimRecord[]; // claims.ts, newest first
+  readonly feeds: Readonly<Record<AccountId, AccountFeeds>>;
+  readonly serving: Source<readonly ServingSeen[]>;
+  readonly claims: readonly ClaimRecord[];
   readonly flows: readonly OAuthFlow[]; // oauth.ts
 }

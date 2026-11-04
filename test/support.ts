@@ -17,7 +17,6 @@ import {
 } from '../src/shared/domain';
 
 export const FIXTURES = join(import.meta.dir, 'fixtures');
-/** The CPA fixture's observed_at. */
 export const T0 = Date.parse('2026-11-04T12:26:12.507Z') as Instant;
 export const at = (iso: string) => Date.parse(iso) as Instant;
 export const plus = (t: Instant, ms: number) => (t + ms) as Instant;
@@ -27,14 +26,13 @@ export function fixture(name: string): unknown {
   return JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'));
 }
 
-/** auth-index-N.txt maps fixture N to its auth_index. */
 export function accountId(n: 1 | 2 | 3): AccountId {
   return readFileSync(join(FIXTURES, `auth-index-${n}.txt`), 'utf8').trim() as AccountId;
 }
 
-export const ACC2 = accountId(1); // account2@example.com, Max 20x, priority 10
-export const ACC1 = accountId(2); // account1@example.com, Team Max 5x, priority 50
-export const ACC3 = accountId(3); // account3@example.com, Team Max 5x, priority 50, blocked
+export const ACC2 = accountId(1);
+export const ACC1 = accountId(2);
+export const ACC3 = accountId(3);
 
 export function cpaAccounts(): readonly CpaAccount[] {
   return parseAuthFiles(fixture('cpa-auth-files.json')).accounts;
@@ -48,7 +46,6 @@ export function usage(name: string, mode: ReadMode): UsageRead {
   return parseUsage(fixture(name), mode);
 }
 
-/** Feeds as if one read of `mode` succeeded at `t`. */
 export function feedsFrom(read: UsageRead, t: Instant, profileFixture?: string): AccountFeeds {
   const sample = <T>(value: T) => ({ ...emptySource<T>(), last: { value, at: t }, attemptedAt: t });
   const f = emptyFeeds();
@@ -85,7 +82,6 @@ export function snapshot(parts: {
   };
 }
 
-/** A clock whose sleeps resolve only when the test advances time. */
 export class FakeClock implements Clock {
   private timers: { at: number; resolve: () => void }[] = [];
   constructor(private t: number) {}

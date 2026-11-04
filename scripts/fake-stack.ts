@@ -1,10 +1,3 @@
-/**
- * The deck wired to the fake CPA and a generated keeper DB, so nothing real is touched.
- *
- *   bun scripts/fake-stack.ts        serve on http://127.0.0.1:1338 until Ctrl-C
- *
- * scripts/e2e.ts imports startStack() and drives the same stack with Playwright.
- */
 import { Database } from 'bun:sqlite';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

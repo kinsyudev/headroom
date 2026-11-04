@@ -1,8 +1,4 @@
-/**
- * The single writer of the CPA account list and the routing strategy. /auth-files every 5 s and
- * /routing/strategy every 60 s; both are local and cost nothing upstream. Handlers never write
- * these: after a mutation they call `refresh()` and answer once the new state is published.
- */
+/** /auth-files every 5 s and /routing/strategy every 60 s; both are local and cost nothing upstream. */
 import { z } from 'zod';
 import { DeckError } from '../shared/errors';
 import { emptySource, type CpaAccount, type Instant, type RoutingStrategy, type Source, type SourceError } from '../shared/domain';
@@ -16,9 +12,7 @@ export interface Observer {
   stop(): void;
   cpa(): Source<readonly CpaAccount[]>;
   strategy(): Source<RoutingStrategy>;
-  /** The last known list, or [] before the first answer. */
   accounts(): readonly CpaAccount[];
-  /** Re-reads both now. Never throws; a failure lands in the Source. */
   refresh(): Promise<Instant>;
 }
 

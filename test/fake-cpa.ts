@@ -1,13 +1,3 @@
-/**
- * A stand-in for CPA's management API, built from the sanitized fixtures with every timestamp
- * shifted so the fixture's observed_at becomes "now". It mutates its own state the way CPA would
- * and records every mutation it receives, so tests and scripts/e2e.ts can assert exactly what the
- * deck sent. Account 3's wall read is the synthetic claimable body.
- *
- *   bun test/fake-cpa.ts            FAKE_CPA_PORT (default 18317), FAKE_CPA_KEY (default fake-key)
- *   GET /__fake/mutations           what the deck changed, in order
- *   GET /__fake/calls               every api-call (Anthropic) request, for budget checks
- */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -35,16 +25,12 @@ export interface FakeCpa {
   readonly url: string;
   readonly mutations: Mutation[];
   readonly calls: ApiCall[];
-  /** Accounts whose usage reads answer 429 rate_limit_error. */
   readonly rateLimited: Set<string>;
   claimDelayMs: number;
-  /** Fail this many upcoming reset-quota calls with HTTP 500. */
   failResetQuota: number;
-  /** The management key CPA accepts. Assigning it models CPA reloading a new key under a running deck. */
   key: string;
   /** How long the key check takes before CPA answers; the real one compares a bcrypt hash. */
   authDelayMs: number;
-  /** The bearer each failed authentication carried, in order. CPA bans the IP after 5 in 30 min. */
   readonly strikes: string[];
   stop(): void;
 }
@@ -54,7 +40,6 @@ type Json = Record<string, any>;
 const read = (name: string): Json => JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'));
 const ISO = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
-/** Moves every RFC3339 string and every `*-Reset` epoch header by `delta` ms. */
 function shift<T>(value: T, delta: number, key = ''): T {
   if (typeof value === 'string') {
     if (ISO.test(value)) return new Date(Date.parse(value.replace(/(\.\d{3})\d+/, '$1')) + delta).toISOString() as T;
@@ -121,7 +106,6 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
     };
   }
 
-  /** After a reset the session window is clear, so the account is no longer at its limit. */
   function clearSession(id: string): void {
     for (const body of [usage.get(id)!, wall.get(id)!]) {
       for (const l of body.limits as Json[]) if (l.kind === 'session') Object.assign(l, { percent: 0, severity: 'normal', is_active: false });

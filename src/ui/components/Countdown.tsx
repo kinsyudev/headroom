@@ -1,4 +1,3 @@
-/** Time-relative text. Everything reads the shared 1 Hz clock, so it all ticks together. */
 import { useNow } from '../deck';
 import { age, clockTime, duration } from '../format';
 
@@ -12,7 +11,6 @@ export function Countdown(props: { readonly at: number | null }) {
   );
 }
 
-/** "15:20", "Thu 09:00". */
 export function Clock(props: { readonly at: number }) {
   const now = useNow();
   return (
@@ -22,7 +20,6 @@ export function Clock(props: { readonly at: number }) {
   );
 }
 
-/** "3s", "4m" since `at`. */
 export function Age(props: { readonly at: number | null }) {
   const now = useNow();
   if (props.at === null) return <span className="muted">never</span>;

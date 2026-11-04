@@ -1,9 +1,3 @@
-/**
- * One quota window with its source visible:
- *   Session   ███████░░░░░░  17%   ↻ 4h 34m
- *             live 3s · poll 12% 4m ago          (the other source is the faint tick)
- * A lapsed window shows when it reset and hides the old percent; an idle one says no session runs.
- */
 import type { CSSProperties } from 'react';
 import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';

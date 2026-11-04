@@ -1,8 +1,3 @@
-/**
- * keeper.ts against a DB built from keeper's real schema with a handful of exact rows, written
- * the way keeper writes them (+08:00 offsets). The DST fold runs in Europe/Madrid, where
- * 2026-10-25 is 25 hours long.
- */
 process.env.TZ = 'Europe/Madrid';
 
 import { Database } from 'bun:sqlite';

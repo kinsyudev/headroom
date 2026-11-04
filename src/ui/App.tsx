@@ -1,7 +1,3 @@
-/**
- * Page layout, and the only component that sees the Snapshot. It derives the DeckView once per
- * clock tick and hands slices down. Accounts keep one categorical color each, by email order.
- */
 import { useState } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../shared/domain';
 import { RefreshContext, useSnapshotPoll, type Connection } from './api';

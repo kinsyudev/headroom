@@ -1,11 +1,3 @@
-/**
- * A short read-only run against the real CPA and keeper. It starts the deck with its defaults,
- * waits for the first budgeted Anthropic reads, prints what the page would show, checks the guard
- * with requests that cannot mutate anything, saves a screenshot, and stops the deck.
- * It never sends a valid action: the guard probe uses an unknown action kind.
- *
- *   bun scripts/live-check.ts
- */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';

@@ -1,13 +1,8 @@
 /**
- * The HTTP shell: the guard, four routes, and the UI bundle. It parses and dispatches; every
- * decision lives in a module it calls.
- *
  * Guard, every route: Host must be exactly 127.0.0.1:<port> or localhost:<port>, which stops DNS
  * rebinding. POST also needs `X-CPA-Deck: 1` and `Content-Type: application/json`; a cross-origin
  * page can't send either without a preflight, and nothing here answers preflights or sends CORS
- * headers. An `Origin`, when present, must be this origin.
- *
- * The UI is bundled in memory at startup and served through the same guard as the API.
+ * headers.
  */
 import { ZodError } from 'zod';
 import { ACTIONS, type ActionInput, type ActionKind } from '../shared/actions';
@@ -37,7 +32,6 @@ export function serve(deps: HttpDeps): { readonly url: string; stop(): Promise<v
   const server = Bun.serve({
     hostname: deps.hostname,
     port: deps.port,
-    // A claim can wait on a queued read, the 10 s gap, and a 35 s upstream timeout.
     idleTimeout: 255,
     fetch: (req: Request): Promise<Response> => route(req, deps, server.port!).catch(errorResponse),
   });
@@ -70,7 +64,6 @@ function dispatch<K extends ActionKind>(kind: K, raw: unknown, handlers: Handler
   return (handlers[kind] as Handler<K>)(input, ctx);
 }
 
-/** A Response to send instead of routing, or null to continue. */
 export function guard(req: Request, opts: { readonly port: number; readonly mutate: boolean }): Response | null {
   const host = req.headers.get('host');
   if (host !== `127.0.0.1:${opts.port}` && host !== `localhost:${opts.port}`) {
@@ -114,7 +107,6 @@ function errorResponse(e: unknown): Response {
   return json({ error: { code: 'internal', message: 'internal error' } }, 500);
 }
 
-/** Bundles src/ui/index.html in memory. Paths map to `/` for the HTML and `/<chunk>` for assets. */
 export async function buildUi(entry: string): Promise<Map<string, Asset>> {
   const r = await Bun.build({ entrypoints: [entry], target: 'browser', minify: true, define: { 'process.env.NODE_ENV': '"production"' } });
   if (!r.success) throw new AggregateError(r.logs, 'UI build failed');

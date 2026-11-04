@@ -1,10 +1,3 @@
-/**
- * A keeper app.db built from keeper's real schema, filled with 30 days of deterministic traffic
- * whose timestamps carry keeper's +08:00 offset. account1 has a success seconds ago (serving),
- * account2 last succeeded 10 minutes ago, account3's recent rows are 429s.
- *
- *   bun test/fake-keeper.ts <path>   writes a fresh DB, then appends an account1 row every 5 s
- */
 import { Database } from 'bun:sqlite';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';

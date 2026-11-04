@@ -1,4 +1,3 @@
-/** Page-level problems, most severe first, one line each. */
 import type { Banner } from '../../shared/view';
 import type { Connection } from '../api';
 import { Age, Clock } from './Countdown';

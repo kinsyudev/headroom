@@ -1,18 +1,4 @@
-/**
- * CPA management API client: the only module that talks to CPA and the only one that sees the
- * management key.
- *
- * CPA bans an IP for 30 minutes after 5 failed authentications, and that ban also locks out
- * keeper. So no request is built without a key, and requests go to CPA one at a time: a wrong
- * key, at startup or after CPA changes its key under a running deck, meets exactly one 401
- * before the rest of the queue sees the latch and fails without sending. The 401/403 records the
- * key's hash in state.json, and that key is not sent again for KEY_REJECT_LATCH_MS, so each
- * distinct key costs at most one strike per ban window, across restarts. A different key in the
- * env file is tried at once.
- *
- * Wire shapes are parsed here into domain types. The refresh response's token material and the
- * file `name` CPA needs for PATCH never leave this module.
- */
+/** CPA bans an IP for 30 minutes after 5 failed authentications, and that ban also locks out keeper. */
 import { z } from 'zod';
 import { DeckError } from '../shared/errors';
 import { KEY_REJECT_LATCH_MS } from '../shared/derive';
@@ -48,11 +34,6 @@ export interface UpstreamRequest {
   readonly timeoutMs: number;
 }
 
-/**
- * - answered: CPA made the call and relayed Anthropic's reply.
- * - not_sent: Anthropic was certainly not contacted.
- * - unknown: the request may have left (timeout, dropped connection, CPA 5xx).
- */
 export type UpstreamResult =
   | { readonly kind: 'answered'; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
   | { readonly kind: 'not_sent'; readonly why: string }
@@ -72,7 +53,6 @@ export interface Cpa {
   refreshToken(account: AccountId): Promise<{ readonly ok: boolean }>;
   startOAuth(): Promise<{ readonly url: string; readonly state: string }>;
   oauthStatus(state: string): Promise<OAuthStatus>;
-  /** Never throws for upstream outcomes. */
   apiCall(req: UpstreamRequest): Promise<UpstreamResult>;
 }
 
@@ -108,7 +88,6 @@ export function createCpa(opts: {
     opts.state.update((s) => ({ ...s, rejectedKeys: [...s.rejectedKeys.filter((x) => x.keyHash !== hash && latched(x)), { keyHash: hash, at: opts.now() }] }));
   }
 
-  /** Re-reads the env file whenever the link is down, so a fixed key takes effect without a restart. */
   function usableKey(): Secret {
     if (link().kind !== 'ok') key = opts.readKey();
     const l = link();
@@ -276,7 +255,6 @@ const CPA_STATUSES: readonly CpaStatus[] = ['active', 'error', 'disabled', 'pend
 const HEADER_PREFIX = 'Anthropic-Ratelimit-Unified-';
 const TEN_MIN = 600_000;
 
-/** Exported for tests. Returns domain types plus the private id-to-file-name map. */
 export function parseAuthFiles(json: unknown): {
   readonly accounts: readonly CpaAccount[];
   readonly observedAt: Instant;

@@ -1,7 +1,3 @@
-/**
- * One account: who it is, whether it is serving, its windows, its resets, its recent traffic,
- * how fresh each fact is, and every action on it. Renders from AccountView only.
- */
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { ActionButton } from './ActionButton';
@@ -157,7 +153,6 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
   );
 }
 
-/** The account-wide cooldown on its own line; model cooldowns that end together share one. */
 function groupCooldowns(cooldowns: AccountView['cooldowns']) {
   const groups = new Map<string, { key: string; retryAt: number; models: string[]; reasons: string[] }>();
   for (const c of cooldowns) {

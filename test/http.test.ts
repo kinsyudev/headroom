@@ -1,7 +1,3 @@
-/**
- * The HTTP surface as a browser or attacker sees it: the real server, handlers and modules,
- * talking to the fake CPA and a generated keeper DB.
- */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

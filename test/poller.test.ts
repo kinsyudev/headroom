@@ -1,7 +1,3 @@
-/**
- * The Anthropic poll budget, observed as the requests that leave through CPA's api-call, on a
- * virtual clock. The stub CPA answers from the fixtures (or with 429s) and logs every request.
- */
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -80,13 +76,11 @@ describe('poll budget', () => {
     const order = [ACC2, ACC1, ACC3];
     order.forEach((id, i) => expect(r.sent.find((s) => s.account === id)!.at - T0).toBeGreaterThanOrEqual(i * 15_000));
 
-    // account3 is at the wall (credential_quota cooldown, rejected headers): wall reads only, every 3 min.
     expect(new Set(reads(r.sent, ACC3).map((s) => s.path))).toEqual(new Set(['/api/oauth/usage?at_wall=1&skip_spend=1']));
     for (const id of [ACC1, ACC2]) expect(new Set(reads(r.sent, id).map((s) => s.path))).toEqual(new Set(['/api/oauth/usage?cedar_ember=1']));
     for (const g of gaps(reads(r.sent, ACC3))) expect(g).toBeWithin(3 * MIN, 3 * MIN + 30_000);
     for (const g of gaps(reads(r.sent, ACC1))) expect(g).toBeWithin(5 * MIN, 5 * MIN + 30_000);
 
-    // Never more than the measured limit allows: 12 per account per 15 minutes is where 429s began.
     for (const id of order) {
       const ts = reads(r.sent, id).map((s) => s.at);
       const worst = Math.max(...ts.map((t) => ts.filter((u) => u >= t && u < t + 15 * MIN).length));
@@ -111,7 +105,6 @@ describe('poll budget', () => {
     for (const x of gaps(reads(r.sent, ACC2))) expect(x).toBeLessThan(5 * MIN + 30_000);
     const until = r.anthropic.budget(ACC1).backoffUntil!;
     expect(until).toBeGreaterThan(r.clock.now());
-    // The UI's "rate-limited, retry 14:02" comes from here.
     expect(r.poller.feeds()[ACC1]!.limits.nextAt).toBe(until as never);
     expect(r.poller.feeds()[ACC1]!.gate.backoffUntil).toBe(until as never);
 

@@ -1,12 +1,3 @@
-/**
- * End to end against the fake CPA: the real deck process on :18338, driven through Chromium.
- * Not :1338, so a running deck and this check never contend for the port.
- * Every action is clicked in the UI, and the fake's mutation log must end up exactly as listed.
- *
- *   bun scripts/e2e.ts
- *
- * Screenshots land in var/screenshots/, the step log in var/e2e-report.json.
- */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Locator, type Page } from 'playwright';

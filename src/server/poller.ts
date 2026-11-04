@@ -1,14 +1,3 @@
-/**
- * The Anthropic read schedule and the single writer of every account's feeds.
- *
- * One read per account per cycle. The mode comes from `isAtWall`, the same pure function the UI
- * shows: `wall` every 3 min while at the wall, `normal` every 5 min otherwise. Profile at start,
- * then every 6 h. First reads are staggered 15 s per account. A manual refresh moves the next
- * read to now, once per 60 s per account, and never during backoff or while the read cap is full.
- * The budget itself (10 s gap, backoff, read cap) is enforced in anthropic.ts, where requests
- * leave. Each account's last read comes from that budget at start, so a restarted process keeps
- * the cadence of the one before it.
- */
 import { DeckError } from '../shared/errors';
 import {
   isAtWall,
@@ -46,7 +35,6 @@ export interface ReadClock {
 export function readDueAt(c: ReadClock, atWall: boolean): Instant {
   const last = c.lastAttemptAt ?? -Infinity;
   const cadence = Math.max(c.firstAt, last + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
-  // A request pulls the next read earlier until a read is attempted after it; then the cadence retries.
   const pull = (t: Instant | null) => (t !== null && t > last ? t : Infinity);
   return Math.max(Math.min(cadence, pull(c.requestedAt), pull(c.wallWanted)), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
 }
@@ -62,11 +50,6 @@ interface AccountState {
   readonly firstAt: Instant;
   lastAttemptAt: Instant | null;
   requestedAt: Instant | null;
-  /**
-   * Reads from this instant on are `wall`, whatever isAtWall says, until one succeeds: a claim's
-   * result shows only there, and an account the claim took off the wall would otherwise get
-   * `normal` reads forever.
-   */
   wallWanted: Instant | null;
   manualAt: Instant | null;
   profileAttemptAt: Instant | null;
@@ -79,13 +62,10 @@ interface AccountState {
 export interface Poller {
   start(): void;
   stop(): void;
-  /** Starts every read that is due. The interval calls it; tests call it directly. */
   tick(): void;
   feeds(): Readonly<Record<AccountId, AccountFeeds>>;
   kick(account: AccountId | 'all'): { account: AccountId; held: RefreshHeld | null }[];
-  /** One `wall` read now, behind any read already queued for the account. For claims. */
   readWall(account: AccountId): Promise<Polled<UsageRead>>;
-  /** A `wall` read at `at` or later, retried on the normal cadence until one succeeds. Used after a claim. */
   wantWall(account: AccountId, at: Instant): void;
   profile(account: AccountId): Profile | null;
 }
@@ -245,7 +225,6 @@ export function createPoller(deps: {
   };
 }
 
-/** A success replaces the value and clears the error; a failure keeps the last value and records why. */
 function record<T, V>(src: Source<T>, r: Polled<V>, pick: (v: V) => T): Source<T> {
   return r.ok
     ? { last: { value: pick(r.value), at: r.at }, error: null, attemptedAt: r.at, nextAt: null }

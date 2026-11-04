@@ -1,9 +1,3 @@
-/**
- * The one place facts become conclusions. Pure: no I/O, no clock, no globals.
- * The browser runs `deriveDeck` once a second, so countdowns, ages, lapsed windows and expired
- * cooldowns stay live between polls. The server calls the same functions to decide the read mode,
- * whether a claim is allowed, and the make-primary priority, so the two sides can't disagree.
- */
 import {
   emptyFeeds,
   type AccountFeeds,
@@ -52,10 +46,6 @@ export const PROFILE_READ_EVERY_MS = 6 * 3_600_000;
 export const MANUAL_REFRESH_EVERY_MS = 60_000;
 /** One rejected key per 35 min can never reach CPA's 5-strikes-in-30-min ban. */
 export const KEY_REJECT_LATCH_MS = 35 * 60_000;
-/**
- * How long after a claim ends a read must be taken to show its outcome. Longer than Anthropic's
- * 25 s claim timeout, so a claim our side gave up on has landed or failed by then.
- */
 export const SETTLE_LAG_MS = 60_000;
 
 const FRESHNESS: Record<Exclude<FeedName, 'headers'>, { readonly aging: number; readonly stale: number }> = {
@@ -152,11 +142,6 @@ export function deriveAccount(
   };
 }
 
-/**
- * At the wall means any of: a current limit at 100% or more, the passive header status
- * `rejected` for a window that hasn't reset, or a live credential-scope quota cooldown.
- * The poller reads `wall` instead of `normal` exactly when this holds, the way Claude Code does.
- */
 export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limit[]> | null, now: Instant): boolean {
   const rows = mergeLimits(limits, a?.headers ?? null, now);
   if (rows.some((r) => r.phase === 'open' && r.percent !== null && r.percent >= 100)) return true;
@@ -190,7 +175,6 @@ interface Seen {
   readonly recent: number | null;
 }
 
-/** keeper when it answers; CPA's passive header timestamp (one per real response) otherwise. */
 function servingEvidence(s: Snapshot, accounts: readonly CpaAccount[]): { kind: 'keeper' | 'cpa_headers'; seen: ReadonlyMap<AccountId, Seen> } {
   if (s.serving.last && !s.serving.error) {
     return { kind: 'keeper', seen: new Map(s.serving.last.value.map((x) => [x.account, { lastAt: x.lastAt, recent: x.recent }])) };
@@ -203,9 +187,8 @@ function servingEvidence(s: Snapshot, accounts: readonly CpaAccount[]): { kind: 
 type Eligibility = { readonly ok: true } | { readonly ok: false; readonly until: Instant | null; readonly reason: string };
 
 /**
- * Routable now. `status` (say 'error' with a spend-limit message) is shown but doesn't decide
- * routing: CPA retries the account after nextRetryAfter whatever the status says. Model-scoped
- * cooldowns show on the card without blocking the account.
+ * `status` (say 'error' with a spend-limit message) is shown but doesn't decide
+ * routing: CPA retries the account after nextRetryAfter whatever the status says.
  */
 export function eligibility(a: CpaAccount, now: Instant): Eligibility {
   const credential = a.cooldowns.filter((c) => c.model === null && c.retryAt > now);
@@ -249,10 +232,6 @@ export function deriveRouting(
   return out;
 }
 
-/**
- * The plan behind Make primary. If the target already outranks every other account and is
- * enabled, the plan is a no-op, so a second click or a retry writes nothing.
- */
 export function planMakePrimary(accounts: readonly CpaAccount[], target: AccountId): { readonly priority: number | null; readonly enable: boolean } {
   const t = accounts.find((a) => a.id === target);
   if (!t) return { priority: null, enable: false };
@@ -271,11 +250,6 @@ interface Observation {
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
 }
 
-/**
- * One row per window. `5h` headers map to session and `7d` to weekly_all. The newer observation
- * is drawn and the other kept as `other`. A row whose reset has passed is `lapsed`. A poll with no
- * session limit, and no newer header for one, means no session window is running: `idle`.
- */
 export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: HeaderQuota | null, now: Instant): LimitView[] {
   const rows = new Map<string, { draw: Observation; other: Observation | null }>();
   for (const l of poll?.value ?? []) {
@@ -384,7 +358,6 @@ export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = {
   cedar_ember: 'Reset grant',
 };
 
-/** juniper_tide is claimable when eligible, in the `reset` arm, and available. */
 export function juniperState(j: JuniperTide | null): OfferState {
   if (j === null) return { kind: 'not_enrolled' };
   if (!j.eligible) return ineligible(j.ineligibleReason ?? 'unknown');
@@ -393,7 +366,6 @@ export function juniperState(j: JuniperTide | null): OfferState {
   return { kind: 'waiting', until: j.nextAvailableAt };
 }
 
-/** A cedar_ember grant is usable when the program is eligible and the grant has resets, isn't paused, and is usable now. */
 export function usableGrant(c: CedarEmber, g: Grant): boolean {
   return c.eligible && g.resetsLeft > 0 && !g.paused && g.usableNow;
 }
@@ -416,19 +388,12 @@ function ineligible(reason: string): OfferState {
   return { kind: 'ineligible', reason, explain: INELIGIBLE_EXPLAIN[reason] ?? reason };
 }
 
-/**
- * The claim that holds (account, program), if any. A read of the program is the ledger, but one
- * answered before Anthropic applied a claim still shows the old offer. So a claim holds while it
- * is sending, and once it ends, until a read of that program taken SETTLE_LAG_MS later or more.
- * The offer and claims.ts both ask this, so the card never invites a claim the server would send.
- */
 export function openClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, readAt: Instant | null): ClaimRecord | undefined {
   return claims.find(
     (c) => c.account === account && c.program === program && (c.state.kind === 'sending' || readAt === null || readAt < c.state.at + SETTLE_LAG_MS),
   );
 }
 
-/** When the program's status was last read: juniper_tide comes only with wall reads, cedar_ember with both. */
 export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant | null {
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
@@ -496,7 +461,6 @@ export function clearsText(clears: readonly string[]): string {
   return clears.length === 0 ? 'nothing named' : clears.map((w) => WINDOW_WORDS[w] ?? w).join(' and ');
 }
 
-/** One line for a non-claimable offer, returned with `not_claimable`. */
 export function explainOffer(state: OfferState): string {
   switch (state.kind) {
     case 'claimable':
@@ -594,7 +558,6 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   };
 }
 
-/** Percent left in a window: an idle or lapsed window has all of it, a missing one is unknown. */
 function left(limits: readonly LimitView[], key: string): number | null {
   const l = limits.find((x) => x.key === key);
   if (!l) return null;

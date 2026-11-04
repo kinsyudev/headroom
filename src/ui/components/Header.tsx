@@ -1,6 +1,4 @@
 /**
- * Title, routing strategy switch, read-all, add-account, and the global freshness chips.
- *
  * Add account: a popup blocker only allows window.open inside the click, and the URL arrives
  * after an await, so the tab is opened blank first and pointed at the URL once it is known.
  */

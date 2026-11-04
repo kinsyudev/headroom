@@ -1,7 +1,3 @@
-/**
- * "Is a Claude reset available?" for one account, one row per program, with the grants
- * listed under cedar_ember. Claim… opens the confirm dialog; nothing is sent from here.
- */
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, OfferView } from '../../shared/view';
 import { Age, Clock, Countdown } from './Countdown';

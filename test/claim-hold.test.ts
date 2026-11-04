@@ -1,10 +1,3 @@
-/**
- * A claim whose outcome is unknown must not be sent twice. Our wait gives up after 200 ms while
- * the fake CPA takes 1 s to apply the claim, so a wall read can be answered before the first
- * claim lands and still show the old offer. Real cpa, anthropic, poller and claims against the
- * fake CPA, which records every reset_rate_limits it receives.
- * Ported from the adversarial review's claim repros (timeout race, unknown outcome, re-offer).
- */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -40,7 +33,6 @@ async function rig() {
   for (let i = 0; i < 100 && !poller.profile(ACC3); i++) await Bun.sleep(10);
   const claims = createClaims({ anthropic, cpa, poller, clock: realClock, followupGapMs: 10 });
   fake.claimDelayMs = 1_000;
-  /** The offer the card draws, from the same snapshot the UI gets. */
   const offer = (program: ProgramId) => {
     const now = realClock.now();
     const deck = deriveDeck(snapshot({ accounts: observer.accounts(), feeds: poller.feeds(), claims: claims.list(), now }), now);

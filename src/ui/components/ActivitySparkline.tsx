@@ -1,8 +1,3 @@
-/**
- * CPA's last 20 ten-minute buckets for one account. One series, so no legend: the caption names
- * it. Failed requests sit as a status cap on the bar. Hovering a bar puts its numbers in the
- * caption.
- */
 import { useState } from 'react';
 import type { AccountView } from '../../shared/view';
 import { useNow } from '../deck';

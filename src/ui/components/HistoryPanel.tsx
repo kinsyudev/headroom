@@ -1,8 +1,3 @@
-/**
- * Usage history from keeper (read-only), pulled on demand rather than polled with the snapshot.
- * The server sends UTC-hour rows; foldHistory turns them into local hours or days here, in the
- * operator's own time zone. Filters sit in one row above the chart they scope.
- */
 import { useMemo, useState } from 'react';
 import type { AccountId } from '../../shared/domain';
 import { foldHistory, HISTORY_RANGES, ZERO_TOTALS, type HistoryRange, type TokenTotals } from '../../shared/history';

@@ -1,7 +1,3 @@
-/**
- * Structural rules. Each would otherwise be a sentence in a README that an agent never reads.
- * They are cheap source scans that fail the build when a rule is broken.
- */
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

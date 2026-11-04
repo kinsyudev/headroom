@@ -1,7 +1,3 @@
-/**
- * deriveDeck and its parts over the real CPA fixture and the real usage fixtures.
- * now = T0, the CPA fixture's observed_at (2026-11-04T12:26:12.507Z), unless a row says otherwise.
- */
 import { describe, expect, test } from 'bun:test';
 import {
   cedarState,
@@ -37,7 +33,6 @@ describe('routing and serving', () => {
   const view = (d: ReturnType<typeof deck>, id: string) => d.accounts.find((a) => a.id === id)!;
 
   test.each([
-    // [label, now, account, role, isTarget]
     ['account1: priority 50 and eligible, so the fill-first target and serving', T0, ACC1, { kind: 'serving', why: 'fill_first_target' }, true],
     ['account2: priority 10 but answered 33 s ago, so serving by affinity', T0, ACC2, { kind: 'serving', why: 'affinity' }, false],
     ['account3: credential cooldown, blocked until 14:20:17Z', T0, ACC3, { kind: 'blocked', until: at('2026-11-04T14:20:17.000Z'), reason: 'credential_quota' }, false],
@@ -79,7 +74,6 @@ describe('routing and serving', () => {
     expect(v.routing.role).toEqual({ kind: 'disabled' });
     expect(v.routing.isTarget).toBe(false);
     expect(v.can).toMatchObject({ enable: true, disable: false, makePrimary: true });
-    // account3 is blocked, so account2 at priority 10 is the only eligible tier left.
     expect(view(deck({ accounts }), ACC2).routing.isTarget).toBe(true);
   });
 });
@@ -266,7 +260,6 @@ describe('headroom and next reset', () => {
       [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
     };
     const d = deriveDeck(snapshot({ feeds }), T0);
-    // account1 min(88, 73) + account2 min(100, 99) + account3 min(0, 40)
     expect(d.overview.headroom.session).toEqual({ value: 1.72, of: 3, unknown: 0 });
     expect(d.overview.headroom.weekly).toEqual({ value: 2.12, of: 3, unknown: 0 });
     expect(d.overview.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z') });

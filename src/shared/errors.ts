@@ -1,8 +1,6 @@
-/** One error class on both sides: the server throws it, http.ts serializes it, the UI rethrows it. */
 export type DeckErrorCode =
   | 'invalid'
   | 'unknown_account'
-  /** Management key missing or rejected. Nothing was sent. */
   | 'link_down'
   | 'cpa_unreachable'
   | 'cpa_error'

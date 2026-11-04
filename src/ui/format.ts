@@ -1,8 +1,6 @@
-/** Display formatting only. A comparison against a threshold belongs in derive.ts, not here. */
 import type { ClaimRecord, Money, Percent, SourceError } from '../shared/domain';
 import { clearsText } from '../shared/derive';
 
-/** Countdown text: "41s", "4m 12s", "34m", "1h 54m", "3d 12h". */
 export function duration(ms: number): string {
   if (ms <= 0) return 'now';
   const s = Math.round(ms / 1000);
@@ -15,7 +13,6 @@ export function duration(ms: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-/** Age text: "3s", "4m", "2h", "3d". */
 export function age(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s}s`;
@@ -24,7 +21,6 @@ export function age(ms: number): string {
   return `${Math.floor(s / 86_400)}d`;
 }
 
-/** Local wall time: "15:20" today, "Thu 09:00" this week, "Nov 10 09:00" beyond. */
 export function clockTime(at: number, now: number): string {
   const d = new Date(at);
   const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -39,7 +35,6 @@ export function percent(p: Percent | number | null): string {
   return `${Math.round(p)}%`;
 }
 
-/** 1284 → "1.3K", 12_900_000 → "12.9M". */
 export function compact(n: number): string {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
@@ -69,7 +64,6 @@ export function sourceError(e: SourceError): string {
   }
 }
 
-/** What happened to a claim, in one sentence. */
 export function claimText(r: ClaimRecord): string {
   const s = r.state;
   if (s.kind === 'sending') return 'Claiming…';

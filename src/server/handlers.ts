@@ -1,8 +1,3 @@
-/**
- * One handler per row of ACTIONS; the mapped type makes a missing handler a compile error.
- * Every CPA mutation answers only after `observer.refresh()` has published CPA's new state, so
- * the UI keeps no optimistic copy. Handlers never write observations directly.
- */
 import type { ActionInput, ActionKind, ActionOutput } from '../shared/actions';
 import { DeckError } from '../shared/errors';
 import { planMakePrimary } from '../shared/derive';

@@ -1,10 +1,3 @@
-/**
- * The wall read that confirms a claim. Only `wall` reads carry juniper_tide, and an account that
- * a reset took off the wall gets `normal` reads, so the confirming read must stay wanted until a
- * wall read succeeds. Real anthropic, poller and claims on a virtual clock; the stub stands in for
- * CPA and Anthropic, and logs every request.
- * Ported from the adversarial review's stuck-confirming repro.
- */
 import { afterEach, expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,7 +23,6 @@ const LIMITED: UpstreamResult = {
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
 
-/** The synthetic claimable wall read, after the weekly reset was used and the session cleared. */
 function consumed(): string {
   const w = JSON.parse(body('synthetic-usage-at-wall-claimable.json'));
   for (const l of w.limits) if (l.kind === 'session') Object.assign(l, { percent: 0, severity: 'normal', is_active: false });
@@ -57,8 +49,6 @@ test('a confirming wall read that 429s stays wanted, so the claim resolves once 
       if (u.pathname === '/api/oauth/profile') r = ok(body('anthropic-profile-2.json'));
       else if (u.pathname.endsWith('/reset_rate_limits')) {
         claimed = true;
-        // The confirming read is the one that 429s. Traffic resumes, so CPA's passive headers
-        // show the cleared session and the card leaves the wall.
         fail429 = 1;
         accounts = [{ ...a, headers: { ...a.headers!, observedAt: clock.now(), windows: a.headers!.windows.map((w) => (w.key === '5h' ? { ...w, percent: 1 as Percent } : w)) } }];
         r = ok(JSON.stringify({ result: 'reset', next_available_at: '2026-11-11T09:00:00Z', weekly_resets_at: null }));
