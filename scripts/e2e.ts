@@ -1,5 +1,6 @@
 /**
- * End to end against the fake CPA: the real deck process on :1338, driven through Chromium.
+ * End to end against the fake CPA: the real deck process on :18338, driven through Chromium.
+ * Not :1338, so a running deck and this check never contend for the port.
  * Every action is clicked in the UI, and the fake's mutation log must end up exactly as listed.
  *
  *   bun scripts/e2e.ts
@@ -52,7 +53,7 @@ async function until(cond: () => Promise<boolean> | boolean, what: string, timeo
 const text = async (l: Locator) => ((await l.textContent()) ?? '').replace(/\s+/g, ' ').trim();
 
 mkdirSync(SHOTS, { recursive: true });
-const stack = await startStack({ port: 1338, log: join(ROOT, 'var/e2e-app.log') });
+const stack = await startStack({ port: 18_338, log: join(ROOT, 'var/e2e-app.log') });
 assert(!stack.fake.url.endsWith(':8317'), 'never the real CPA');
 const browser = await chromium.launch();
 const pageErrors: string[] = [];
@@ -165,7 +166,7 @@ try {
   await until(() => reads() === before + 1, 'Read now sends exactly one usage read for account1', 40_000);
   pass('read now sends one budgeted usage read and no mutation');
 
-  const foreign = await fetch(`${stack.url}/api/snapshot`, { headers: { Host: 'evil.example:1338' } });
+  const foreign = await fetch(`${stack.url}/api/snapshot`, { headers: { Host: `evil.example:${stack.port}` } });
   assert(foreign.status === 421, `foreign Host answered ${foreign.status}`);
   const bare = await fetch(`${stack.url}/api/act`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'routing.setStrategy', input: { strategy: 'fill-first' } }) });
   assert(bare.status === 403, `POST without X-CPA-Deck answered ${bare.status}`);
