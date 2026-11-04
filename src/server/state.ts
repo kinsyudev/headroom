@@ -1,14 +1,45 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { z } from 'zod';
+import type { Instant } from '../shared/domain';
 
 export interface RejectedKey {
   readonly keyHash: string;
   readonly at: number;
 }
 
+export class ReadLog {
+  static readonly empty = new ReadLog([]);
+
+  constructor(private readonly times: readonly Instant[]) {}
+
+  get last(): Instant | null {
+    return this.times.at(-1) ?? null;
+  }
+
+  nthNewest(n: number): Instant | null {
+    return this.times[this.times.length - n] ?? null;
+  }
+
+  since(start: number): ReadLog {
+    return new ReadLog(this.times.filter((t) => t > start));
+  }
+
+  append(at: Instant): ReadLog {
+    return new ReadLog([...this.times, at]);
+  }
+
+  without(at: Instant): ReadLog {
+    return new ReadLog(this.times.filter((t) => t !== at));
+  }
+
+  toJSON(): readonly Instant[] {
+    return this.times;
+  }
+}
+
 export interface ReadBudget {
-  readonly reads: readonly number[];
+  readonly reads: ReadLog;
   readonly backoff: { readonly until: number; readonly streak: number } | null;
 }
 
@@ -30,7 +61,10 @@ const WireState = z.object({
     .record(
       z.string(),
       z.object({
-        reads: z.array(z.number()).catch([]),
+        reads: z
+          .array(z.number())
+          .catch([])
+          .transform((times) => new ReadLog(times as Instant[])),
         backoff: z.object({ until: z.number(), streak: z.number() }).nullable().catch(null),
       }),
     )

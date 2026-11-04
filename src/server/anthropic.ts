@@ -20,7 +20,7 @@ import type {
 } from '../shared/domain';
 import { parseInstant } from '../shared/domain';
 import type { Cpa, UpstreamResult } from './cpa';
-import type { ReadBudget, StateFile } from './state';
+import { ReadLog, type ReadBudget, type StateFile } from './state';
 
 const BASE = 'https://api.anthropic.com';
 export const ANTHROPIC_GAP_MS = 10_000;
@@ -73,7 +73,7 @@ export interface Budget {
   readonly capUntil: Instant | null;
 }
 
-const NO_BUDGET: ReadBudget = { reads: [], backoff: null };
+const NO_BUDGET: ReadBudget = { reads: ReadLog.empty, backoff: null };
 
 /** The one place the Claude Code identity is built. Without it every program reads `ineligible: surface`. */
 export function claudeHeaders(cliVersion: string): Record<string, string> {
@@ -109,11 +109,11 @@ export function createAnthropic(deps: {
   function budget(account: AccountId): Budget {
     const now = deps.clock.now();
     const b = stored(account);
-    const recent = b.reads.filter((t) => t > now - READ_CAP_WINDOW_MS);
+    const cappingRead = b.reads.since(now - READ_CAP_WINDOW_MS).nthNewest(READ_CAP);
     return {
-      lastReadAt: (b.reads.at(-1) ?? null) as Instant | null,
+      lastReadAt: b.reads.last,
       backoffUntil: b.backoff !== null && b.backoff.until > now ? (b.backoff.until as Instant) : null,
-      capUntil: recent.length >= READ_CAP ? ((recent[recent.length - READ_CAP]! + READ_CAP_WINDOW_MS) as Instant) : null,
+      capUntil: cappingRead === null ? null : ((cappingRead + READ_CAP_WINDOW_MS) as Instant),
     };
   }
 
@@ -134,7 +134,7 @@ export function createAnthropic(deps: {
       if (b.backoffUntil !== null) return { kind: 'held', why: 'backoff', until: b.backoffUntil };
       if (usage && b.capUntil !== null) return { kind: 'held', why: 'read_cap', until: b.capUntil };
       const sentAt = (lastAt = deps.clock.now());
-      if (usage) write(account, (x) => ({ ...x, reads: [...x.reads.filter((t) => t > sentAt - READ_CAP_WINDOW_MS), sentAt] }));
+      if (usage) write(account, (x) => ({ ...x, reads: x.reads.since(sentAt - READ_CAP_WINDOW_MS).append(sentAt) }));
       const r = await deps.cpa.apiCall({
         account,
         method,
@@ -143,7 +143,7 @@ export function createAnthropic(deps: {
         ...(data === undefined ? {} : { data }),
         timeoutMs,
       });
-      if (usage && r.kind === 'not_sent') write(account, (b) => ({ ...b, reads: b.reads.filter((t) => t !== sentAt) }));
+      if (usage && r.kind === 'not_sent') write(account, (b) => ({ ...b, reads: b.reads.without(sentAt) }));
       if (r.kind === 'answered') {
         const limited = rateLimit(r);
         if (limited !== undefined) setBackoff(account, limited);
