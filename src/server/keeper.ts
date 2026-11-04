@@ -10,6 +10,8 @@ import { RANGE_MS, type ErrorRow, type HistoryRange, type HistoryView, type Toke
 
 export const SERVING_EVERY_MS = 5_000;
 export const HISTORY_MEMO_MS = 30_000;
+const ERROR_MESSAGE_CHARS = 300;
+const ERROR_BODY_CHARS = 2 * ERROR_MESSAGE_CHARS;
 
 export interface Keeper {
   start(): void;
@@ -49,7 +51,7 @@ export const SQL = {
     ORDER BY requests DESC`,
   errors: /* sql */ `
     SELECT id, timestamp, auth_index AS account, model, status_code, auth_quota_reason, auth_quota_next_recover_at,
-           substr(body, 1, 600) AS body
+           substr(body, 1, ${ERROR_BODY_CHARS}) AS body
     FROM error_events
     WHERE ${KNOWN}
     ORDER BY id DESC
@@ -182,6 +184,8 @@ function totals(r: TotalsRow): TokenTotals {
   };
 }
 
+const MESSAGE_FIELD = new RegExp(`"message"\\s*:\\s*"([^"]{1,${ERROR_MESSAGE_CHARS}})`);
+
 function errorMessage(body: string | null): string {
   if (!body) return '';
   try {
@@ -189,5 +193,5 @@ function errorMessage(body: string | null): string {
     if (typeof m === 'string') return m;
   } catch {
   }
-  return /"message"\s*:\s*"([^"]{1,300})/.exec(body)?.[1] ?? body.slice(0, 300);
+  return MESSAGE_FIELD.exec(body)?.[1] ?? body.slice(0, ERROR_MESSAGE_CHARS);
 }
