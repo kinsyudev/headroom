@@ -60,9 +60,9 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
             </>
           )}
           {a.read.capUntil !== null && (
-            <span data-testid="read-cap">
+            <>
               {' · '}read cap full, next read allowed <Clock at={a.read.capUntil} />
-            </span>
+            </>
           )}
         </span>
       </div>

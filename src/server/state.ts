@@ -1,7 +1,7 @@
 /**
- * var/state.json: the only thing the deck persists. What must survive a LaunchAgent restart loop
- * so that it spends no more than one long-lived process would: the management keys CPA rejected
- * (cpa.ts) and each account's Anthropic read budget (anthropic.ts). Each part has one writer.
+ * var/state.json: the only thing the deck persists. It holds what a LaunchAgent restart loop needs
+ * to spend no more than one long-lived process would: the management keys CPA rejected (cpa.ts)
+ * and each account's Anthropic read budget (anthropic.ts). Each part has one writer.
  * Writes are synchronous temp-file-plus-rename, so a crash leaves either the old file or the new
  * one, and two writers can't interleave.
  */

@@ -14,7 +14,7 @@
  *      That read is what releases the hold, so it is `wall` even if the account left the wall,
  *      and it stays wanted through failures until one succeeds.
  * A claim that landed before a crash shows up in the next read as unavailable or fewer resets
- * left, so step 3 refuses a repeat. One that never landed stays claimable, which is correct.
+ * left, so step 4 refuses a repeat. One that never landed stays claimable, which is correct.
  */
 import { DeckError } from '../shared/errors';
 import { cedarState, explainOffer, juniperState, openClaim, programReadAt, SETTLE_LAG_MS, usableGrant } from '../shared/derive';

@@ -5,8 +5,9 @@
  * shows: `wall` every 3 min while at the wall, `normal` every 5 min otherwise. Profile at start,
  * then every 6 h. First reads are staggered 15 s per account. A manual refresh moves the next
  * read to now, once per 60 s per account, and never during backoff or while the read cap is full.
- * The budget itself (10 s gap, backoff, read cap) is enforced in anthropic.ts, where requests leave. Each account's last read comes from
- * that budget at start, so a restarted process keeps the cadence of the one before it.
+ * The budget itself (10 s gap, backoff, read cap) is enforced in anthropic.ts, where requests
+ * leave. Each account's last read comes from that budget at start, so a restarted process keeps
+ * the cadence of the one before it.
  */
 import { DeckError } from '../shared/errors';
 import {
