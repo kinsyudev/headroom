@@ -104,7 +104,7 @@ Per make-operations-idempotent, each step is derived from the state that exists.
 
 The file is `var/state.json`, gitignored, and always written atomically (temp file plus rename). It holds:
 
-- `keyRejected: {keyHash, at} | null`. On start, if the env key's sha256 matches and `at` is under 35 min old, send nothing and show the rejected banner. A 401 or 403 from CPA sets it. The process never exits on a rejected key.
+- `rejectedKeys: {keyHash, at}[]`. A 401 or 403 from CPA adds the key's sha256. While the env key's hash is in the list with `at` under 35 min old, send nothing and show the rejected banner. The list holds every key rejected in that window, so switching from key A to key B and back to A does not retry A. The process never exits on a rejected key.
 - `backoff: {[accountId]: untilMs}`, so a LaunchAgent restart loop can't burst Anthropic.
 
 There is nothing else. No SQLite of our own.
@@ -118,6 +118,7 @@ There is nothing else. No SQLite of our own.
   - `Origin`, when present, must be same-origin.
   - The server sends no CORS headers.
 - `Secret` from candidate 2 wraps the management key and redacts itself in `JSON.stringify`, template literals, and `inspect`.
+- `cpa.ts` sends management requests one at a time, and each one reads the latch when it reaches the front of the queue. Concurrent requests would each meet the wrong key before the first 401 came back, at startup and again when CPA reloads a new key under a running deck. One at a time, a wrong key costs exactly one strike. The cost is that a slow `api-call` delays the CPA reads queued behind it. An Anthropic call through CPA usually takes under a second. The 20 s read timeout and the 35 s claim timeout bound the delay.
 
 ### 6. Derivations to add (from candidate 3)
 

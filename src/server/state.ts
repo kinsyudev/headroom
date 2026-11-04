@@ -1,14 +1,21 @@
 /**
  * var/state.json: the only thing the deck persists. Two facts that must survive a LaunchAgent
- * restart loop: a rejected management key (cpa.ts) and per-account Anthropic backoff
+ * restart loop: the management keys CPA rejected (cpa.ts) and per-account Anthropic backoff
  * (anthropic.ts). Each key has one writer. Writes are synchronous temp-file-plus-rename, so a
  * crash leaves either the old file or the new one, and two writers can't interleave.
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { z } from 'zod';
+
+export interface RejectedKey {
+  /** sha256 of the key, so the file never holds the key itself. */
+  readonly keyHash: string;
+  readonly at: number;
+}
 
 export interface DeckState {
-  readonly keyRejected: { readonly keyHash: string; readonly at: number } | null;
+  readonly rejectedKeys: readonly RejectedKey[];
   readonly backoff: Readonly<Record<string, number>>;
 }
 
@@ -17,7 +24,12 @@ export interface StateFile {
   update(fn: (s: DeckState) => DeckState): void;
 }
 
-const EMPTY: DeckState = { keyRejected: null, backoff: {} };
+const EMPTY: DeckState = { rejectedKeys: [], backoff: {} };
+
+const WireState = z.object({
+  rejectedKeys: z.array(z.object({ keyHash: z.string(), at: z.number() })).catch([]),
+  backoff: z.record(z.string(), z.number()).catch({}),
+});
 
 export function openStateFile(path: string): StateFile {
   let current = load(path);
@@ -35,12 +47,7 @@ export function openStateFile(path: string): StateFile {
 
 function load(path: string): DeckState {
   try {
-    const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<DeckState>;
-    const k = raw.keyRejected;
-    return {
-      keyRejected: k && typeof k.keyHash === 'string' && typeof k.at === 'number' ? { keyHash: k.keyHash, at: k.at } : null,
-      backoff: Object.fromEntries(Object.entries(raw.backoff ?? {}).filter(([, v]) => typeof v === 'number')),
-    };
+    return WireState.parse(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
     return EMPTY;
   }

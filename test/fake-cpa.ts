@@ -40,7 +40,12 @@ export interface FakeCpa {
   claimDelayMs: number;
   /** Fail this many upcoming reset-quota calls with HTTP 500. */
   failResetQuota: number;
-  authFailures: number;
+  /** The management key CPA accepts. Assigning it models CPA reloading a new key under a running deck. */
+  key: string;
+  /** How long the key check takes before CPA answers; the real one compares a bcrypt hash. */
+  authDelayMs: number;
+  /** The bearer each failed authentication carried, in order. CPA bans the IP after 5 in 30 min. */
+  readonly strikes: string[];
   stop(): void;
 }
 
@@ -92,7 +97,9 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
     rateLimited: new Set(),
     claimDelayMs: 0,
     failResetQuota: 0,
-    authFailures: 0,
+    key: opts.key,
+    authDelayMs: 0,
+    strikes: [],
     stop: () => server.stop(true),
   };
 
@@ -175,8 +182,10 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
   }
 
   async function management(req: Request, path: string): Promise<Response> {
-    if (req.headers.get('authorization') !== `Bearer ${opts.key}`) {
-      fake.authFailures += 1;
+    if (fake.authDelayMs > 0) await Bun.sleep(fake.authDelayMs);
+    const bearer = req.headers.get('authorization') ?? '';
+    if (bearer !== `Bearer ${fake.key}`) {
+      fake.strikes.push(bearer.replace(/^Bearer /, ''));
       return ok({ error: 'invalid management key' }, 401);
     }
     const url = new URL(req.url);

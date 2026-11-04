@@ -3,10 +3,12 @@
  * management key.
  *
  * CPA bans an IP for 30 minutes after 5 failed authentications, and that ban also locks out
- * keeper. So no request is built without a key, and the first 401/403 latches `rejected` in
- * memory and in state.json. While latched, nothing is sent with that key for KEY_REJECT_LATCH_MS,
- * which keeps any restart loop under one strike per ban window. A different key in the env file
- * lifts the latch at once.
+ * keeper. So no request is built without a key, and requests go to CPA one at a time: a wrong
+ * key, at startup or after CPA changes its key under a running deck, meets exactly one 401
+ * before the rest of the queue sees the latch and fails without sending. The 401/403 records the
+ * key's hash in state.json, and that key is not sent again for KEY_REJECT_LATCH_MS, so each
+ * distinct key costs at most one strike per ban window, across restarts. A different key in the
+ * env file is tried at once.
  *
  * Wire shapes are parsed here into domain types. The refresh response's token material and the
  * file `name` CPA needs for PATCH never leave this module.
@@ -84,14 +86,26 @@ export function createCpa(opts: {
   const base = `${opts.baseUrl.replace(/\/$/, '')}/v0/management`;
   let key = opts.readKey();
   let names: ReadonlyMap<AccountId, string> = new Map();
+  let queue: Promise<unknown> = Promise.resolve();
+
+  function oneAtATime<T>(request: () => Promise<T>): Promise<T> {
+    const p = queue.then(request, request);
+    queue = p.catch(() => undefined);
+    return p;
+  }
+
+  const latched = (r: { readonly at: number }) => opts.now() - r.at < KEY_REJECT_LATCH_MS;
 
   function link(): LinkState {
     if (!key) return { kind: 'missing_key', envPath: opts.envPath };
-    const r = opts.state.read().keyRejected;
-    if (r && r.keyHash === key.hash() && opts.now() - r.at < KEY_REJECT_LATCH_MS) {
-      return { kind: 'rejected', at: r.at as Instant, envPath: opts.envPath };
-    }
-    return { kind: 'ok' };
+    const hash = key.hash();
+    const r = opts.state.read().rejectedKeys.find((x) => x.keyHash === hash && latched(x));
+    return r ? { kind: 'rejected', at: r.at as Instant, envPath: opts.envPath } : { kind: 'ok' };
+  }
+
+  function reject(k: Secret): void {
+    const hash = k.hash();
+    opts.state.update((s) => ({ ...s, rejectedKeys: [...s.rejectedKeys.filter((x) => x.keyHash !== hash && latched(x)), { keyHash: hash, at: opts.now() }] }));
   }
 
   /** Re-reads the env file whenever the link is down, so a fixed key takes effect without a restart. */
@@ -108,26 +122,27 @@ export function createCpa(opts: {
     return n;
   }
 
-  async function send(method: 'GET' | 'POST' | 'PATCH' | 'PUT', path: string, body?: unknown, timeoutMs = MANAGEMENT_TIMEOUT_MS): Promise<unknown> {
-    const k = usableKey();
-    let res: Response;
-    try {
-      res = await fetch(base + path, {
-        method,
-        headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch (e) {
-      throw new DeckError('cpa_unreachable', isTimeout(e) ? 'CPA timed out' : 'CPA is not answering');
-    }
-    if (res.status === 401 || res.status === 403) {
-      opts.state.update((s) => ({ ...s, keyRejected: { keyHash: k.hash(), at: opts.now() } }));
-      throw new DeckError('link_down', 'CPA rejected the management key');
-    }
-    if (opts.state.read().keyRejected) opts.state.update((s) => ({ ...s, keyRejected: null }));
-    if (!res.ok) throw new DeckError('cpa_error', `CPA answered ${res.status} for ${method} ${path.split('?')[0]}`);
-    return res.json();
+  function send(method: 'GET' | 'POST' | 'PATCH' | 'PUT', path: string, body?: unknown, timeoutMs = MANAGEMENT_TIMEOUT_MS): Promise<unknown> {
+    return oneAtATime(async () => {
+      const k = usableKey();
+      let res: Response;
+      try {
+        res = await fetch(base + path, {
+          method,
+          headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (e) {
+        throw new DeckError('cpa_unreachable', isTimeout(e) ? 'CPA timed out' : 'CPA is not answering');
+      }
+      if (res.status === 401 || res.status === 403) {
+        reject(k);
+        throw new DeckError('link_down', 'CPA rejected the management key');
+      }
+      if (!res.ok) throw new DeckError('cpa_error', `CPA answered ${res.status} for ${method} ${path.split('?')[0]}`);
+      return res.json();
+    });
   }
 
   return {
@@ -167,34 +182,36 @@ export function createCpa(opts: {
       if (r.status === 'error') return { kind: 'error', error: r.error ?? 'OAuth failed' };
       return { kind: 'wait' };
     },
-    async apiCall(req) {
-      let k: Secret;
-      try {
-        k = usableKey();
-      } catch (e) {
-        return { kind: 'not_sent', why: (e as Error).message };
-      }
-      let res: Response;
-      try {
-        res = await fetch(`${base}/api-call`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auth_index: req.account, method: req.method, url: req.url, header: req.header, ...(req.data === undefined ? {} : { data: req.data }) }),
-          signal: AbortSignal.timeout(req.timeoutMs),
-        });
-      } catch (e) {
-        if (isRefused(e)) return { kind: 'not_sent', why: 'CPA is not answering' };
-        return { kind: 'unknown', why: isTimeout(e) ? 'timed out waiting for CPA' : 'connection to CPA dropped' };
-      }
-      if (res.status === 401 || res.status === 403) {
-        opts.state.update((s) => ({ ...s, keyRejected: { keyHash: k.hash(), at: opts.now() } }));
-        return { kind: 'not_sent', why: 'CPA rejected the management key' };
-      }
-      if (res.status >= 500) return { kind: 'unknown', why: `CPA answered ${res.status}` };
-      if (!res.ok) return { kind: 'not_sent', why: `CPA answered ${res.status}` };
-      const env = WireApiCall.safeParse(await res.json().catch(() => null));
-      if (!env.success) return { kind: 'unknown', why: 'unreadable api-call envelope' };
-      return { kind: 'answered', status: env.data.status_code, headers: flattenHeaders(env.data.header), body: env.data.body };
+    apiCall(req) {
+      return oneAtATime(async (): Promise<UpstreamResult> => {
+        let k: Secret;
+        try {
+          k = usableKey();
+        } catch (e) {
+          return { kind: 'not_sent', why: (e as Error).message };
+        }
+        let res: Response;
+        try {
+          res = await fetch(`${base}/api-call`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auth_index: req.account, method: req.method, url: req.url, header: req.header, ...(req.data === undefined ? {} : { data: req.data }) }),
+            signal: AbortSignal.timeout(req.timeoutMs),
+          });
+        } catch (e) {
+          if (isRefused(e)) return { kind: 'not_sent', why: 'CPA is not answering' };
+          return { kind: 'unknown', why: isTimeout(e) ? 'timed out waiting for CPA' : 'connection to CPA dropped' };
+        }
+        if (res.status === 401 || res.status === 403) {
+          reject(k);
+          return { kind: 'not_sent', why: 'CPA rejected the management key' };
+        }
+        if (res.status >= 500) return { kind: 'unknown', why: `CPA answered ${res.status}` };
+        if (!res.ok) return { kind: 'not_sent', why: `CPA answered ${res.status}` };
+        const env = WireApiCall.safeParse(await res.json().catch(() => null));
+        if (!env.success) return { kind: 'unknown', why: 'unreadable api-call envelope' };
+        return { kind: 'answered', status: env.data.status_code, headers: flattenHeaders(env.data.header), body: env.data.body };
+      });
     },
   };
 }
