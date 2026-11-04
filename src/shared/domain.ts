@@ -10,11 +10,10 @@ export type ClaimId = Brand<string, 'ClaimId'>;
 export type FlowId = Brand<string, 'FlowId'>;
 
 /**
- * Upstream sends at least four time formats:
+ * Upstream sends at least three time formats:
  *   CPA RFC3339 with up to 9 fractional digits and an offset  2026-11-04T13:25:39.44912+01:00
  *   header epoch seconds as strings                            "1793811600"
  *   Anthropic RFC3339                                          2026-11-07T09:00:00Z
- *   keeper text with a +08:00 offset, maybe space-separated    2026-11-04 20:04:26.66+08:00
  */
 export function parseInstant(text: string | null | undefined): Instant | null {
   if (!text) return null;
