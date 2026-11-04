@@ -1,108 +1,105 @@
 /**
- * Normalized observations: everything the server knows about the outside world, in domain terms.
+ * Facts the server knows about the outside world, in domain terms. `Snapshot` is what
+ * GET /api/snapshot returns and the only input to `deriveDeck` (shared/derive.ts).
  *
- * This file is the contract between server and UI. `Snapshot` is what /api/stream pushes, and it is
- * the only input to `deriveDeck` (shared/derive.ts). Upstream wire shapes never appear here: CPA
- * auth-files JSON, Anthropic usage JSON, and `Anthropic-Ratelimit-*` header strings are parsed and
- * dropped inside server/cpa.ts and server/anthropic.ts.
- *
- * Rules for this file:
- * - Facts, not conclusions. "claimable", "serving", "stale", "rolled", and "headroom" are derived
- *   in derive.ts from these facts plus `now`. Don't add a field that derive.ts could compute.
- *   Example: CPA's `remaining_seconds` is dropped because it's `retryAt - now`.
- * - JSON-safe values only (no Date, Map, or class). A Snapshot crosses SSE unchanged.
- * - Every time is an `Instant` (epoch ms) and every percent is a `Percent` on the 0..100 scale.
- *   The conversion happens once, at the parse boundary.
- * - Each top-level part of `Snapshot` has exactly one writer, named in its doc comment.
+ * - Facts, not conclusions. "claimable", "serving", "lapsed" and "headroom" are derived from
+ *   these facts plus `now`. CPA's `remaining_seconds` is dropped because it is `retryAt - now`.
+ * - JSON-safe values only. Every time is an `Instant` (epoch ms) and every percent is a
+ *   `Percent` on the 0..100 scale; the conversion happens once, at the parse boundary.
+ * - Each top-level part of `Snapshot` has exactly one writer, named next to it.
  */
 
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };
 
-/** Epoch milliseconds. Only boundary parsers (below) and clocks create these. */
 export type Instant = Brand<number, 'Instant'>;
-/** CPA `auth_index`: stable 16-hex id. It's the join key across CPA, api-call, and keeper rows. */
+/** CPA `auth_index`: the join key across CPA, api-call and keeper rows. */
 export type AccountId = Brand<string, 'AccountId'>;
-/** Percent of a window used, 0..100. It can exceed 100 (header overage utilization 1.01 → 101). */
+/** Percent of a window used. It can exceed 100 (header overage utilization 1.01 is 101). */
 export type Percent = Brand<number, 'Percent'>;
 export type GrantId = Brand<string, 'GrantId'>;
-/** UUID v4. It's also sent as cedar_ember `request_id`: one per user intent. */
 export type ClaimId = Brand<string, 'ClaimId'>;
 export type FlowId = Brand<string, 'FlowId'>;
 
-// ---------------------------------------------------------------------------------------------
-// Boundary conversions. Upstream sends at least four time formats:
-//   CPA RFC3339 with 5-9 fractional digits and a local offset  2026-11-04T13:25:39.44912+01:00
-//   header epoch seconds as strings                             "1793811600"
-//   Anthropic RFC3339                                           2026-11-07T09:00:00Z
-//   keeper text with a +08:00 offset, possibly space-separated  2026-11-04 20:04:26.66+08:00
-// ---------------------------------------------------------------------------------------------
-
-/** Parse any of the RFC3339 variants above. Returns null on garbage; callers decide whether that's an error. */
+/**
+ * Upstream sends at least four time formats:
+ *   CPA RFC3339 with up to 9 fractional digits and an offset  2026-11-04T13:25:39.44912+01:00
+ *   header epoch seconds as strings                            "1793811600"
+ *   Anthropic RFC3339                                          2026-11-07T09:00:00Z
+ *   keeper text with a +08:00 offset, maybe space-separated    2026-11-04 20:04:26.66+08:00
+ */
 export function parseInstant(text: string | null | undefined): Instant | null {
-  // TODO: normalize ' ' → 'T'; trim fractional seconds to 3 digits (JSC's Date.parse is strict
-  // about >3 digits in some versions); Date.parse; NaN → null.
-  throw new Error('not implemented');
+  if (!text) return null;
+  const normalized = text.trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1');
+  const ms = Date.parse(normalized);
+  return Number.isFinite(ms) ? (ms as Instant) : null;
 }
 
 export function epochSecondsToInstant(s: string | number | null | undefined): Instant | null {
-  throw new Error('not implemented');
+  if (s === null || s === undefined || s === '') return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? ((n * 1000) as Instant) : null;
 }
 
 /** Header utilization is a 0..1 fraction ("0.17"); Anthropic `/usage` is already 0..100. */
 export function fractionToPercent(f: string | number | null | undefined): Percent | null {
-  throw new Error('not implemented');
+  if (f === null || f === undefined || f === '') return null;
+  const n = Number(f);
+  return Number.isFinite(n) ? (Math.round(n * 10_000) / 100 as Percent) : null;
 }
-
-// ---------------------------------------------------------------------------------------------
-// Source<T>: one feed and its freshness. This is the "how old is this?" answer for the UI.
-// ---------------------------------------------------------------------------------------------
 
 export interface Sample<T> {
   readonly value: T;
-  /** When the upstream produced or we received this value. Freshness is measured from here. */
   readonly at: Instant;
 }
 
 /**
- * One feed, owned by exactly one writer.
- * Invariant: `error` is null or `error.at > last.at`; a success clears the error.
- * `nextAt` is when the owner will try again. It's null when nothing is scheduled, e.g. the link is down.
+ * One feed, owned by one writer. A success clears `error`, so a non-null `error` is always newer
+ * than `last`. `attemptedAt` is the last try of either outcome; `nextAt` is when the owner will
+ * try again, or null when nothing is scheduled.
  */
 export interface Source<T> {
   readonly last: Sample<T> | null;
   readonly error: Sample<SourceError> | null;
+  readonly attemptedAt: Instant | null;
   readonly nextAt: Instant | null;
+}
+
+export function emptySource<T>(): Source<T> {
+  return { last: null, error: null, attemptedAt: null, nextAt: null };
 }
 
 export type SourceError =
   | { readonly kind: 'rate_limited'; readonly retryAt: Instant }
-  | { readonly kind: 'auth'; readonly status: number } // Anthropic said 401/403 for this account's token
+  /** Anthropic said 401/403 for this account's token. */
+  | { readonly kind: 'auth'; readonly status: number }
   | { readonly kind: 'cpa_unreachable' }
-  | { readonly kind: 'link_down' } // see LinkState; no request was sent
+  /** The management link is down (see LinkState), so nothing was sent. */
+  | { readonly kind: 'link_down' }
   | { readonly kind: 'upstream'; readonly status: number; readonly message: string }
-  | { readonly kind: 'malformed'; readonly message: string };
+  | { readonly kind: 'malformed'; readonly message: string }
+  | { readonly kind: 'unavailable'; readonly message: string };
 
-// ---------------------------------------------------------------------------------------------
-// CPA (writer: server/observer.ts, from server/cpa.ts parses)
-// ---------------------------------------------------------------------------------------------
+// CPA (writer: server/observer.ts)
 
 export type RoutingStrategy = 'fill-first' | 'round-robin';
 export type CpaStatus = 'active' | 'error' | 'disabled' | 'pending' | 'refreshing' | 'unknown';
-export type CooldownReason =
-  | 'quota'
-  | 'credential_quota'
-  | 'unauthorized'
-  | 'payment_required'
-  | 'not_found'
-  | 'invalid_grant'
-  | 'cloudflare_challenge'
-  | 'model_not_supported'
-  | 'transient_error'
-  | 'unknown';
+export const COOLDOWN_REASONS = [
+  'quota',
+  'credential_quota',
+  'unauthorized',
+  'payment_required',
+  'not_found',
+  'invalid_grant',
+  'cloudflare_challenge',
+  'model_not_supported',
+  'transient_error',
+  'unknown',
+] as const;
+export type CooldownReason = (typeof COOLDOWN_REASONS)[number];
 
 export interface Cooldown {
-  /** null = credential scope (blocks the whole account); string = that model only. */
+  /** null is credential scope (blocks the whole account); a string is that model only. */
   readonly model: string | null;
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
@@ -111,9 +108,8 @@ export interface Cooldown {
 
 export type HeaderStatus = 'allowed' | 'allowed_warning' | 'rejected';
 
-/** One `Anthropic-Ratelimit-Unified-<key>-*` window from the passive header snapshot. */
+/** One `Anthropic-Ratelimit-Unified-<key>-*` group: '5h', '7d', '7d_oi', 'Overage', ... */
 export interface HeaderWindow {
-  /** Header key segment: '5h' | '7d' | '7d_oi' | 'Overage' | ... Unknown keys are kept and shown. */
   readonly key: string;
   readonly percent: Percent | null;
   readonly resetsAt: Instant | null;
@@ -121,63 +117,52 @@ export interface HeaderWindow {
 }
 
 /**
- * Passive quota: the headers of the last real response that CPA proxied on this account.
- * It's updated only by traffic, kept in CPA's memory, and lost when CPA restarts (then null).
+ * The headers of the last real response CPA proxied on this account. Updated only by traffic,
+ * held in CPA's memory, and gone after a CPA restart.
  */
 export interface HeaderQuota {
   readonly observedAt: Instant;
   readonly status: HeaderStatus | null;
+  readonly resetsAt: Instant | null;
   readonly windows: readonly HeaderWindow[];
   readonly overageDisabledReason: string | null;
-  readonly representativeClaim: string | null;
-  /** Per-model: when each model last got a response, and that response's unified status. */
-  readonly models: readonly { readonly model: string; readonly observedAt: Instant; readonly status: HeaderStatus | null }[];
 }
 
-/** 10-minute activity bucket, anchored to absolute time at parse (CPA only sends "HH:MM-HH:MM"). */
+/** A 10-minute bucket of CPA's recent_requests, anchored to absolute time at parse. */
 export interface ActivityBucket {
   readonly start: Instant;
   readonly success: number;
   readonly failed: number;
 }
 
-/**
- * One Claude credential as CPA reports it. CPA's file `name` is NOT here. Only cpa.ts needs it,
- * for PATCH bodies, and it resolves AccountId → name privately. The UI and handlers speak AccountId only.
- */
+/** One Claude credential. The file `name` CPA needs for PATCH stays private to cpa.ts. */
 export interface CpaAccount {
   readonly id: AccountId;
   readonly email: string;
   readonly disabled: boolean;
   readonly priority: number;
   readonly status: CpaStatus;
-  /** `error.message` parsed out of CPA's raw `status_message` JSON string; the raw text if it isn't JSON. */
+  /** `error.message` from CPA's raw `status_message` JSON, or the raw text when it isn't JSON. */
   readonly statusMessage: string | null;
   readonly unavailable: boolean;
   readonly nextRetryAfter: Instant | null;
   readonly cooldowns: readonly Cooldown[];
   readonly headers: HeaderQuota | null;
   readonly lastRefresh: Instant | null;
-  /** 20 buckets, oldest first, contiguous. */
+  /** Oldest first, contiguous. */
   readonly activity: readonly ActivityBucket[];
-  /** Counters since CPA start. */
-  readonly totals: { readonly success: number; readonly failed: number };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Anthropic (writer: server/observer.ts, from server/anthropic.ts parses)
-// ---------------------------------------------------------------------------------------------
+// Anthropic (writer: server/poller.ts)
 
 export type Severity = 'normal' | 'warning' | 'critical';
 
-/** One entry of `/api/oauth/usage` `limits[]`. Unknown `kind`s pass through and render generically. */
+/** One entry of `/api/oauth/usage` `limits[]`. Unknown kinds pass through. */
 export interface Limit {
   readonly kind: 'session' | 'weekly_all' | 'weekly_scoped' | (string & {});
-  readonly group: 'session' | 'weekly' | (string & {});
   readonly percent: Percent;
   readonly severity: Severity;
   readonly resetsAt: Instant | null;
-  /** `scope.model.display_name` for weekly_scoped limits, else null. */
   readonly scopeModel: string | null;
   /** The limit currently binding. */
   readonly isActive: boolean;
@@ -189,7 +174,6 @@ export interface Money {
   readonly exponent: number;
 }
 
-/** `spend` from `/api/oauth/usage` (extra usage). The legacy `extra_usage` key is ignored. */
 export interface Spend {
   readonly enabled: boolean;
   readonly used: Money;
@@ -199,11 +183,10 @@ export interface Spend {
   readonly disabledReason: string | null;
 }
 
-/** juniper_tide: the weekly session-limit reset. */
+/** juniper_tide: the weekly session-limit reset. Only `wall` reads carry it. */
 export interface JuniperTide {
   readonly eligible: boolean;
   readonly ineligibleReason: string | null;
-  readonly inExperiment: boolean;
   readonly arm: string | null;
   readonly available: boolean;
   readonly nextAvailableAt: Instant | null;
@@ -214,16 +197,14 @@ export interface JuniperTide {
 export interface Grant {
   readonly id: GrantId;
   readonly label: string;
-  readonly type: 'session' | 'weekly' | 'full' | (string & {});
+  readonly type: string;
   readonly resetsTotal: number;
   readonly resetsLeft: number;
-  readonly startsAt: Instant | null;
   readonly endsAt: Instant | null;
-  /** Window names this grant clears, e.g. ['five_hour']. */
+  /** Window names this grant clears, such as 'five_hour'. */
   readonly clears: readonly string[];
   readonly paused: boolean;
   readonly usableNow: boolean;
-  readonly useRequiresLimit: boolean;
 }
 
 /** cedar_ember: grant-based resets. */
@@ -235,89 +216,96 @@ export interface CedarEmber {
   readonly nextGrantId: GrantId | null;
   readonly weeklyResetsAt: Instant | null;
   readonly cooldownUntil: Instant | null;
-  readonly pausedHeld: boolean;
-}
-
-/** null program = the account is not in that program (upstream sent null). */
-export interface ResetPrograms {
-  readonly juniperTide: JuniperTide | null;
-  readonly cedarEmber: CedarEmber | null;
 }
 
 export interface Profile {
   readonly email: string;
   readonly orgUuid: string;
   readonly orgName: string;
-  readonly orgType: string; // claude_max | claude_team | ...
-  readonly rateLimitTier: string; // default_claude_max_20x | default_claude_max_5x | ...
-  readonly planLabel: string | null; // "Ultra plan"
-  readonly subscriptionStatus: string | null;
+  readonly orgType: string;
+  readonly rateLimitTier: string;
+  readonly planLabel: string | null;
 }
 
+export type ReadMode = 'normal' | 'wall';
+
 /**
- * Anthropic feeds for one account, grouped by what they tell you, not by which endpoint they came from.
- * `limits` is written by BOTH the usage poll and the at-wall poll (both bodies carry limits[]);
- * the newer success wins. `spend` comes only from usage; `programs` only from at-wall.
+ * Feeds are split by which read writes them. `normal` writes limits, spend and cedar; `wall`
+ * writes limits, juniper and cedar. A null value means upstream sent null (not enrolled).
  */
 export interface AccountFeeds {
   readonly limits: Source<readonly Limit[]>;
   readonly spend: Source<Spend | null>;
-  readonly programs: Source<ResetPrograms>;
+  readonly cedar: Source<CedarEmber | null>;
+  readonly juniper: Source<JuniperTide | null>;
   readonly profile: Source<Profile>;
+  readonly gate: ReadGate;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Claims (writer: server/claims.ts, persisted in deck.db)
-// ---------------------------------------------------------------------------------------------
+/** The poll budget's facts for one account. The UI derives "can refresh now" from them. */
+export interface ReadGate {
+  readonly backoffUntil: Instant | null;
+  readonly manualAt: Instant | null;
+  readonly reading: ReadMode | 'profile' | null;
+}
+
+export function emptyFeeds(): AccountFeeds {
+  return {
+    limits: emptySource(),
+    spend: emptySource(),
+    cedar: emptySource(),
+    juniper: emptySource(),
+    profile: emptySource(),
+    gate: { backoffUntil: null, manualAt: null, reading: null },
+  };
+}
+
+// Serving evidence (writer: server/keeper.ts)
+
+export interface ServingSeen {
+  readonly account: AccountId;
+  /** Newest successful request keeper recorded for this account. */
+  readonly lastAt: Instant;
+  readonly recent: number;
+}
+
+// Claims (writer: server/claims.ts, in memory)
 
 export type ProgramId = 'juniper_tide' | 'cedar_ember';
 
-/** Facts captured at prepare time. They're shown in the confirm dialog and used to resolve in_doubt. */
-export interface Preflight {
-  readonly programsAt: Instant;
-  readonly available: boolean;
-  readonly resetsLeft: number | null; // cedar grant only
-  readonly nextAvailableAt: Instant | null;
-  readonly clears: readonly string[];
-}
-
-export type ClaimResult =
-  // Anthropic answered. The first one is the only result that consumed a reset.
-  | { readonly result: 'reset'; readonly cleared: readonly string[]; readonly resetsLeft: number | null; readonly nextAvailableAt: Instant | null }
-  | { readonly result: 'already_used' | 'not_limited' | 'cooldown' | 'ineligible' | 'unavailable'; readonly reason: string | null; readonly nextAvailableAt: Instant | null }
+export type ClaimOutcome =
+  | {
+      readonly result: 'reset' | 'already_used' | 'not_limited' | 'cooldown' | 'ineligible' | 'unavailable';
+      readonly reason: string | null;
+      readonly resetsLeft: number | null;
+      readonly cleared: readonly string[];
+      readonly nextAvailableAt: Instant | null;
+    }
   | { readonly result: 'rate_limited' | 'auth_error'; readonly status: number }
-  // Never reached Anthropic.
-  | { readonly result: 'not_sent'; readonly why: string }
-  // Resolved from in_doubt by comparing Preflight with a later at-wall poll.
-  | { readonly result: 'inferred_consumed' | 'inferred_not_consumed'; readonly evidenceAt: Instant };
+  | { readonly result: 'not_sent'; readonly why: string };
 
 export type ClaimState =
-  | { readonly kind: 'prepared'; readonly expiresAt: Instant }
-  | { readonly kind: 'expired' }
-  | { readonly kind: 'sending'; readonly sentAt: Instant }
-  /** We crashed or timed out after the request may have left. Never resent automatically. */
-  | { readonly kind: 'in_doubt'; readonly sentAt: Instant }
+  | { readonly kind: 'sending' }
   | {
       readonly kind: 'settled';
-      readonly outcome: ClaimResult;
-      readonly settledAt: Instant;
-      /** CPA `reset-quota` after `reset` or `not_limited`. Idempotent; retried until done. */
-      readonly followup: 'not_needed' | 'pending' | 'done' | 'failed';
-    };
+      readonly at: Instant;
+      readonly outcome: ClaimOutcome;
+      /** CPA reset-quota after `reset` or `not_limited`. */
+      readonly followup: 'not_needed' | 'done' | 'failed';
+    }
+  /** The request may have reached Anthropic. Never resent; the next wall read shows the truth. */
+  | { readonly kind: 'unknown'; readonly at: Instant; readonly why: string };
 
 export interface ClaimRecord {
   readonly id: ClaimId;
   readonly account: AccountId;
   readonly program: ProgramId;
   readonly grant: GrantId | null;
-  readonly createdAt: Instant;
-  readonly preflight: Preflight;
+  readonly startedAt: Instant;
   readonly state: ClaimState;
 }
 
-// ---------------------------------------------------------------------------------------------
-// OAuth add-account flows (writer: server/oauth.ts, in memory)
-// ---------------------------------------------------------------------------------------------
+// Add-account flows (writer: server/oauth.ts, in memory)
 
 export interface OAuthFlow {
   readonly id: FlowId;
@@ -325,38 +313,25 @@ export interface OAuthFlow {
   readonly startedAt: Instant;
   readonly status: 'waiting' | 'ok' | 'error' | 'expired' | 'cancelled';
   readonly error: string | null;
-  /** Set once the new credential shows up in /auth-files. */
   readonly account: AccountId | null;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Link to CPA's management API (writer: server/cpa.ts)
-// ---------------------------------------------------------------------------------------------
+// Management link (writer: server/cpa.ts)
 
-/**
- * Anything but 'ok' means no management request will be sent. That covers every CPA call and every
- * Anthropic call, because those go through api-call.
- */
+/** Anything but 'ok' means no management request is sent, which also stops every Anthropic call. */
 export type LinkState =
   | { readonly kind: 'ok' }
   | { readonly kind: 'missing_key'; readonly envPath: string }
-  /** CPA answered 401/403. Latched until the env file changes; never retried with the same key. */
-  | { readonly kind: 'rejected'; readonly at: Instant; readonly envPath: string }
-  /** Our persisted lockout budget is spent (2 failures / 30 min). Unlocks at `until`. */
-  | { readonly kind: 'guarded'; readonly until: Instant };
-
-// ---------------------------------------------------------------------------------------------
-// The snapshot. Assembled in server/http.ts by reading each owner. No owner writes another's part.
-// ---------------------------------------------------------------------------------------------
+  /** CPA answered 401/403. Nothing is sent until KEY_REJECT_LATCH_MS has passed. */
+  | { readonly kind: 'rejected'; readonly at: Instant; readonly envPath: string };
 
 export interface Snapshot {
-  /** Increments on every change, in any part. */
-  readonly version: number;
   readonly generatedAt: Instant;
   readonly link: LinkState; // cpa.ts
   readonly cpa: Source<readonly CpaAccount[]>; // observer.ts
   readonly strategy: Source<RoutingStrategy>; // observer.ts
-  readonly feeds: Readonly<Record<AccountId, AccountFeeds>>; // observer.ts
-  readonly claims: readonly ClaimRecord[]; // claims.ts: open ones plus the 20 most recent settled
+  readonly feeds: Readonly<Record<AccountId, AccountFeeds>>; // poller.ts
+  readonly serving: Source<readonly ServingSeen[]>; // keeper.ts
+  readonly claims: readonly ClaimRecord[]; // claims.ts, newest first
   readonly flows: readonly OAuthFlow[]; // oauth.ts
 }

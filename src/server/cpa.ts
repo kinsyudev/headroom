@@ -1,125 +1,227 @@
 /**
- * CPA management API client. It's the only module that talks to http://127.0.0.1:8317/v0/management,
- * and the only one that sees the management key.
+ * CPA management API client: the only module that talks to CPA and the only one that sees the
+ * management key.
  *
- * What it hides from callers:
- * - The lockout hazard. CPA bans an IP for 30 minutes after 5 failed auths, and the ban also locks
- *   out keeper. So:
- *     • no request is ever built without a ManagementKey (the type is non-empty by construction);
- *     • the first 401/403 latches LinkState 'rejected', and no further request is sent until the env
- *       file's key changes (config.watchManagementKey → setKey);
- *     • every failure is persisted (store.authFailures). If 2 or more happened in the last 30 min,
- *       the link is 'guarded' and we don't even try. That holds across restarts and leaves keeper 3
- *       of the 5 strikes.
- * - CPA's wire shapes. Each upstream JSON is parsed by a private zod schema into domain types.
- *   Wire types are never exported.
- * - Account naming. PATCH bodies need the file `name`; everyone else uses AccountId. The
- *   AccountId → name map is private and refreshed by every listAccounts().
- * - Token material. refreshToken() parses `{ ok }` only. The `auth` object never leaves send().
+ * CPA bans an IP for 30 minutes after 5 failed authentications, and that ban also locks out
+ * keeper. So no request is built without a key, and the first 401/403 latches `rejected` in
+ * memory and in state.json. While latched, nothing is sent with that key for KEY_REJECT_LATCH_MS,
+ * which keeps any restart loop under one strike per ban window. A different key in the env file
+ * lifts the latch at once.
  *
- * What it does NOT do: never calls /usage-queue, never DELETEs auth files (test/boundaries.test.ts).
+ * Wire shapes are parsed here into domain types. The refresh response's token material and the
+ * file `name` CPA needs for PATCH never leave this module.
  */
 import { z } from 'zod';
-import type { AccountId, CpaAccount, Instant, LinkState, RoutingStrategy } from '../shared/domain';
 import { DeckError } from '../shared/actions';
-import type { ManagementKey } from './config';
+import { KEY_REJECT_LATCH_MS } from '../shared/derive';
+import {
+  COOLDOWN_REASONS,
+  epochSecondsToInstant,
+  fractionToPercent,
+  parseInstant,
+  type AccountId,
+  type ActivityBucket,
+  type CooldownReason,
+  type CpaAccount,
+  type CpaStatus,
+  type HeaderQuota,
+  type HeaderStatus,
+  type HeaderWindow,
+  type Instant,
+  type LinkState,
+  type RoutingStrategy,
+} from '../shared/domain';
+import type { Secret } from './config';
+import type { StateFile } from './state';
 
-export const LOCKOUT_WINDOW_MS = 30 * 60_000;
-export const LOCKOUT_BUDGET = 2;
+export const MANAGEMENT_TIMEOUT_MS = 10_000;
 
-/** A request for CPA's /api-call proxy. `$TOKEN$` in header values and `data` is substituted by CPA. */
+/** A request for CPA's /api-call proxy. CPA substitutes `$TOKEN$` with the account's OAuth token. */
 export interface UpstreamRequest {
   readonly account: AccountId;
   readonly method: 'GET' | 'POST';
   readonly url: string;
   readonly header: Readonly<Record<string, string>>;
   readonly data?: string;
-  /** Our fetch timeout to CPA. It must exceed the upstream timeout (claims: 25 s upstream → 35 s here). */
   readonly timeoutMs: number;
 }
 
 /**
- * What came back from api-call. These are the three cases claims.ts needs to tell apart:
- * - 'answered': CPA made the call and relayed Anthropic's reply. `status` is api-call's status_code.
- * - 'not_sent': we know Anthropic was never contacted (CPA refused before proxying, or the TCP
- *   connect to CPA failed).
- * - 'unknown': the request may have left. This covers a timeout or a connection dropped after
- *   the request was written.
+ * - answered: CPA made the call and relayed Anthropic's reply.
+ * - not_sent: Anthropic was certainly not contacted.
+ * - unknown: the request may have left (timeout, dropped connection, CPA 5xx).
  */
 export type UpstreamResult =
-  | { readonly kind: 'answered'; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: unknown }
+  | { readonly kind: 'answered'; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
   | { readonly kind: 'not_sent'; readonly why: string }
   | { readonly kind: 'unknown'; readonly why: string };
 
+export type OAuthStatus = { readonly kind: 'wait' } | { readonly kind: 'ok' } | { readonly kind: 'error'; readonly error: string };
+
 export interface Cpa {
   link(): LinkState;
-  onLinkChange(cb: (link: LinkState) => void): () => void;
-  /** Swap in a new key from the env file. Clears a 'rejected' latch and runs one validate(), budget permitting. */
-  setKey(key: ManagementKey | null): Promise<LinkState>;
-  /** One GET /auth-files. It's the startup check and the only retry after a key change. */
-  validate(): Promise<LinkState>;
-
-  /** Claude OAuth accounts only (provider === 'claude'). Updates the private id → name map. */
   listAccounts(): Promise<{ readonly accounts: readonly CpaAccount[]; readonly observedAt: Instant }>;
   getStrategy(): Promise<RoutingStrategy>;
-
   setStrategy(strategy: RoutingStrategy): Promise<void>;
   setDisabled(account: AccountId, disabled: boolean): Promise<void>;
   setPriority(account: AccountId, priority: number): Promise<void>;
   /** CPA `POST /reset-quota`: clears CPA's local cooldown. Never contacts Anthropic. */
   clearCooldown(account: AccountId): Promise<void>;
-  /** Returns only whether CPA said ok. Token material is parsed away inside. */
   refreshToken(account: AccountId): Promise<{ readonly ok: boolean }>;
-
   startOAuth(): Promise<{ readonly url: string; readonly state: string }>;
-  oauthStatus(state: string): Promise<{ readonly kind: 'wait' } | { readonly kind: 'ok' } | { readonly kind: 'error'; readonly error: string }>;
-
-  /** Generic upstream proxy. Never throws for upstream outcomes; it throws DeckError('link_down') only. */
+  oauthStatus(state: string): Promise<OAuthStatus>;
+  /** Never throws for upstream outcomes. */
   apiCall(req: UpstreamRequest): Promise<UpstreamResult>;
 }
 
 export function createCpa(opts: {
   readonly baseUrl: string;
-  readonly key: ManagementKey | null;
   readonly envPath: string;
+  readonly readKey: () => Secret | null;
+  readonly state: StateFile;
   readonly now: () => Instant;
 }): Cpa {
-  throw new Error('not implemented');
+  const base = `${opts.baseUrl.replace(/\/$/, '')}/v0/management`;
+  let key = opts.readKey();
+  let names: ReadonlyMap<AccountId, string> = new Map();
+
+  function link(): LinkState {
+    if (!key) return { kind: 'missing_key', envPath: opts.envPath };
+    const r = opts.state.read().keyRejected;
+    if (r && r.keyHash === key.hash() && opts.now() - r.at < KEY_REJECT_LATCH_MS) {
+      return { kind: 'rejected', at: r.at as Instant, envPath: opts.envPath };
+    }
+    return { kind: 'ok' };
+  }
+
+  /** Re-reads the env file whenever the link is down, so a fixed key takes effect without a restart. */
+  function usableKey(): Secret {
+    if (link().kind !== 'ok') key = opts.readKey();
+    const l = link();
+    if (l.kind !== 'ok' || !key) throw new DeckError('link_down', l.kind === 'rejected' ? 'CPA rejected the management key' : 'no management key');
+    return key;
+  }
+
+  function nameOf(account: AccountId): string {
+    const n = names.get(account);
+    if (!n) throw new DeckError('unknown_account', `no CPA auth file for ${account}`);
+    return n;
+  }
+
+  async function send(method: 'GET' | 'POST' | 'PATCH' | 'PUT', path: string, body?: unknown, timeoutMs = MANAGEMENT_TIMEOUT_MS): Promise<unknown> {
+    const k = usableKey();
+    let res: Response;
+    try {
+      res = await fetch(base + path, {
+        method,
+        headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (e) {
+      throw new DeckError('cpa_unreachable', isTimeout(e) ? 'CPA timed out' : 'CPA is not answering');
+    }
+    if (res.status === 401 || res.status === 403) {
+      opts.state.update((s) => ({ ...s, keyRejected: { keyHash: k.hash(), at: opts.now() } }));
+      throw new DeckError('link_down', 'CPA rejected the management key');
+    }
+    if (opts.state.read().keyRejected) opts.state.update((s) => ({ ...s, keyRejected: null }));
+    if (!res.ok) throw new DeckError('cpa_error', `CPA answered ${res.status} for ${method} ${path.split('?')[0]}`);
+    return res.json();
+  }
+
+  return {
+    link,
+    async listAccounts() {
+      const parsed = parseAuthFiles(await send('GET', '/auth-files'));
+      names = parsed.names;
+      return { accounts: parsed.accounts, observedAt: parsed.observedAt };
+    },
+    async getStrategy() {
+      return WireStrategy.parse(await send('GET', '/routing/strategy')).strategy;
+    },
+    async setStrategy(strategy) {
+      await send('PUT', '/routing/strategy', { value: strategy });
+    },
+    async setDisabled(account, disabled) {
+      await send('PATCH', '/auth-files/status', { name: nameOf(account), disabled });
+    },
+    async setPriority(account, priority) {
+      await send('PATCH', '/auth-files/fields', { name: nameOf(account), priority });
+    },
+    async clearCooldown(account) {
+      await send('POST', '/reset-quota', { auth_index: account });
+    },
+    async refreshToken(account) {
+      return parseRefresh(await send('POST', '/auth-files/refresh', { name: nameOf(account) }));
+    },
+    async startOAuth() {
+      const r = z.object({ url: z.string().url(), state: z.string().min(1) }).parse(await send('GET', '/anthropic-auth-url?is_webui=true'));
+      return { url: r.url, state: r.state };
+    },
+    async oauthStatus(state) {
+      const r = z
+        .object({ status: z.string(), error: z.string().optional() })
+        .parse(await send('GET', `/get-auth-status?state=${encodeURIComponent(state)}`));
+      if (r.status === 'ok') return { kind: 'ok' };
+      if (r.status === 'error') return { kind: 'error', error: r.error ?? 'OAuth failed' };
+      return { kind: 'wait' };
+    },
+    async apiCall(req) {
+      let k: Secret;
+      try {
+        k = usableKey();
+      } catch (e) {
+        return { kind: 'not_sent', why: (e as Error).message };
+      }
+      let res: Response;
+      try {
+        res = await fetch(`${base}/api-call`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${k.reveal()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auth_index: req.account, method: req.method, url: req.url, header: req.header, ...(req.data === undefined ? {} : { data: req.data }) }),
+          signal: AbortSignal.timeout(req.timeoutMs),
+        });
+      } catch (e) {
+        if (isRefused(e)) return { kind: 'not_sent', why: 'CPA is not answering' };
+        return { kind: 'unknown', why: isTimeout(e) ? 'timed out waiting for CPA' : 'connection to CPA dropped' };
+      }
+      if (res.status === 401 || res.status === 403) {
+        opts.state.update((s) => ({ ...s, keyRejected: { keyHash: k.hash(), at: opts.now() } }));
+        return { kind: 'not_sent', why: 'CPA rejected the management key' };
+      }
+      if (res.status >= 500) return { kind: 'unknown', why: `CPA answered ${res.status}` };
+      if (!res.ok) return { kind: 'not_sent', why: `CPA answered ${res.status}` };
+      const env = WireApiCall.safeParse(await res.json().catch(() => null));
+      if (!env.success) return { kind: 'unknown', why: 'unreadable api-call envelope' };
+      return { kind: 'answered', status: env.data.status_code, headers: flattenHeaders(env.data.header), body: env.data.body };
+    },
+  };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Private transport. Every request goes through send(). Nothing else calls fetch on CPA.
-// ---------------------------------------------------------------------------------------------
-
-/**
- * TODO:
- * 1. link.kind !== 'ok' → throw DeckError('link_down'). No request is built.
- * 2. authFailures.countSince(now - LOCKOUT_WINDOW_MS) >= LOCKOUT_BUDGET
- *      → link = { guarded, until: oldestSince(...) + LOCKOUT_WINDOW_MS }; emit; throw link_down
- * 3. fetch(baseUrl + '/v0/management' + path, { method, headers: { Authorization: `Bearer ${key.reveal()}`,
- *      'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(timeoutMs) })
- *      connect error (ECONNREFUSED) → throw DeckError('cpa_unreachable')
- * 4. 401 | 403 → authFailures.record(now); link = { rejected, at: now, envPath }; emit;
- *      throw DeckError('link_down'). NEVER retried.
- * 5. other non-2xx → throw DeckError('cpa_error', `${status}`). The body is not included (it could echo input).
- * 6. return parse(await res.json()). The raw JSON goes out of scope here and is never logged.
- */
-async function send<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
-  path: string,
-  body: unknown,
-  parse: (json: unknown) => T,
-  timeoutMs: number,
-): Promise<T> {
-  throw new Error('not implemented');
+function isTimeout(e: unknown): boolean {
+  return e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
 }
 
-// ---------------------------------------------------------------------------------------------
-// Wire schemas (private). They're lenient: unknown keys are stripped, and optional fields default.
-// ---------------------------------------------------------------------------------------------
+function isRefused(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code ?? '';
+  return code === 'ConnectionRefused' || code === 'ECONNREFUSED' || /Unable to connect/i.test((e as Error)?.message ?? '');
+}
+
+function flattenHeaders(h: Record<string, string | string[]>): Record<string, string> {
+  return Object.fromEntries(Object.entries(h).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? (v[0] ?? '') : v]));
+}
+
+const WireApiCall = z.object({
+  status_code: z.number(),
+  header: z.record(z.string(), z.union([z.string(), z.array(z.string())])).default({}),
+  body: z.string().default(''),
+});
+
+const WireStrategy = z.object({ strategy: z.enum(['fill-first', 'round-robin']) });
 
 const WireCooldown = z.object({
-  scope: z.enum(['credential', 'model']),
+  scope: z.string(),
   model_key: z.string().optional(),
   reason: z.string(),
   retry_at: z.string(),
@@ -132,8 +234,8 @@ const WireAuthFile = z.object({
   auth_index: z.string(),
   name: z.string(),
   email: z.string().optional(),
+  account: z.string().optional(),
   provider: z.string(),
-  account_type: z.string().optional(),
   disabled: z.boolean().default(false),
   priority: z.number().default(0),
   status: z.string().default('unknown'),
@@ -142,45 +244,113 @@ const WireAuthFile = z.object({
   next_retry_after: z.string().optional(),
   cooldowns: z.array(WireCooldown).default([]),
   quota: WireQuota.optional(),
-  model_quotas: z.record(z.string(), WireQuota).default({}),
   recent_requests: z.array(z.object({ time: z.string(), success: z.number(), failed: z.number() })).default([]),
   last_refresh: z.string().optional(),
-  success: z.number().default(0),
-  failed: z.number().default(0),
 });
 
 const WireAuthFiles = z.object({ files: z.array(WireAuthFile), observed_at: z.string() });
 
-void WireAuthFiles;
+const CPA_STATUSES: readonly CpaStatus[] = ['active', 'error', 'disabled', 'pending', 'refreshing', 'unknown'];
+const HEADER_PREFIX = 'Anthropic-Ratelimit-Unified-';
+const TEN_MIN = 600_000;
 
-/**
- * Exported for tests (test/derive.test.ts parses the real fixture through it). Returns domain types only.
- *
- * TODO:
- * files.filter(f => f.provider === 'claude')
- * headers: parseSignals(f.quota) where 'Anthropic-Ratelimit-Unified-<KEY>-<Field>' groups by KEY
- *   (KEY = '5h' | '7d' | '7d_oi' | 'Overage' | ...); fields Utilization → fractionToPercent,
- *   Reset → epochSecondsToInstant, Status → HeaderStatus. Unprefixed 'Anthropic-Ratelimit-Unified-Status'
- *   is the overall status. 'Representative-Claim', 'Overage-Disabled-Reason' are copied.
- *   models[] from model_quotas: observedAt + overall Status only.
- * activity: anchor recent_requests to the top-level observed_at.
- *   lastStart = floor(observed_at, 10 min); bucket[i].start = lastStart - (n-1-i) * 10 min.
- *   Check: the local "HH:MM" of lastStart equals the last label's prefix; if it's off by one
- *   bucket (observed exactly on a boundary), shift by 10 min. Labels are CPA-local wall time.
- * statusMessage: try JSON.parse(status_message).error.message, else the raw string, '' → null
- * cooldowns: drop remaining_seconds (it's derived from retry_at); unknown reason → 'unknown'
- * Also returns the id → name map for the private resolver.
- */
+/** Exported for tests. Returns domain types plus the private id-to-file-name map. */
 export function parseAuthFiles(json: unknown): {
   readonly accounts: readonly CpaAccount[];
   readonly observedAt: Instant;
   readonly names: ReadonlyMap<AccountId, string>;
 } {
-  throw new Error('not implemented');
+  const wire = WireAuthFiles.parse(json);
+  const observedAt = parseInstant(wire.observed_at) ?? (Date.now() as Instant);
+  const names = new Map<AccountId, string>();
+  const accounts = wire.files
+    .filter((f) => f.provider === 'claude')
+    .map((f): CpaAccount => {
+      const id = f.auth_index as AccountId;
+      names.set(id, f.name);
+      return {
+        id,
+        email: f.email ?? f.account ?? f.name,
+        disabled: f.disabled,
+        priority: f.priority,
+        status: (CPA_STATUSES as readonly string[]).includes(f.status) ? (f.status as CpaStatus) : 'unknown',
+        statusMessage: parseStatusMessage(f.status_message),
+        unavailable: f.unavailable,
+        nextRetryAfter: parseInstant(f.next_retry_after),
+        cooldowns: f.cooldowns.flatMap((c) => {
+          const retryAt = parseInstant(c.retry_at);
+          if (retryAt === null) return [];
+          const reason = (COOLDOWN_REASONS as readonly string[]).includes(c.reason) ? (c.reason as CooldownReason) : 'unknown';
+          return [{ model: c.scope === 'credential' ? null : (c.model_key ?? null), reason, retryAt, httpStatus: c.http_status ?? null }];
+        }),
+        headers: f.quota ? parseSignals(f.quota) : null,
+        lastRefresh: parseInstant(f.last_refresh),
+        activity: anchorActivity(f.recent_requests, observedAt),
+      };
+    });
+  return { accounts, observedAt, names };
 }
 
-/** The refresh response contains `auth.access_token` and `auth.refresh_token`. Keep only `ok`. */
+function parseStatusMessage(raw: string): string | null {
+  if (!raw) return null;
+  try {
+    const m = (JSON.parse(raw) as { error?: { message?: unknown } }).error?.message;
+    return typeof m === 'string' && m ? m : raw;
+  } catch {
+    return raw;
+  }
+}
+
+function parseSignals(q: z.infer<typeof WireQuota>): HeaderQuota | null {
+  const observedAt = parseInstant(q.observed_at);
+  if (observedAt === null) return null;
+  const overall = new Map<string, string>();
+  const groups = new Map<string, Map<string, string>>();
+  for (const [name, value] of Object.entries(q.signals)) {
+    if (!name.startsWith(HEADER_PREFIX)) continue;
+    const rest = name.slice(HEADER_PREFIX.length);
+    const dash = rest.indexOf('-');
+    if (dash === -1 || ['Representative-Claim', 'Fallback-Percentage', 'Upgrade-Paths'].includes(rest)) {
+      overall.set(rest, value);
+      continue;
+    }
+    const key = rest.slice(0, dash);
+    if (!groups.has(key)) groups.set(key, new Map());
+    groups.get(key)!.set(rest.slice(dash + 1), value);
+  }
+  const windows: HeaderWindow[] = [...groups].map(([key, f]) => ({
+    key,
+    percent: fractionToPercent(f.get('Utilization')),
+    resetsAt: epochSecondsToInstant(f.get('Reset')),
+    status: headerStatus(f.get('Status')),
+  }));
+  return {
+    observedAt,
+    status: headerStatus(overall.get('Status')),
+    resetsAt: epochSecondsToInstant(overall.get('Reset')),
+    windows,
+    overageDisabledReason: groups.get('Overage')?.get('Disabled-Reason') ?? null,
+  };
+}
+
+function headerStatus(s: string | undefined): HeaderStatus | null {
+  return s === 'allowed' || s === 'allowed_warning' || s === 'rejected' ? s : null;
+}
+
+/**
+ * CPA labels buckets in its own wall-clock time ("13:20-13:30") and anchors them to the top-level
+ * observed_at. The newest bucket is the 10 minutes containing observed_at; if its label's minutes
+ * disagree (observed exactly on a boundary), step back one bucket.
+ */
+function anchorActivity(buckets: readonly { time: string; success: number; failed: number }[], observedAt: Instant): ActivityBucket[] {
+  let last = Math.floor(observedAt / TEN_MIN) * TEN_MIN;
+  const labelMinute = Number(/^\d{1,2}:(\d{2})/.exec(buckets.at(-1)?.time ?? '')?.[1]);
+  if (Number.isFinite(labelMinute) && new Date(last).getUTCMinutes() !== labelMinute) last -= TEN_MIN;
+  const n = buckets.length;
+  return buckets.map((b, i) => ({ start: (last - (n - 1 - i) * TEN_MIN) as Instant, success: b.success, failed: b.failed }));
+}
+
+/** The refresh response contains access and refresh tokens. Only `ok` survives. */
 export function parseRefresh(json: unknown): { readonly ok: boolean } {
-  // TODO: return { ok: typeof json === 'object' && json !== null && (json as { ok?: unknown }).ok === true }
-  throw new Error('not implemented');
+  return { ok: typeof json === 'object' && json !== null && (json as { ok?: unknown }).ok === true };
 }

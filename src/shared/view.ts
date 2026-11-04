@@ -1,10 +1,7 @@
 /**
- * DeckView is the output of `deriveDeck(snapshot, now)`. UI components render from these types
- * only. They never read `Snapshot` and never compute routing, availability, or freshness
- * themselves. If a component needs a new fact, add it here and compute it in derive.ts.
- *
- * Every field is either copied from a fact or computed from facts and `now`. Nothing here is
- * stored or sent over the wire.
+ * The output of `deriveDeck(snapshot, now)`. Components render from these types only and never
+ * compute routing, availability or freshness themselves. A new fact a component needs goes here
+ * and is computed in derive.ts.
  */
 import type {
   AccountId,
@@ -18,6 +15,7 @@ import type {
   OAuthFlow,
   Percent,
   ProgramId,
+  ReadMode,
   RoutingStrategy,
   Severity,
   SourceError,
@@ -26,47 +24,47 @@ import type {
 export interface DeckView {
   readonly now: Instant;
   readonly overview: OverviewView;
-  /** Ordered: serving first, then by priority (descending), then by email. */
+  /** Serving first, then priority descending, then email. */
   readonly accounts: readonly AccountView[];
   readonly banners: readonly Banner[];
   readonly flows: readonly OAuthFlow[];
   readonly strategy: RoutingStrategy | null;
+  readonly global: readonly FreshnessView[];
 }
 
-// ---------------------------------------------------------------------------------------------
-// Overview strip
-// ---------------------------------------------------------------------------------------------
-
 export interface OverviewView {
-  /** Accounts with an Anthropic response in the last SERVING_WINDOW. Can be empty or several (affinity, round-robin). */
+  /** Accounts with a successful request in the last SERVING_WINDOW_MS. */
   readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant }[];
-  /** Predicted target for a new session under the current strategy. null when nothing is eligible. */
+  /** Where a new session lands under the current strategy. A prediction. */
   readonly target: { readonly account: AccountId; readonly email: string } | null;
+  /** keeper when it is readable, else CPA's passive headers. */
+  readonly servingEvidence: 'keeper' | 'cpa_headers';
   readonly headroom: { readonly session: Headroom; readonly weekly: Headroom };
-  /** Earliest future resetsAt across all accounts and limits. */
   readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant } | null;
-  /** Earliest moment a currently blocked account becomes routable again. */
   readonly nextUnblock: { readonly account: AccountId; readonly email: string; readonly at: Instant } | null;
-  readonly claimable: readonly { readonly account: AccountId; readonly email: string; readonly program: ProgramId; readonly grant: GrantId | null; readonly label: string }[];
+  readonly claimable: readonly ClaimableView[];
+}
+
+export interface ClaimableView {
+  readonly account: AccountId;
+  readonly email: string;
+  readonly program: ProgramId;
+  readonly grant: GrantId | null;
+  readonly label: string;
 }
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
 
 /**
- * Headroom summed over enabled accounts, in "accounts' worth": 1.3 of 3.
- * session = Σ min(100 - session%, 100 - weekly_all%) / 100, because the weekly cap also bounds the session.
- * weekly  = Σ (100 - weekly_all%) / 100.
- * Accounts with no data at all are counted in `unknown`, not guessed.
+ * Headroom summed over enabled accounts, in accounts' worth ("1.3 of 3").
+ * session = sum of min(100 - session%, 100 - weekly%) / 100, since the weekly cap bounds the session.
+ * weekly  = sum of (100 - weekly%) / 100. Accounts without data count in `unknown`.
  */
 export interface Headroom {
   readonly value: number;
   readonly of: number;
   readonly unknown: number;
 }
-
-// ---------------------------------------------------------------------------------------------
-// Account card
-// ---------------------------------------------------------------------------------------------
 
 export interface AccountView {
   readonly id: AccountId;
@@ -75,140 +73,142 @@ export interface AccountView {
   readonly routing: RoutingView;
   readonly cooldowns: readonly CooldownView[];
   readonly statusMessage: string | null;
+  readonly atWall: boolean;
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
   readonly offers: readonly OfferView[];
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
   readonly freshness: readonly FreshnessView[];
+  readonly read: ReadView;
   readonly claims: readonly ClaimRecord[];
-  /** What the UI may enable. The handlers enforce the same rules; this only greys out buttons. */
+  /** What the UI may enable. Handlers enforce their own rules; this only greys out buttons. */
   readonly can: {
     readonly enable: boolean;
     readonly disable: boolean;
     readonly makePrimary: boolean;
     readonly clearCooldown: boolean;
-    readonly refreshToken: boolean;
     readonly refreshQuota: boolean;
   };
+}
+
+export interface ReadView {
+  readonly mode: ReadMode;
+  readonly nextAt: Instant | null;
+  readonly reading: boolean;
+  readonly backoffUntil: Instant | null;
+  /** Why a manual refresh is refused right now, and until when. */
+  readonly refreshHeld: { readonly why: 'rate_limited' | 'debounced' | 'reading'; readonly until: Instant | null } | null;
 }
 
 export interface PlanView {
   /** "Max 20x", "Team · Max 5x". */
   readonly label: string;
-  readonly orgType: string;
-  readonly tier: string;
-  readonly planLabel: string | null;
+  readonly orgName: string;
 }
 
 export interface RoutingView {
   readonly priority: number;
   readonly role:
     | { readonly kind: 'serving'; readonly why: ServingWhy }
-    | { readonly kind: 'standby' } // eligible, not receiving traffic
+    | { readonly kind: 'standby' }
     | { readonly kind: 'blocked'; readonly until: Instant | null; readonly reason: string }
     | { readonly kind: 'disabled' };
-  /** In the highest eligible priority tier, so a new session would land here under fill-first. */
+  /** In the tier a new session would land in. */
   readonly isTarget: boolean;
-  readonly lastServedAt: Instant | null;
+  /** Strictly higher priority than every other account, so Make primary has nothing to do. */
+  readonly outranksAll: boolean;
+  readonly lastSeenAt: Instant | null;
+  readonly recent: number | null;
 }
 
 export interface CooldownView {
   readonly model: string | null;
   readonly reason: CooldownReason;
   readonly retryAt: Instant;
-  readonly remainingMs: number;
 }
 
+/**
+ * open: a window is running and `percent` applies.
+ * idle: the session limit is absent from limits[], so no session window is running.
+ * lapsed: `resetsAt` has passed and nothing newer arrived; the old percent no longer applies.
+ */
+export type WindowPhase = 'open' | 'idle' | 'lapsed';
+
 export interface LimitView {
-  readonly key: string; // stable React key: kind + scopeModel
-  readonly label: string; // "Session", "Weekly", "Opus weekly"
-  readonly percent: Percent | null; // null while rolled and not yet re-observed
+  readonly key: string;
+  readonly label: string;
+  readonly phase: WindowPhase;
+  readonly percent: Percent | null;
   readonly severity: Severity;
   readonly resetsAt: Instant | null;
-  readonly resetsInMs: number | null;
   readonly isActive: boolean;
-  /** resetsAt has passed and no newer observation exists. The old percent no longer applies. */
-  readonly rolled: boolean;
-  /** Which source the drawn percent came from, and how old it is. */
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
-  /** The other source's value for the same window, if any. Drawn as a faint tick so disagreement shows. */
+  /** The other source's value for the same window, drawn as a faint tick so disagreement shows. */
   readonly other: { readonly kind: 'poll' | 'headers'; readonly percent: Percent; readonly at: Instant } | null;
 }
 
+/** Extra usage. Wall reads skip spend, so an account at the wall may only have the header view. */
 export interface SpendView {
-  readonly enabled: boolean;
-  readonly used: Money;
-  readonly limit: Money | null;
-  readonly percent: Percent | null;
-  readonly severity: Severity;
-  readonly disabledReason: string | null;
-  /** Live overage hint from headers (e.g. 101% rejected) when newer than the poll. */
-  readonly live: { readonly percent: Percent | null; readonly status: string | null; readonly at: Instant } | null;
+  readonly poll: {
+    readonly enabled: boolean;
+    readonly used: Money;
+    readonly limit: Money | null;
+    readonly percent: Percent | null;
+    readonly severity: Severity;
+    readonly disabledReason: string | null;
+    readonly at: Instant;
+  } | null;
+  /** Overage state from the passive headers, when they are newer than the poll. */
+  readonly live: { readonly percent: Percent | null; readonly status: string | null; readonly reason: string | null; readonly at: Instant } | null;
 }
-
-// ---------------------------------------------------------------------------------------------
-// Reset offers
-// ---------------------------------------------------------------------------------------------
 
 export type OfferState =
   | { readonly kind: 'claimable'; readonly grant: GrantId | null }
-  /** The program is evaluated at the wall, and the account isn't at it. Not a "no". */
-  | { readonly kind: 'held'; readonly note: string }
-  | { readonly kind: 'waiting'; readonly until: Instant | null; readonly elapsed: boolean }
+  /** Evaluated at the wall, and the account isn't there. Not a "no". */
+  | { readonly kind: 'held'; readonly lastAt: Instant | null; readonly lastClaimable: boolean }
+  | { readonly kind: 'waiting'; readonly until: Instant | null }
   | { readonly kind: 'ineligible'; readonly reason: string; readonly explain: string }
   | { readonly kind: 'not_enrolled' }
-  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly doubt: boolean }
-  | { readonly kind: 'unknown'; readonly why: 'never_polled' | 'failing' };
+  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly unknown: boolean }
+  | { readonly kind: 'unknown'; readonly why: 'never_read' | 'failing' };
 
 export interface GrantView {
   readonly id: GrantId;
   readonly label: string;
-  readonly type: string;
   readonly resetsLeft: number;
   readonly resetsTotal: number;
   readonly endsAt: Instant | null;
   readonly clears: readonly string[];
   readonly usable: boolean;
-  readonly paused: boolean;
 }
 
-export type OfferView =
-  | {
-      readonly program: 'juniper_tide';
-      readonly label: string;
-      readonly state: OfferState;
-      readonly weeklyResetsAt: Instant | null;
-      readonly dataAt: Instant | null;
-    }
-  | {
-      readonly program: 'cedar_ember';
-      readonly label: string;
-      readonly state: OfferState;
-      readonly grants: readonly GrantView[];
-      readonly defaultGrant: GrantId | null;
-      readonly cooldownUntil: Instant | null;
-      readonly dataAt: Instant | null;
-    };
+export interface OfferView {
+  readonly program: ProgramId;
+  readonly label: string;
+  /** What a successful claim does, in the operator's words. */
+  readonly effect: string;
+  readonly state: OfferState;
+  readonly dataAt: Instant | null;
+  readonly grants: readonly GrantView[];
+}
 
-// ---------------------------------------------------------------------------------------------
-// Freshness and banners
-// ---------------------------------------------------------------------------------------------
-
-export type FeedName = 'cpa' | 'headers' | 'limits' | 'spend' | 'programs' | 'profile';
+export type FeedName = 'cpa' | 'strategy' | 'serving' | 'headers' | 'limits' | 'spend' | 'cedar' | 'juniper' | 'profile';
 
 export interface FreshnessView {
   readonly feed: FeedName;
   /**
-   * fresh / aging / stale use per-feed thresholds (derive.ts FRESHNESS). `traffic` is for headers:
-   * their age reflects the last request, not a polling failure, so they never go "stale".
+   * fresh / aging / stale use per-feed thresholds. `traffic` is for headers, whose age is the
+   * last request rather than a failure. `held` is juniper away from the wall: not read on purpose.
    */
-  readonly state: 'fresh' | 'aging' | 'stale' | 'failing' | 'never' | 'traffic';
+  readonly state: 'fresh' | 'aging' | 'stale' | 'failing' | 'never' | 'traffic' | 'held';
   readonly ageMs: number | null;
-  readonly nextAt: Instant | null;
   readonly error: SourceError | null;
+  readonly errorAgeMs: number | null;
+  readonly nextAt: Instant | null;
 }
 
 export type Banner =
-  | { readonly kind: 'link'; readonly link: Exclude<LinkState, { kind: 'ok' }> }
-  | { readonly kind: 'cpa_unreachable'; readonly sinceMs: number }
-  | { readonly kind: 'claim_in_doubt'; readonly claim: ClaimId; readonly account: AccountId; readonly program: ProgramId };
+  | { readonly kind: 'link'; readonly link: Exclude<LinkState, { kind: 'ok' }>; readonly retryAt: Instant | null }
+  | { readonly kind: 'cpa_unreachable'; readonly lastAt: Instant | null }
+  | { readonly kind: 'claim_unknown'; readonly claim: ClaimId; readonly email: string; readonly program: ProgramId }
+  | { readonly kind: 'keeper_unavailable'; readonly message: string };
