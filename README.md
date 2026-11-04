@@ -76,7 +76,7 @@ The history panel shows stacked columns per account for 24 hours, 7 days, or 30 
 
 | Control | Effect | Safety |
 | --- | --- | --- |
-| **Claim…** | Opens a dialog that names the account, the program, the grant, the effect, and the age of the data behind the offer. On confirm, the server reads fresh reset data, refuses unless the offer is still claimable, then sends `reset_rate_limits` once. On `reset` or `not_limited` it calls CPA `reset-quota` up to 3 times. | Irreversible. A second click while a claim is in flight gets the same result. A timeout shows "Outcome unknown, checking" until the next read, and the claim is never resent. |
+| **Claim…** | Opens a dialog that names the account, the program, the grant, the effect, and the age of the data behind the offer. On confirm, the server reads fresh reset data, refuses unless the offer is still claimable, then sends `reset_rate_limits` once. On `reset` or `not_limited` it calls CPA `reset-quota` up to 3 times. | Irreversible. A second click while a claim is in flight gets the same result. After a claim ends, the program stays held until a read taken at least a minute later shows the outcome, and the server refuses another claim for it until then. A timeout shows "Outcome unknown, checking" for that time, and the claim is never resent. |
 | **Enable** or **Disable** | `PATCH /auth-files/status` | Sets a value, so repeats are safe. |
 | **−10**, **+10** | `PATCH /auth-files/fields` with the new priority | Sets a value. |
 | **Make primary** | Sets the priority to the highest other priority plus 10, and enables the account if it is disabled. | Disabled when the account already outranks the others. A repeat writes nothing. |

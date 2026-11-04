@@ -24,10 +24,12 @@ const KEY = 'test-management-key';
 const cleanups: (() => void)[] = [];
 afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
-async function rig(opts: { claimTimeoutMs?: number; before?: (fake: FakeCpa) => void } = {}) {
-  const fake = startFakeCpa({ key: KEY });
+/** Pass `fake` to start a second deck process against the same CPA. */
+async function rig(opts: { claimTimeoutMs?: number; before?: (fake: FakeCpa) => void; fake?: FakeCpa } = {}) {
+  const fake = opts.fake ?? startFakeCpa({ key: KEY });
   const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-claims-'));
-  cleanups.push(() => fake.stop(), () => rmSync(dir, { recursive: true, force: true }));
+  if (!opts.fake) cleanups.push(() => fake.stop());
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const state = openStateFile(join(dir, 'state.json'));
   const cpa = createCpa({ baseUrl: fake.url, envPath: '/dev/null', readKey: () => Secret.from(KEY), state, now: realClock.now });
   const anthropic = createAnthropic({ cpa, cliVersion: '2.1.311', clock: realClock, state, gapMs: 0, claimTimeoutMs: opts.claimTimeoutMs ?? 5_000 });
@@ -71,10 +73,20 @@ describe('claims against the fake CPA', () => {
     expect(r.resetQuotas().map((m) => m.body)).toEqual([{ auth_index: ACC3 }]);
   });
 
-  test('a repeat after the claim landed is refused by the fresh read, and nothing more is sent', async () => {
+  test('a repeat right after a claim is refused while the claim holds, and sends no read and no claim', async () => {
     const r = await rig();
     await r.claims.claim({ account: ACC3, program: 'juniper_tide' });
-    expect(await reason(r.claims.claim({ account: ACC3, program: 'juniper_tide' }))).toMatch(/^not_claimable: waiting until/);
+    const calls = r.fake.calls.length;
+    expect(await reason(r.claims.claim({ account: ACC3, program: 'juniper_tide' }))).toMatch(/^not_claimable: held/);
+    expect(r.fake.calls.length).toBe(calls);
+    expect(r.sends()).toHaveLength(1);
+  });
+
+  test('after a restart, a repeat of a claim that landed is refused by the fresh read', async () => {
+    const r = await rig();
+    await r.claims.claim({ account: ACC3, program: 'juniper_tide' });
+    const restarted = await rig({ fake: r.fake });
+    expect(await reason(restarted.claims.claim({ account: ACC3, program: 'juniper_tide' }))).toMatch(/^not_claimable: waiting until/);
     expect(r.sends()).toHaveLength(1);
   });
 

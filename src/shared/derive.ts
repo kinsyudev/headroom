@@ -52,6 +52,11 @@ export const PROFILE_READ_EVERY_MS = 6 * 3_600_000;
 export const MANUAL_REFRESH_EVERY_MS = 60_000;
 /** One rejected key per 35 min can never reach CPA's 5-strikes-in-30-min ban. */
 export const KEY_REJECT_LATCH_MS = 35 * 60_000;
+/**
+ * How long after a claim ends a read must be taken to show its outcome. Longer than Anthropic's
+ * 25 s claim timeout, so a claim our side gave up on has landed or failed by then.
+ */
+export const SETTLE_LAG_MS = 60_000;
 
 const FRESHNESS: Record<Exclude<FeedName, 'headers'>, { readonly aging: number; readonly stale: number }> = {
   cpa: { aging: 15_000, stale: 60_000 },
@@ -412,14 +417,20 @@ function ineligible(reason: string): OfferState {
 }
 
 /**
- * A claim holds its program `in_flight` until a read of that program newer than the claim's end
- * arrives. That read is the ledger: it shows whether the reset was consumed, and until it lands
- * the older offer must not invite a repeat.
+ * The claim that holds (account, program), if any. A read of the program is the ledger, but one
+ * answered before Anthropic applied a claim still shows the old offer. So a claim holds while it
+ * is sending, and once it ends, until a read of that program taken SETTLE_LAG_MS later or more.
+ * The offer and claims.ts both ask this, so the card never invites a claim the server would send.
  */
-export function openClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, dataAt: Instant | null): ClaimRecord | undefined {
+export function openClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, readAt: Instant | null): ClaimRecord | undefined {
   return claims.find(
-    (c) => c.account === account && c.program === program && (c.state.kind === 'sending' || dataAt === null || dataAt <= c.state.at),
+    (c) => c.account === account && c.program === program && (c.state.kind === 'sending' || readAt === null || readAt < c.state.at + SETTLE_LAG_MS),
   );
+}
+
+/** When the program's status was last read: juniper_tide comes only with wall reads, cedar_ember with both. */
+export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant | null {
+  return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
 export function deriveOffers(
@@ -431,8 +442,8 @@ export function deriveOffers(
 ): OfferView[] {
   const j = feeds.juniper;
   const c = feeds.cedar;
-  const jOpen = openClaim(claims, account, 'juniper_tide', j.last?.at ?? null);
-  const cOpen = openClaim(claims, account, 'cedar_ember', c.last?.at ?? null);
+  const jOpen = openClaim(claims, account, 'juniper_tide', programReadAt(feeds, 'juniper_tide'));
+  const cOpen = openClaim(claims, account, 'cedar_ember', programReadAt(feeds, 'cedar_ember'));
   const inFlight = (r: ClaimRecord): OfferState => ({
     kind: 'in_flight',
     claim: r.id,

@@ -215,16 +215,19 @@ describe('offers and claimability', () => {
     expect(offers(undefined, true, [claim({ kind: 'sending' })]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'sending', result: null });
   });
 
-  test('an unknown outcome stays in flight until a newer read of that program arrives, then the read decides', () => {
+  test('an unknown outcome stays in flight until a read taken a minute after it, then the read decides', () => {
     const unknown = claim({ kind: 'unknown', at: plus(T0, MIN), why: 'timed out' });
-    expect(offers(feedsFrom(synthetic, T0), true, [unknown]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'unknown', result: null });
+    const inFlight: OfferState = { kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'unknown', result: null };
+    expect(offers(feedsFrom(synthetic, T0), true, [unknown]).juniper_tide).toEqual(inFlight);
+    expect(offers(feedsFrom(synthetic, plus(T0, MIN + 30_000)), true, [unknown]).juniper_tide).toEqual(inFlight);
     const consumed = { ...synthetic, juniper: { ...(synthetic.mode === 'wall' ? synthetic.juniper! : j({})), available: false, nextAvailableAt: at('2026-11-11T09:00:00Z') } };
     expect(offers(feedsFrom(consumed, plus(T0, 2 * MIN)), true, [unknown]).juniper_tide).toEqual({ kind: 'waiting', until: at('2026-11-11T09:00:00Z') });
   });
 
-  test('a settled claim holds the program until a read newer than it arrives, so the old offer never invites a repeat', () => {
+  test('a settled claim holds the program until a read taken a minute after it, so the old offer never invites a repeat', () => {
     const settled = claim({ kind: 'settled', at: plus(T0, MIN), outcome: { result: 'reset', reason: null, resetsLeft: null, cleared: ['five_hour'], nextAvailableAt: null }, followup: 'done' });
     expect(offers(feedsFrom(synthetic, T0), true, [settled]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'confirming', result: 'reset' });
+    expect(offers(feedsFrom(synthetic, plus(T0, MIN + 30_000)), true, [settled]).juniper_tide.kind).toBe('in_flight');
     expect(offers(feedsFrom(synthetic, plus(T0, 2 * MIN)), true, [settled]).juniper_tide.kind).toBe('claimable');
   });
 

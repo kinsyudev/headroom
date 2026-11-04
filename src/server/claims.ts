@@ -3,20 +3,22 @@
  *
  * Anthropic's program status is the ledger, so there is no local journal. Per (account, program):
  *   1. A claim already in flight returns the same promise (double-click, second tab).
- *   2. One fresh `wall` read, subject to backoff and the read cap. If it can't be made:
+ *   2. A program an earlier claim still holds (`openClaim`, the rule the offer uses) is refused,
+ *      before the fresh read and again against it.
+ *   3. One fresh `wall` read, subject to backoff and the read cap. If it can't be made:
  *      not_claimable, stale, with when a read is next allowed.
- *   3. The pure offer derivation runs on that fresh sample. Not claimable: not_claimable, why.
- *   4. One POST reset_rate_limits. Never retried.
- *   5. On `reset` or `not_limited`, CPA reset-quota, at most 3 tries 2 s apart.
- *   6. Record settled or unknown, then ask for a wall read as soon as the budget allows. That
- *      read is what resolves the claim in the UI, so it is `wall` even if the account left the
- *      wall, and it stays wanted through failures until one succeeds.
+ *   4. The pure offer derivation runs on that fresh sample. Not claimable: not_claimable, why.
+ *   5. One POST reset_rate_limits. Never retried.
+ *   6. On `reset` or `not_limited`, CPA reset-quota, at most 3 tries 2 s apart.
+ *   7. Record settled or unknown, then ask for a wall read SETTLE_LAG_MS after the claim ended.
+ *      That read is what releases the hold, so it is `wall` even if the account left the wall,
+ *      and it stays wanted through failures until one succeeds.
  * A claim that landed before a crash shows up in the next read as unavailable or fewer resets
  * left, so step 3 refuses a repeat. One that never landed stays claimable, which is correct.
  */
 import { DeckError } from '../shared/errors';
-import { cedarState, explainOffer, juniperState, usableGrant } from '../shared/derive';
-import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, ProgramId, SourceError } from '../shared/domain';
+import { cedarState, explainOffer, juniperState, openClaim, programReadAt, SETTLE_LAG_MS, usableGrant } from '../shared/derive';
+import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, Instant, ProgramId, SourceError } from '../shared/domain';
 import { READ_CAP, type Anthropic, type Clock } from './anthropic';
 import type { Cpa } from './cpa';
 import type { Poller } from './poller';
@@ -58,10 +60,24 @@ export function createClaims(deps: {
     return 'failed';
   }
 
+  function refuseWhileHeld(account: AccountId, program: ProgramId, readAt: Instant | null): void {
+    const open = openClaim(records, account, program, readAt);
+    if (!open) return;
+    throw new DeckError(
+      'not_claimable',
+      open.state.kind === 'sending'
+        ? 'a claim for this program is already in flight'
+        : `held: the last claim's outcome shows only in a read taken at or after ${new Date(open.state.at + SETTLE_LAG_MS).toISOString()}`,
+    );
+  }
+
   async function run(account: AccountId, program: ProgramId, wanted: GrantId | undefined): Promise<ClaimRecord> {
+    const feeds = deps.poller.feeds()[account];
+    refuseWhileHeld(account, program, feeds ? programReadAt(feeds, program) : null);
     const fresh = await deps.poller.readWall(account);
     if (!fresh.ok) throw new DeckError('not_claimable', `stale: could not read fresh reset data (${describe(fresh.error)})`);
     if (fresh.value.mode !== 'wall') throw new DeckError('not_claimable', 'stale: the fresh read was not a wall read');
+    refuseWhileHeld(account, program, fresh.at);
 
     const now = deps.clock.now();
     const cedar = fresh.value.cedar;
@@ -98,7 +114,7 @@ export function createClaims(deps: {
     }
     const done = { ...record, state: final };
     put(done);
-    deps.poller.wantWall(account, final.at);
+    deps.poller.wantWall(account, (final.at + SETTLE_LAG_MS) as Instant);
     return done;
   }
 

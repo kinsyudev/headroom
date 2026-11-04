@@ -155,7 +155,7 @@ try {
   const settledOffer = await text(c3.getByTestId('offer-juniper_tide'));
   assert(!settledOffer.includes('Claimable') && /Claimed|Next at/.test(settledOffer), `before the next read the used offer reads "${settledOffer}"`);
   pass('a settled claim never shows the old offer as claimable');
-  await until(async () => (await text(c3.getByTestId('offer-juniper_tide'))).includes('Next at'), 'the post-claim wall read shows the reset as used', 60_000);
+  await until(async () => (await text(c3.getByTestId('offer-juniper_tide'))).includes('Next at'), 'the wall read a minute after the claim shows the reset as used', 120_000);
   await until(async () => (await text(page.getByTestId('tile-claimable').locator('.hero'))) === '0', 'overview drops the used resets');
   pass('post-claim wall read shows the weekly reset as used and the overview drops it');
 
