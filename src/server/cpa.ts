@@ -88,8 +88,12 @@ export function createCpa(opts: {
     opts.state.update((s) => ({ ...s, rejectedKeys: [...s.rejectedKeys.filter((x) => x.keyHash !== hash && latched(x)), { keyHash: hash, at: opts.now() }] }));
   }
 
-  function usableKey(): Secret {
+  function reloadKeyIfLinkDown(): void {
     if (link().kind !== 'ok') key = opts.readKey();
+  }
+
+  function usableKey(): Secret {
+    reloadKeyIfLinkDown();
     const l = link();
     if (l.kind !== 'ok' || !key) throw new DeckError('link_down', l.kind === 'rejected' ? 'CPA rejected the management key' : 'no management key');
     return key;
