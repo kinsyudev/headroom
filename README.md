@@ -62,10 +62,10 @@ To check the real setup without changing it, stop the LaunchAgent and run `bun s
 
 The overview strip comes first. It has four tiles:
 
-- **Serving now** names the accounts with a successful request in the last 2 minutes, from keeper's request log. When keeper can't be read, CPA's response headers stand in, and the tile's tooltip and a banner say so. The account a new session would land on is shown separately and labelled as a prediction.
+- **Serving now** headlines the account with the newest successful request in the last 2 minutes, from keeper's request log. When keeper can't be read, CPA's response headers stand in, and the tile's tooltip and a banner say so. The line under it gives the age of that request and either "also takes the next new session" or the account a new session would land on instead. Any other account that answered in the window is named on a last line.
 - **Next reset** counts down to the earliest window reset, and to the earliest moment a blocked account routes again. When the account that resets first also unblocks within a minute of it, the reset line ends with "unblocks then" instead of a second line.
 - **Claimable resets** lists every reset Anthropic says you can claim now, each with **Claim…**.
-- **Headroom** sums session and weekly room in accounts' worth, and its footnote reads "Room left, counted in whole accounts". Each account's session room is capped by its weekly room.
+- **Headroom** shows **Session room** and **Weekly room** as "1.72 of 3 accounts", counting each enabled account as 1.00 when all of its room is left. Each account's session room is capped by its weekly room, and the tile's tooltip says so.
 
 Each account card is as tall as its content. Cards sit three across from 1180 px of window width, two across from 860 px, and one below that. Each card shows these parts:
 

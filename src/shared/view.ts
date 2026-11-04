@@ -30,7 +30,8 @@ export interface DeckView {
 export type CpaView = { readonly kind: 'up' } | { readonly kind: 'down'; readonly lastAt: Instant | null };
 
 export interface OverviewView {
-  readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant }[];
+  /** Newest request first. takesNext: a new session would land on this account too. */
+  readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant; readonly takesNext: boolean }[];
   readonly target: { readonly account: AccountId; readonly email: string } | null;
   readonly servingEvidence: 'keeper' | 'cpa_headers';
   readonly headroom: { readonly session: Headroom; readonly weekly: Headroom };

@@ -406,10 +406,39 @@ span.banner-line {
   margin-top: auto !important;
 }
 .hero {
-  font-size: 34px;
+  --hero-size: 34px;
+  font-size: var(--hero-size);
   font-weight: 600;
   line-height: 1.1;
   font-variant-numeric: normal;
+}
+.tile.serving {
+  container-type: inline-size;
+}
+.hero-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: calc(var(--hero-size) * 1.1);
+  font-size: clamp(22px, calc((100cqi - 22px) / 11.5), var(--hero-size));
+}
+.hero-id .swatch.small {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.hero-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+  margin-block: -0.075em;
+}
+.clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .claimable {
   list-style: none;
@@ -425,11 +454,17 @@ span.banner-line {
   justify-content: space-between;
   gap: 10px;
 }
-.headroom {
+.rooms {
   display: grid;
-  grid-template-columns: 60px 1fr auto;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  align-content: start;
+}
+.room {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .swatch {

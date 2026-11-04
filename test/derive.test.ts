@@ -71,11 +71,18 @@ describe('routing and serving', () => {
   test('without keeper, the overview names CPA headers as the evidence and lists both serving accounts newest first', () => {
     const d = deck({});
     expect(d.overview.servingEvidence).toBe('cpa_headers');
-    expect(d.overview.serving.map((s) => [s.account, s.why])).toEqual([
-      [ACC1, 'fill_first_target'],
-      [ACC2, 'affinity'],
+    expect(d.overview.serving.map((s) => [s.account, s.why, s.takesNext])).toEqual([
+      [ACC1, 'fill_first_target', true],
+      [ACC2, 'affinity', false],
     ]);
     expect(d.overview.target?.account).toBe(ACC1);
+  });
+
+  test('a serving account takes the next new session only when it is the predicted target', () => {
+    const seen = (account: typeof ACC1) => deck({ serving: [{ account, lastAt: plus(T0, -10_000), recent: 3 }] }).overview;
+    expect(seen(ACC1).serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC1, true]]);
+    expect(seen(ACC2).serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC2, false]]);
+    expect(seen(ACC2).target?.account).toBe(ACC1);
   });
 
   test('round-robin: every eligible account is a target and serving accounts say so', () => {

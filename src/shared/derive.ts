@@ -647,12 +647,16 @@ export function headerFreshness(headers: HeaderQuota | null, now: Instant): Fres
 }
 
 export function deriveOverview(accounts: readonly AccountView[], evidence: 'keeper' | 'cpa_headers'): OverviewView {
-  const serving = accounts
-    .flatMap((a) => (a.routing.role.kind === 'serving' && a.routing.lastSeenAt !== null ? [{ account: a.id, email: a.email, why: a.routing.role.why, lastAt: a.routing.lastSeenAt }] : []))
-    .sort((x, y) => y.lastAt - x.lastAt);
-  const targets = accounts
+  const target = accounts
     .filter((a) => a.routing.isTarget)
-    .sort((x, y) => (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) || x.email.localeCompare(y.email));
+    .sort((x, y) => (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) || x.email.localeCompare(y.email))[0];
+  const serving = accounts
+    .flatMap((a) =>
+      a.routing.role.kind === 'serving' && a.routing.lastSeenAt !== null
+        ? [{ account: a.id, email: a.email, why: a.routing.role.why, lastAt: a.routing.lastSeenAt, takesNext: a.id === target?.id }]
+        : [],
+    )
+    .sort((x, y) => y.lastAt - x.lastAt);
   const enabled = accounts.filter((a) => a.routing.role.kind !== 'disabled');
 
   let nextReset: Omit<NonNullable<OverviewView['nextReset']>, 'unblocks'> | null = null;
@@ -682,7 +686,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   );
   return {
     serving,
-    target: targets[0] ? { account: targets[0].id, email: targets[0].email } : null,
+    target: target ? { account: target.id, email: target.email } : null,
     servingEvidence: evidence,
     headroom: { session: headroom(enabled, 'session'), weekly: headroom(enabled, 'weekly') },
     nextReset: nextReset && { ...nextReset, unblocks: unblocksWithReset },
