@@ -5,8 +5,9 @@ import { Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
 
 export function Trouble(props: { readonly account: AccountView }) {
-  const { trouble, cooldowns, statusMessage } = props.account;
+  const { trouble, cooldowns, statusMessage, routing } = props.account;
   if (trouble === null) return null;
+  const badgeAt = routing.role.kind === 'blocked' ? routing.role.until : null;
   return (
     <div className="trouble">
       <p className="cooldown">
@@ -18,7 +19,7 @@ export function Trouble(props: { readonly account: AccountView }) {
               : trouble.holds.map((h) => (
                   <>
                     {h.what}
-                    <Until at={h.until} />
+                    <Until at={h.until} badgeAt={badgeAt} />
                   </>
                 ))),
           ]}
@@ -31,7 +32,7 @@ export function Trouble(props: { readonly account: AccountView }) {
             {cooldowns.map((c, i) => (
               <li key={i}>
                 <strong>{c.scope === 'credential' ? 'Account' : c.model}</strong> <code title={reasonText(c.reason)}>{c.reason}</code>
-                <Until at={c.retryAt} />
+                <Until at={c.retryAt} badgeAt={badgeAt} />
               </li>
             ))}
           </ul>
@@ -42,13 +43,19 @@ export function Trouble(props: { readonly account: AccountView }) {
   );
 }
 
-function Until(props: { readonly at: Instant | null }) {
+function Until(props: { readonly at: Instant | null; readonly badgeAt: Instant | null }) {
   if (props.at === null) return null;
   return (
     <>
       {' '}
       <span className="nowrap">
-        until <Clock at={props.at} /> <span className="muted">(<Countdown at={props.at} />)</span>
+        until <Clock at={props.at} />
+        {props.at !== props.badgeAt && (
+          <>
+            {' '}
+            <span className="muted">(<Countdown at={props.at} />)</span>
+          </>
+        )}
       </span>
     </>
   );

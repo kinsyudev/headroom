@@ -397,7 +397,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       percent: lapsed ? null : draw.percent,
       severity: lapsed ? 'normal' : draw.severity,
       resetsAt: draw.resetsAt,
-      isActive: !lapsed && draw.isActive,
+      limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
       source: draw.source,
       other: otherLive ? { kind: other.source.kind, percent: other.percent, at: other.source.at } : null,
     };
@@ -410,7 +410,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       percent: null,
       severity: 'normal',
       resetsAt: null,
-      isActive: false,
+      limiting: false,
       source: { kind: 'poll', at: poll.at },
       other: idleOther && !(idleOther.resetsAt !== null && idleOther.resetsAt <= now)
         ? { kind: 'headers', percent: idleOther.percent, at: idleOther.source.at }

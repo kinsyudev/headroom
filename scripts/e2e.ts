@@ -61,7 +61,7 @@ try {
   console.log(`deck ${stack.url} · fake CPA ${stack.fake.url}`);
   await page.goto(stack.url);
   await until(async () => Object.values((await snapshot()).feeds).filter((f) => f.limits.last && f.profile.last).length === 3, 'first Anthropic reads for all three accounts', 120_000);
-  await until(async () => (await page.getByTestId('offer-juniper_tide').filter({ hasText: 'Claimable' }).count()) === 1, 'account3 wall read shows a claimable reset');
+  await until(async () => (await page.getByTestId('claim-juniper_tide').count()) === 1, 'account3 wall read shows a claimable reset');
   pass('three accounts read through the budgeted scheduler');
 
   assert((await page.locator('[data-testid^="card-"]').count()) === 3, 'three account cards');
@@ -76,7 +76,7 @@ try {
   assert((await pct('account2@example.com', 'weekly_all')) === '1%', 'account2 weekly 1%');
   assert((await pct('account3@example.com', 'session')) === '100%', 'account3 session at the wall');
   assert((await text(card('account3@example.com').getByTestId('role'))).startsWith('■ Blocked'), 'account3 blocked');
-  assert((await text(card('account2@example.com').getByTestId('freshness'))).includes('weekly reset'), 'freshness line names the held weekly reset read');
+  assert(((await card('account2@example.com').getByTestId('freshness').getAttribute('title')) ?? '').includes('weekly reset: held'), 'freshness tooltip names the held weekly reset read');
   await page.screenshot({ path: join(SHOTS, 'e2e-1-loaded.png'), fullPage: true });
   pass('overview and three cards render with real numbers');
   assert(mutations().length === 0, 'loading the page mutates nothing');
@@ -146,7 +146,7 @@ try {
   await page.screenshot({ path: join(SHOTS, 'e2e-3-claim-result.png') });
   await dialog.getByTestId('claim-close').click();
   const settledOffer = await text(c3.getByTestId('offer-juniper_tide'));
-  assert(!settledOffer.includes('Claimable') && /Claimed|Next at/.test(settledOffer), `before the next read the used offer reads "${settledOffer}"`);
+  assert((await c3.getByTestId('claim-juniper_tide').count()) === 0 && /Claimed|Next at/.test(settledOffer), `before the next read the used offer reads "${settledOffer}" and has no Claim button`);
   pass('a settled claim never shows the old offer as claimable');
   await until(async () => (await text(c3.getByTestId('offer-juniper_tide'))).includes('Next at'), 'the wall read a minute after the claim shows the reset as used', 120_000);
   await until(async () => (await text(page.getByTestId('tile-claimable').locator('.hero'))) === '0', 'overview drops the used resets');

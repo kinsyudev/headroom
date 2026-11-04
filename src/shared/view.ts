@@ -147,7 +147,8 @@ export interface LimitView {
   readonly percent: Percent | null;
   readonly severity: Severity;
   readonly resetsAt: Instant | null;
-  readonly isActive: boolean;
+  /** Anthropic marks this window active and it is at warning or critical, so it is what holds the account back. */
+  readonly limiting: boolean;
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
   readonly other: { readonly kind: 'poll' | 'headers'; readonly percent: Percent; readonly at: Instant } | null;
 }

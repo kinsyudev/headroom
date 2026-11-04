@@ -56,7 +56,7 @@ export function LimitRow(props: { readonly limit: LimitView }) {
     <div className={`limit phase-${l.phase}`} data-testid={`limit-${l.key}`} title={readings}>
       <span className="limit-label">
         {l.label}
-        {l.isActive && (
+        {l.limiting && (
           <span className="tag" title="The limit that is holding this account back right now">
             limiting
           </span>

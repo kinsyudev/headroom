@@ -24,9 +24,9 @@ const ROLE: Partial<Record<FeedName, string>> = {
   serving: 'the request log behind Serving now and History',
 };
 
-const HELD: Partial<Record<FeedName, { readonly short: string; readonly detail: string }>> = {
-  juniper: { short: 'weekly reset checked only at limit', detail: 'read only while the account is at its limit' },
-  spend: { short: 'extra usage not read at limit', detail: 'skipped while the account is at its limit' },
+const HELD: Partial<Record<FeedName, string>> = {
+  juniper: 'read only while the account is at its limit',
+  spend: 'skipped while the account is at its limit',
 };
 
 const ICON: Partial<Record<FreshnessView['state'], string>> = { failing: '✕', stale: '!', never: '○' };
@@ -36,7 +36,7 @@ const STATE_WORD: Partial<Record<FreshnessView['state'], string>> = { traffic: '
 function feedDetail(f: FreshnessView, now: number): string {
   return [
     `${LABEL[f.feed]}: ${STATE_WORD[f.state] ?? f.state}`,
-    f.state === 'held' ? (HELD[f.feed]?.detail ?? 'held') : null,
+    f.state === 'held' ? (HELD[f.feed] ?? 'held') : null,
     f.ageMs !== null ? `data ${age(f.ageMs)} old` : 'no data yet',
     f.error && f.errorAgeMs !== null ? `${sourceError(f.error)} ${age(f.errorAgeMs)} ago` : null,
     f.nextAt !== null && f.nextAt > now ? `next read ${clockTime(f.nextAt, now)}` : null,
@@ -80,13 +80,10 @@ export function Status(props: { readonly status: StatusView }) {
 
 const PROBLEMS = ['failing', 'stale', 'aging'] as const;
 
-const heldText = (f: FreshnessView) => HELD[f.feed]?.short ?? `${LABEL[f.feed]} held`;
-
 export function ModeLine(props: { readonly account: AccountView }) {
   const now = useNow();
   const { atWall, read, freshness } = props.account;
   const limitsFailing = freshness.some((f) => f.feed === 'limits' && f.state === 'failing');
-  const held = freshness.filter((f) => f.state === 'held');
 
   const clauses: ReactNode[] = [read.lastAt === null ? 'not read yet' : `read ${age(now - read.lastAt)} ago`];
   for (const state of PROBLEMS) {
@@ -109,8 +106,7 @@ export function ModeLine(props: { readonly account: AccountView }) {
     <div className="mode num" data-testid="freshness" title={[cadence, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
       {atWall ? <span className="badge warning">At limit</span> : <span className="badge neutral">Normal</span>}{' '}
       <div className="mode-text muted">
-        <Segments parts={clauses} />{' '}
-        {held.length > 0 && <Segments parts={held.map(heldText)} />}
+        <Segments parts={clauses} />
       </div>
     </div>
   );

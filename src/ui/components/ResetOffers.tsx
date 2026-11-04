@@ -35,6 +35,7 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
 
 function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: () => void }) {
   const o = props.offer;
+  const several = o.grants.length > 1;
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <span className="offer-label" title={o.program}>
@@ -51,9 +52,10 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
               <Segments
                 parts={[
                   <>
-                    “{g.label}” <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
+                    {several && <>“{g.label}” </>}
+                    <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
                   </>,
-                  g.clears.length > 0 && (
+                  several && g.clears.length > 0 && (
                     <>
                       clears <span title={g.clears.join(', ')}>{g.clearsText}</span>
                     </>
@@ -77,7 +79,7 @@ function OfferState(props: { readonly offer: OfferView }) {
   const s = props.offer.state;
   switch (s.kind) {
     case 'claimable':
-      return <span className="badge good">● Claimable</span>;
+      return null;
     case 'held':
       return (
         <Segments

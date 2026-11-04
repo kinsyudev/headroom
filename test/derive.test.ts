@@ -181,6 +181,29 @@ describe('window lifecycle', () => {
     const m = mergeLimits(pollOf('anthropic-usage-1.json', T0), account(ACC1).headers, T0);
     expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, other: { kind: 'headers', percent: 17 } });
   });
+
+  describe('which window is limiting', () => {
+    const poll = (name: string, change: (l: Limit) => Limit, readAt = T0): Sample<readonly Limit[]> => ({ value: usage(name, 'normal').limits.map(change), at: readAt });
+    const limiting = (p: Sample<readonly Limit[]> | null, a: CpaAccount | null, now: Instant) =>
+      mergeLimits(p, a?.headers ?? null, now).flatMap((l) => (l.limiting ? [l.key] : []));
+    const session = (change: Partial<Limit>) => (l: Limit): Limit => (l.kind === 'session' ? { ...l, ...change } : l);
+    const warned = (a: CpaAccount): CpaAccount => ({
+      ...a,
+      headers: { ...a.headers!, windows: a.headers!.windows.map((w) => (w.key === '7d' ? { ...w, status: 'allowed_warning' } : w)) },
+    });
+
+    test.each([
+      ['the active window at critical', poll('anthropic-usage-3.json', (l) => l), null, T0, ['session']],
+      ['the active window at warning', poll('anthropic-usage-3.json', session({ severity: 'warning' })), null, T0, ['session']],
+      ['the active window at normal is only the tightest, not limiting', poll('anthropic-usage-3.json', session({ severity: 'normal' })), null, T0, []],
+      ['a critical window that is not the active one', poll('anthropic-usage-3.json', session({ isActive: false })), null, T0, []],
+      ['the active window after its reset has lapsed', poll('anthropic-usage-3.json', (l) => l), null, AFTER_COOLDOWN, []],
+      ['account1 at 12% and 27%: the active weekly window is at normal', poll('anthropic-usage-2.json', (l) => l), null, T0, []],
+      ['newer headers at warning on the window the poll marked active', poll('anthropic-usage-2.json', (l) => l, plus(T0, -5 * MIN)), warned(account(ACC1)), T0, ['weekly_all']],
+    ] as const)('%s', (_label, p, a, now, expected) => {
+      expect(limiting(p, a, now)).toEqual(expected as never);
+    });
+  });
 });
 
 describe('offers and claimability', () => {
