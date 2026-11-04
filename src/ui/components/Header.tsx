@@ -28,11 +28,6 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
           title={cpaDown ? 'The Headroom server is live; CPA is not answering' : `snapshot ${props.connection}`}
           aria-label={cpaDown ? 'CPA down' : `connection ${props.connection}`}
         />
-        {cpaDown && (
-          <span className="live-label" data-testid="cpa-status">
-            CPA down
-          </span>
-        )}
       </div>
       <div className="topbar-controls">
         <div className="segmented" role="group" aria-label="Routing strategy" data-testid="strategy">

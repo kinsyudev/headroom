@@ -130,13 +130,6 @@ code {
 .live-dot.cpa-down {
   background: var(--critical);
 }
-.live-label {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--critical) 22%, var(--surface));
-}
 .topbar-controls {
   display: flex;
   flex-wrap: wrap;

@@ -104,6 +104,22 @@ describe('routing and serving', () => {
   });
 });
 
+describe('clearing a cooldown', () => {
+  const a1 = account(ACC1);
+  const a3 = account(ACC3);
+  const canClear = (a: CpaAccount, now = T0) => deriveDeck(snapshot({ accounts: [a], now }), now).accounts[0]!.can.clearCooldown;
+
+  test.each([
+    ['an account with no cooldown', a1, T0, false],
+    ['account3 in its credential cooldown', a3, T0, true],
+    ['account3 once the cooldown has passed', a3, AFTER_COOLDOWN, false],
+    ['an unavailable account that CPA will retry later', { ...a1, unavailable: true, nextRetryAfter: plus(T0, MIN) }, T0, true],
+    ['an unavailable account whose retry time has passed', { ...a1, unavailable: true, nextRetryAfter: plus(T0, -MIN) }, T0, false],
+  ] as const)('%s: %p', (_label, a, now, expected) => {
+    expect(canClear(a, now)).toBe(expected);
+  });
+});
+
 describe('isAtWall', () => {
   const a1 = account(ACC1);
   const a3 = account(ACC3);
@@ -673,19 +689,25 @@ describe('CPA unreachable', () => {
     cpa: { ...answered.cpa, last: { ...answered.cpa.last!, at: answeredAt }, error: { value: error, at: T0 } },
   });
 
-  test('pauses the CPA actions, banners the last answer and marks every card stale', () => {
+  test('pauses the CPA actions and every account read, and banners the last answer once', () => {
     const d = deriveDeck(failing({ kind: 'cpa_unreachable' }), T0);
     expect(d.cpa).toEqual({ kind: 'down', lastAt: answeredAt });
-    expect(d.banners[0]).toEqual({ kind: 'cpa_unreachable', lastAt: answeredAt });
+    expect(d.banners.filter((b) => b.kind === 'cpa_unreachable')).toEqual([{ kind: 'cpa_unreachable', lastAt: answeredAt }]);
     expect(d.accounts).toHaveLength(3);
-    for (const a of d.accounts) expect(a.freshness[0]).toMatchObject({ feed: 'cpa', state: 'stale', ageMs: 17_000 });
+    for (const a of d.accounts) expect(a.read.paused).toBe(true);
   });
 
-  test('the next answer enables the actions again and clears the banner and the stale marks', () => {
+  test('a card carries no stale mark for CPA, and a cooldown can still be cleared once CPA answers', () => {
+    const d = deriveDeck(failing({ kind: 'cpa_unreachable' }), T0);
+    for (const a of d.accounts) expect(a.freshness.map((f) => f.feed)).not.toContain('cpa');
+    expect(d.accounts.map((a) => a.can.clearCooldown)).toEqual([false, false, true]);
+  });
+
+  test('the next answer enables the actions again and clears the banner and the paused reads', () => {
     const d = deriveDeck(answered, T0);
     expect(d.cpa).toEqual({ kind: 'up' });
     expect(d.banners.map((b) => b.kind)).not.toContain('cpa_unreachable');
-    for (const a of d.accounts) expect(a.freshness.map((f) => f.feed)).not.toContain('cpa');
+    for (const a of d.accounts) expect(a.read.paused).toBe(false);
   });
 
   test.each([

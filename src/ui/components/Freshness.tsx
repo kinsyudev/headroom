@@ -16,8 +16,6 @@ const LABEL: Readonly<Record<FeedName, string>> = {
   profile: 'profile',
 };
 
-const CARD_LABEL: Readonly<Record<FeedName, string>> = { ...LABEL, cpa: 'CPA data' };
-
 const ROLE: Partial<Record<FeedName, string>> = {
   cpa: 'accounts, cooldowns and priorities from CPA',
   strategy: 'the routing strategy from CPA',
@@ -92,11 +90,12 @@ export function ModeLine(props: { readonly account: AccountView }) {
     clauses.push(
       <span className={`chip state-${state}`}>
         {ICON[state] && <span className="chip-icon" aria-hidden>{ICON[state]}</span>}
-        {feeds.map((f) => CARD_LABEL[f.feed]).join(', ')} {state === 'failing' ? 'read failing' : state}
+        {feeds.map((f) => LABEL[f.feed]).join(', ')} {state === 'failing' ? 'read failing' : state}
       </span>,
     );
   }
   if (read.reading) clauses.push('reading now');
+  else if (read.paused) clauses.push('reads paused');
   else if (read.nextAt !== null) clauses.push(read.nextAt > now ? `${limitsFailing ? 'retry' : 'next read'} in ${duration(read.nextAt - now)}` : 'next read due');
   if (read.backoffUntil !== null) clauses.push(`rate-limited until ${clockTime(read.backoffUntil, now)}`);
   if (read.capUntil !== null) clauses.push(`read cap full, next read allowed ${clockTime(read.capUntil, now)}`);

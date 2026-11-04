@@ -76,17 +76,18 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
           </ActionButton>
         </div>
         <div className="actions">
-          <ActionButton
-            kind="account.clearCooldown"
-            input={{ account: a.id }}
-            disabled={!a.can.clearCooldown}
-            title={a.can.clearCooldown ? "Clear CPA's local cooldown. Does not contact Anthropic." : 'No cooldown to clear'}
-            pendingLabel="Clearing…"
-            done="cooldown cleared"
-            testId="clear-cooldown"
-          >
-            Clear cooldown
-          </ActionButton>
+          {a.can.clearCooldown && (
+            <ActionButton
+              kind="account.clearCooldown"
+              input={{ account: a.id }}
+              title="Clear CPA's local cooldown. Does not contact Anthropic."
+              pendingLabel="Clearing…"
+              done="cooldown cleared"
+              testId="clear-cooldown"
+            >
+              Clear cooldown
+            </ActionButton>
+          )}
           <ActionButton kind="account.refreshToken" input={{ account: a.id }} pendingLabel="Refreshing…" done={(o) => (o.ok ? 'token refreshed' : 'CPA said not ok')} testId="refresh-token">
             Refresh token
           </ActionButton>

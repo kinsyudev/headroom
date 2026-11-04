@@ -156,10 +156,6 @@ function deriveCpa(s: Snapshot): CpaView {
     : { kind: 'up' };
 }
 
-function cpaStale(cpa: Extract<CpaView, { kind: 'down' }>, now: Instant): FreshnessView {
-  return { feed: 'cpa', state: 'stale', ageMs: cpa.lastAt === null ? null : now - cpa.lastAt, error: null, errorAgeMs: null, nextAt: null };
-}
-
 export function deriveAccount(
   a: CpaAccount,
   feeds: AccountFeeds,
@@ -171,7 +167,7 @@ export function deriveAccount(
   const limits = mergeLimits(feeds.limits.last, a.headers, now);
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
-  const read = deriveRead(feeds, now);
+  const read = deriveRead(feeds, now, cpa);
   const offers = deriveOffers(a.id, feeds, atWall, mine, now, limits);
   return {
     id: a.id,
@@ -188,7 +184,6 @@ export function deriveAccount(
     quietOffers: quietOffers(offers),
     activity: a.activity,
     freshness: [
-      ...(cpa.kind === 'down' ? [cpaStale(cpa, now)] : []),
       headerFreshness(a.headers, now),
       freshness('limits', feeds.limits, now),
       freshness('spend', feeds.spend, now, atWall),
@@ -216,7 +211,7 @@ export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limi
   );
 }
 
-function deriveRead(feeds: AccountFeeds, now: Instant): ReadView {
+function deriveRead(feeds: AccountFeeds, now: Instant, cpa: CpaView): ReadView {
   const g = feeds.gate;
   const backoff = g.backoffUntil !== null && g.backoffUntil > now ? g.backoffUntil : null;
   const cap = g.capUntil !== null && g.capUntil > now ? g.capUntil : null;
@@ -231,7 +226,7 @@ function deriveRead(feeds: AccountFeeds, now: Instant): ReadView {
           : manualUntil !== null && manualUntil > now
             ? { why: 'debounced', until: manualUntil }
             : null;
-  return { lastAt: freshestRead(feeds), nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, capUntil: cap, refreshHeld };
+  return { lastAt: freshestRead(feeds), nextAt: feeds.limits.nextAt, reading: g.reading !== null, paused: cpa.kind === 'down', backoffUntil: backoff, capUntil: cap, refreshHeld };
 }
 
 function freshestRead(feeds: AccountFeeds): Instant | null {

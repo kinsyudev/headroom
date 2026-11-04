@@ -96,6 +96,8 @@ export interface ReadView {
   readonly lastAt: Instant | null;
   readonly nextAt: Instant | null;
   readonly reading: boolean;
+  /** CPA is not answering, and Anthropic reads go through it. */
+  readonly paused: boolean;
   readonly backoffUntil: Instant | null;
   readonly capUntil: Instant | null;
   readonly refreshHeld: { readonly why: 'rate_limited' | 'capped' | 'debounced' | 'reading'; readonly until: Instant | null } | null;
