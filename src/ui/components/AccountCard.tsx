@@ -6,6 +6,7 @@ import { ActivitySparkline } from './ActivitySparkline';
 import { Clock, Countdown } from './Countdown';
 import { ModeLine } from './Freshness';
 import { LimitRow, SpendRow } from './LimitRow';
+import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers } from './ResetOffers';
 
 const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], { readonly short: string; readonly long: string }>> = {
@@ -25,9 +26,7 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
         <span className="swatch" style={{ background: props.color }} aria-hidden />
         <div className="who">
           <h3 className="email">{a.email}</h3>
-          <div className="sub">
-            {a.plan?.label ?? 'plan unknown'} · priority <span className="num" data-testid="priority">{r.priority}</span>
-          </div>
+          <div className="sub">{a.plan?.label ?? 'plan unknown'}</div>
         </div>
         <RoutingBadge routing={r} />
       </header>
@@ -62,37 +61,33 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
       <ActivitySparkline buckets={a.activity} color={props.color} />
 
       <footer className="card-foot">
-        <div className="actions">
+        <div className="actions routing">
           <ActionButton
             kind="account.makePrimary"
             input={{ account: a.id }}
             disabled={!a.can.makePrimary}
-            title={a.can.makePrimary ? 'Set priority above every other account' : 'Already outranks every other account'}
+            title={a.can.makePrimary ? 'Set priority above every other account' : 'Already first in priority, outranking every other account'}
             pendingLabel="Making primary…"
             done={(o) => (o.changed ? `priority ${o.priority}` : 'already primary')}
-            variant="primary"
+            variant={a.can.makePrimary ? 'quiet' : 'state'}
             testId="make-primary"
           >
-            Make primary
+            {a.can.makePrimary ? 'Make primary' : 'Primary'}
           </ActionButton>
-          <span className="stepper" aria-label="Priority">
-            <ActionButton kind="account.setPriority" input={{ account: a.id, priority: Math.max(0, r.priority - 10) }} disabled={r.priority === 0} title="Priority −10" done="saved" testId="priority-down">
-              −10
-            </ActionButton>
-            <ActionButton kind="account.setPriority" input={{ account: a.id, priority: Math.min(1000, r.priority + 10) }} title="Priority +10" done="saved" testId="priority-up">
-              +10
-            </ActionButton>
-          </span>
+          <PriorityStepper account={a.id} routing={r} />
           <ActionButton
             kind="account.setDisabled"
             input={{ account: a.id, disabled: a.can.disable }}
+            title={a.can.disable ? 'Take this account out of rotation' : 'Put this account back in rotation'}
             pendingLabel={a.can.disable ? 'Disabling…' : 'Enabling…'}
             done={a.can.disable ? 'disabled' : 'enabled'}
-            variant={a.can.disable ? 'quiet' : 'primary'}
+            variant={a.can.disable ? 'danger-quiet' : 'strong'}
             testId="toggle-disabled"
           >
             {a.can.disable ? 'Disable' : 'Enable'}
           </ActionButton>
+        </div>
+        <div className="actions">
           <ActionButton
             kind="account.clearCooldown"
             input={{ account: a.id }}

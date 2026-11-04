@@ -37,7 +37,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         <div className="segmented" role="group" aria-label="Routing strategy" data-testid="strategy">
           <span className="segmented-label">Routing</span>
           {STRATEGIES.map((s) => (
-            <ActionButton key={s} kind="routing.setStrategy" input={{ strategy: s }} disabled={d.strategy === s} variant={d.strategy === s ? 'primary' : 'quiet'} done="switched" testId={`strategy-${s}`}>
+            <ActionButton key={s} kind="routing.setStrategy" input={{ strategy: s }} disabled={d.strategy === s} variant={d.strategy === s ? 'selected' : 'quiet'} done="switched" testId={`strategy-${s}`}>
               {s}
             </ActionButton>
           ))}

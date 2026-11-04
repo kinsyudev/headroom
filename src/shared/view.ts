@@ -94,6 +94,8 @@ export interface PlanView {
 
 export interface RoutingView {
   readonly priority: number;
+  /** The priority a step down or up sets; null where the step would change nothing. */
+  readonly stepTo: { readonly down: number | null; readonly up: number | null };
   readonly role:
     | { readonly kind: 'serving'; readonly why: ServingWhy }
     | { readonly kind: 'standby' }

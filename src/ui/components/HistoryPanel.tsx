@@ -61,14 +61,14 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
         <h2>History</h2>
         <div className="segmented" role="group" aria-label="Range">
           {HISTORY_RANGES.map((r) => (
-            <button key={r} type="button" className={`btn ${r === range ? 'primary' : 'quiet'}`} aria-pressed={r === range} onClick={() => setRange(r)} data-testid={`range-${r}`}>
+            <button key={r} type="button" className={`btn ${r === range ? 'selected' : 'quiet'}`} aria-pressed={r === range} onClick={() => setRange(r)} data-testid={`range-${r}`}>
               {r}
             </button>
           ))}
         </div>
         <div className="segmented" role="group" aria-label="Metric">
           {METRICS.map((m) => (
-            <button key={m.key} type="button" className={`btn ${m.key === metric ? 'primary' : 'quiet'}`} aria-pressed={m.key === metric} title={m.title} onClick={() => setMetric(m.key)}>
+            <button key={m.key} type="button" className={`btn ${m.key === metric ? 'selected' : 'quiet'}`} aria-pressed={m.key === metric} title={m.title} onClick={() => setMetric(m.key)}>
               {m.label}
             </button>
           ))}

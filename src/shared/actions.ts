@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AccountId, ClaimRecord, FlowId, GrantId, Instant, ProgramId, RoutingStrategy } from './domain';
+import { PRIORITY_RANGE, type AccountId, type ClaimRecord, type FlowId, type GrantId, type Instant, type ProgramId, type RoutingStrategy } from './domain';
 
 const out = <T>() => undefined as unknown as T;
 
@@ -17,7 +17,7 @@ export type RefreshHeld = 'debounced' | 'rate_limited' | 'capped' | 'reading';
 export const ACTIONS = {
   'account.setDisabled': { input: z.object({ account: accountId, disabled: z.boolean() }), output: out<Applied>() },
   'account.setPriority': {
-    input: z.object({ account: accountId, priority: z.number().int().min(0).max(1000) }),
+    input: z.object({ account: accountId, priority: z.number().int().min(PRIORITY_RANGE.min).max(PRIORITY_RANGE.max) }),
     output: out<Applied>(),
   },
   'account.makePrimary': { input: z.object({ account: accountId }), output: out<Applied & { priority: number; changed: boolean }>() },

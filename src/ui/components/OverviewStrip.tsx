@@ -78,10 +78,12 @@ export function OverviewStrip(props: {
           <ul className="claimable">
             {o.claimable.map((c) => (
               <li key={`${c.account}:${c.program}`}>
-                {swatch(c.account)} {c.email} · {c.label}{' '}
+                <span>
+                  {swatch(c.account)} {c.email} · {c.label}
+                </span>
                 <button
                   type="button"
-                  className="btn primary small"
+                  className="btn accent"
                   onClick={() => props.onClaim(c.account, c.program, c.grant)}
                   disabled={paused !== null}
                   title={paused ?? undefined}

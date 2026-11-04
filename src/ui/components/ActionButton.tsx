@@ -3,7 +3,7 @@ import type { ActionInput, ActionKind, ActionOutput } from '../../shared/actions
 import { useAction } from '../api';
 import { useNow, usePaused } from '../deck';
 
-const DONE_SHOWN_MS = 4_000;
+export const DONE_SHOWN_MS = 4_000;
 
 export function ActionButton<K extends ActionKind>(props: {
   readonly kind: K;
@@ -13,7 +13,7 @@ export function ActionButton<K extends ActionKind>(props: {
   readonly done?: string | ((out: ActionOutput<K>) => string);
   readonly disabled?: boolean;
   readonly title?: string;
-  readonly variant?: 'primary' | 'quiet' | 'danger';
+  readonly variant?: 'quiet' | 'selected' | 'state' | 'strong' | 'danger-quiet';
   readonly testId?: string;
 }) {
   const a = useAction(props.kind);

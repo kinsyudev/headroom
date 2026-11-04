@@ -27,7 +27,7 @@ function OfferRow(props: { readonly offer: OfferView; readonly onClaim: () => vo
         <OfferState offer={o} />
       </span>
       {o.state.kind === 'claimable' && (
-        <button type="button" className="btn primary small" onClick={props.onClaim} disabled={paused !== null} title={paused ?? undefined} data-testid={`claim-${o.program}`}>
+        <button type="button" className="btn accent" onClick={props.onClaim} disabled={paused !== null} title={paused ?? undefined} data-testid={`claim-${o.program}`}>
           Claim…
         </button>
       )}

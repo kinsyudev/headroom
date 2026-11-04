@@ -45,6 +45,17 @@ describe('routing and serving', () => {
     expect(r.isTarget).toBe(isTarget);
   });
 
+  test.each([
+    [0, { down: null, up: 10 }],
+    [5, { down: 0, up: 15 }],
+    [50, { down: 40, up: 60 }],
+    [995, { down: 985, up: 1000 }],
+    [1000, { down: 990, up: null }],
+  ] as const)('priority %p steps to %p', (priority, stepTo) => {
+    const accounts = cpaAccounts().map((a): CpaAccount => (a.id === ACC1 ? { ...a, priority } : a));
+    expect(view(deck({ accounts }), ACC1).routing.stepTo).toEqual(stepTo);
+  });
+
   test('keeper evidence wins over CPA headers when keeper answers', () => {
     const d = deck({ serving: [{ account: ACC1, lastAt: plus(T0, -10_000), recent: 14 }, { account: ACC2, lastAt: plus(T0, -5 * MIN), recent: 0 }] });
     expect(d.overview.servingEvidence).toBe('keeper');

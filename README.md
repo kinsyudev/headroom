@@ -69,7 +69,7 @@ The overview strip comes first. It has four tiles:
 
 Each account card is as tall as its content. Cards sit three across from 1180 px of window width, two across from 860 px, and one below that. Each card shows these parts:
 
-- The routing role (serving, standby, blocked with a countdown, or disabled), the plan, and the priority.
+- The routing role (serving, standby, blocked with a countdown, or disabled) and the plan.
 - One status line with the read mode, the age of the freshest successful usage read, and when the next read is due, for example "Normal · read 22s ago · next read in 4m 38s". When the account is at its limit the badge reads "At limit" and Headroom reads reset programs every 3 minutes. Otherwise it reads usage every 5 minutes. A feed that is aging, stale or failing shows in color on the line, for example "limits read failing · retry in 2m", and a feed held by design gets a short note such as "weekly reset checked only at limit". Hover the line for every feed's age, last error and next read.
 - One row per window with the meter, the percent, and the reset as the countdown then the clock time, for example "4h 32m · 23:00". Hover the reset for "resets 23:00 · in 4h 32m". Each row shows the newer of the poll and the passive headers, with the other source as a faint tick. Hover the rest of the row for both readings and their ages. A window whose reset has passed reads "14:20 ✓ · awaiting data" instead of its old percent. A missing session limit reads `idle` and "no window running". In a card narrower than 400 px the countdown and the clock time stack on two lines.
 - Extra usage, which wall reads skip. While the account is at its limit only the header view of overage is current.
@@ -84,15 +84,15 @@ The history panel shows stacked columns per account for 24 hours, 7 days, or 30 
 | --- | --- | --- |
 | **Claim…** | Opens a dialog that names the account, the program, the grant, the effect, and the age of the data behind the offer. On confirm, the server reads fresh reset data, refuses unless the offer is still claimable, then sends `reset_rate_limits` once. On `reset` or `not_limited` it calls CPA `reset-quota` up to 3 times. | Irreversible. A second click while a claim is in flight gets the same result. After a claim ends, the program stays held until a read taken at least a minute later shows the outcome, and the server refuses another claim for it until then. A timeout shows "Outcome unknown, checking" for that time, and the claim is never resent. |
 | **Enable** or **Disable** | `PATCH /auth-files/status` | Sets a value, so repeats are safe. |
-| **−10**, **+10** | `PATCH /auth-files/fields` with the new priority | Sets a value. |
-| **Make primary** | Sets the priority to the highest other priority plus 10, and enables the account if it is disabled. | Disabled when the account already outranks the others. A repeat writes nothing. |
+| **Priority** − and + | `PATCH /auth-files/fields` with the priority 10 lower or higher, kept between 0 and 1000. The stepper shows the current value between the buttons and highlights it for a few seconds after a save. | Sets a value. |
+| **Make primary** | Sets the priority to the highest other priority plus 10, and enables the account if it is disabled. | On an account that already outranks the others it shows as a quiet **Primary** label instead of a button. A repeat writes nothing. |
 | **Clear cooldown** | CPA `POST /reset-quota`. This changes CPA's local scheduler only. | Repeats are safe. |
 | **Refresh token** | CPA `POST /auth-files/refresh` | The response holds tokens. `cpa.ts` keeps only `ok`. |
 | Routing **fill-first** or **round-robin** | `PUT /routing/strategy` | Sets a value. |
 | **↻ Read now**, **↻ Read all** | Moves the account's next Anthropic read to now. | Allowed once per 60 s per account. Never allowed during a rate-limit backoff, or once the account has had 8 reads in the last 15 minutes. The card then shows when the next read is allowed. |
 | **+ Add account** | Opens Anthropic's OAuth page in a new tab. The server polls CPA until the new account appears. | One flow at a time. A flow expires after 5 minutes. |
 
-Every button shows a spinner while its action runs, a check when it succeeds, and the server's message when it fails. A CPA mutation answers only after the server has re-read CPA, so the card already shows the new state when the spinner stops.
+**Claim…** is the only accent-colored button. **Disable** has a red outline, and **Enable** on a disabled account is filled. Every button shows a spinner while its action runs, a check when it succeeds, and the server's message when it fails. On a card, the check floats over the top edge of the button area, so it never moves a button. A CPA mutation answers only after the server has re-read CPA, so the card already shows the new state when the spinner stops.
 
 ## HTTP API
 

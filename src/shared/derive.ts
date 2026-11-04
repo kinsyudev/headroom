@@ -1,5 +1,6 @@
 import {
   emptyFeeds,
+  PRIORITY_RANGE,
   type AccountFeeds,
   type AccountId,
   type CedarEmber,
@@ -48,6 +49,7 @@ export const MANUAL_REFRESH_EVERY_MS = 60_000;
 /** One rejected key per 35 min can never reach CPA's 5-strikes-in-30-min ban. */
 export const KEY_REJECT_LATCH_MS = 35 * 60_000;
 export const CLAUDE_CODE_CLAIM_TIMEOUT_MS = 25_000;
+const PRIORITY_STEP = 10;
 const MINUTE_MS = 60_000;
 export const SETTLE_LAG_MS = Math.max(MINUTE_MS, 2 * CLAUDE_CODE_CLAIM_TIMEOUT_MS);
 
@@ -244,6 +246,7 @@ export function deriveRouting(
           : { kind: 'standby' };
     out.set(a.id, {
       priority: a.priority,
+      stepTo: stepTo(a.priority),
       role,
       isTarget,
       lastSeenAt: s?.lastAt ?? null,
@@ -252,6 +255,14 @@ export function deriveRouting(
     });
   }
   return out;
+}
+
+function stepTo(priority: number): RoutingView['stepTo'] {
+  const { min, max } = PRIORITY_RANGE;
+  return {
+    down: priority <= min ? null : Math.max(min, priority - PRIORITY_STEP),
+    up: priority >= max ? null : Math.min(max, priority + PRIORITY_STEP),
+  };
 }
 
 export function planMakePrimary(accounts: readonly CpaAccount[], target: AccountId): { readonly priority: number | null; readonly enable: boolean } {

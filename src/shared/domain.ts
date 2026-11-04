@@ -125,6 +125,8 @@ export interface ActivityBucket {
   readonly failed: number;
 }
 
+export const PRIORITY_RANGE = { min: 0, max: 1000 } as const;
+
 export interface CpaAccount {
   readonly id: AccountId;
   readonly email: string;
