@@ -57,7 +57,7 @@ describe('a claim with an unknown outcome holds its program', () => {
     test(`${program}: the confirming read races the landing, and a second claim is refused without a read or a POST`, async () => {
       const r = await rig();
       const first = await r.claims.claim({ account: ACC3, program });
-      expect(first.state.kind).toBe('unknown');
+      expect(first.state.kind).toBe('maybe_sent');
       await Bun.sleep(300);
 
       expect(r.offer(program).kind).toBe('in_flight');
@@ -72,7 +72,7 @@ describe('a claim with an unknown outcome holds its program', () => {
     test(`${program}: a read newer than the claim, taken before Anthropic applied it, does not release the hold`, async () => {
       const r = await rig();
       const first = await r.claims.claim({ account: ACC3, program });
-      expect(first.state.kind).toBe('unknown');
+      expect(first.state.kind).toBe('maybe_sent');
 
       const newer = await r.poller.readWall(ACC3);
       expect(newer.ok && newer.at > (first.state as { at: number }).at).toBe(true);

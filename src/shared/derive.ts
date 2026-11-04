@@ -587,7 +587,7 @@ function deriveBanners(s: Snapshot, views: readonly AccountView[]): Banner[] {
   }
   for (const v of views) {
     for (const o of v.offers) {
-      if (o.state.kind === 'in_flight' && o.state.phase === 'unknown') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program });
+      if (o.state.kind === 'in_flight' && o.state.phase === 'maybe_sent') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program });
     }
   }
   if (s.serving.error) {

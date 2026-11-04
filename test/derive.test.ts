@@ -210,12 +210,12 @@ describe('offers and claimability', () => {
   });
 
   test('an unknown outcome stays in flight until a read taken a minute after it, then the read decides', () => {
-    const unknown = claim({ kind: 'unknown', at: plus(T0, MIN), why: 'timed out' });
-    const inFlight: OfferState = { kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'unknown', result: null };
-    expect(offers(feedsFrom(synthetic, T0), true, [unknown]).juniper_tide).toEqual(inFlight);
-    expect(offers(feedsFrom(synthetic, plus(T0, MIN + 30_000)), true, [unknown]).juniper_tide).toEqual(inFlight);
+    const maybeSent = claim({ kind: 'maybe_sent', at: plus(T0, MIN), why: 'timed out' });
+    const inFlight: OfferState = { kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'maybe_sent', result: null };
+    expect(offers(feedsFrom(synthetic, T0), true, [maybeSent]).juniper_tide).toEqual(inFlight);
+    expect(offers(feedsFrom(synthetic, plus(T0, MIN + 30_000)), true, [maybeSent]).juniper_tide).toEqual(inFlight);
     const consumed = { ...synthetic, juniper: { ...(synthetic.mode === 'wall' ? synthetic.juniper! : j({})), available: false, nextAvailableAt: at('2026-11-11T09:00:00Z') } };
-    expect(offers(feedsFrom(consumed, plus(T0, 2 * MIN)), true, [unknown]).juniper_tide).toEqual({ kind: 'waiting', until: at('2026-11-11T09:00:00Z') });
+    expect(offers(feedsFrom(consumed, plus(T0, 2 * MIN)), true, [maybeSent]).juniper_tide).toEqual({ kind: 'waiting', until: at('2026-11-11T09:00:00Z') });
   });
 
   test('a settled claim holds the program until a read taken a minute after it, so the old offer never invites a repeat', () => {

@@ -29,7 +29,7 @@ export function ClaimDialog(props: {
   }, [props.onClose]);
 
   const done = record !== null || claim.status.phase === 'error';
-  const tone = record?.state.kind === 'settled' && record.state.outcome.result === 'reset' ? 'good' : record?.state.kind === 'unknown' ? 'warning' : 'neutral';
+  const tone = record?.state.kind === 'settled' && record.state.outcome.result === 'reset' ? 'good' : record?.state.kind === 'maybe_sent' ? 'warning' : 'neutral';
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>

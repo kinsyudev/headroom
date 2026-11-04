@@ -108,13 +108,13 @@ describe('claims against the fake CPA', () => {
   test('a timeout records unknown, never failed, and skips reset-quota', async () => {
     const r = await rig({ claimTimeoutMs: 200, before: (fake) => (fake.claimDelayMs = 1_000) });
     const rec = await r.claims.claim({ account: ACC3, program: 'juniper_tide' });
-    expect(rec.state).toMatchObject({ kind: 'unknown', why: 'timed out waiting for CPA' });
+    expect(rec.state).toMatchObject({ kind: 'maybe_sent', why: 'timed out waiting for CPA' });
     expect(r.sends()).toHaveLength(1);
     expect(r.resetQuotas()).toHaveLength(0);
 
     const feeds = r.poller.feeds()[ACC3]!;
     const offer = deriveOffers(ACC3, feeds, true, r.claims.list(), realClock.now()).find((o) => o.program === 'juniper_tide')!;
-    expect(offer.state).toEqual({ kind: 'in_flight', claim: rec.id, phase: 'unknown', result: null });
+    expect(offer.state).toEqual({ kind: 'in_flight', claim: rec.id, phase: 'maybe_sent', result: null });
   });
 
   test('reset-quota is tried at most 3 times, then the claim reports the follow-up failed', async () => {

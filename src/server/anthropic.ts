@@ -57,7 +57,7 @@ export type ClaimRequest =
 export type ClaimAttempt =
   | { readonly kind: 'answered'; readonly outcome: ClaimOutcome }
   | { readonly kind: 'not_sent'; readonly why: string }
-  | { readonly kind: 'unknown'; readonly why: string };
+  | { readonly kind: 'maybe_sent'; readonly why: string };
 
 export interface Anthropic {
   read(account: AccountId, mode: ReadMode): Promise<Polled<UsageRead>>;
@@ -169,7 +169,7 @@ export function createAnthropic(deps: {
     const fail = (error: SourceError): Polled<T> => ({ ok: false, error, at });
     if (r.kind === 'held') return fail({ kind: r.why === 'read_cap' ? 'read_cap' : 'rate_limited', retryAt: r.until });
     if (r.kind === 'not_sent') return fail(deps.cpa.link().kind === 'ok' ? { kind: 'cpa_unreachable' } : { kind: 'link_down' });
-    if (r.kind === 'unknown') return fail({ kind: 'upstream', status: 0, message: r.why });
+    if (r.kind === 'maybe_sent') return fail({ kind: 'upstream', status: 0, message: r.why });
     if (rateLimit(r).limited) return fail({ kind: 'rate_limited', retryAt: budget(account).backoffUntil ?? at });
     if (r.status === 401 || r.status === 403) return fail({ kind: 'auth', status: r.status });
     const body = parseJson(r.body);
@@ -201,9 +201,9 @@ export function createAnthropic(deps: {
       if (rateLimit(r).limited) return { kind: 'answered', outcome: { result: 'rate_limited', status: r.status } };
       if (r.status === 401 || r.status === 403) return { kind: 'answered', outcome: { result: 'auth_error', status: r.status } };
       const parsed = r.status < 300 ? WireClaimResponse.safeParse(parseJson(r.body)) : null;
-      if (!parsed?.success) return { kind: 'unknown', why: `Anthropic answered ${r.status} with an unreadable body` };
+      if (!parsed?.success) return { kind: 'maybe_sent', why: `Anthropic answered ${r.status} with an unreadable body` };
       const w = parsed.data;
-      if (!(CLAIM_RESULTS as readonly string[]).includes(w.result)) return { kind: 'unknown', why: `unrecognized result "${w.result}"` };
+      if (!(CLAIM_RESULTS as readonly string[]).includes(w.result)) return { kind: 'maybe_sent', why: `unrecognized result "${w.result}"` };
       return {
         kind: 'answered',
         outcome: {

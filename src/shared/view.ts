@@ -138,7 +138,7 @@ export type OfferState =
   | { readonly kind: 'waiting'; readonly until: Instant | null }
   | { readonly kind: 'ineligible'; readonly reason: string; readonly explain: string }
   | { readonly kind: 'not_enrolled' }
-  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly phase: 'sending' | 'unknown' | 'confirming'; readonly result: string | null }
+  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly phase: 'sending' | 'maybe_sent' | 'confirming'; readonly result: string | null }
   | { readonly kind: 'unknown'; readonly why: 'never_read' | 'failing' };
 
 export interface GrantView {

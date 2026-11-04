@@ -90,7 +90,7 @@ export function createClaims(deps: {
     } else if (attempt.kind === 'not_sent') {
       final = { kind: 'settled', at: deps.clock.now(), outcome: { result: 'not_sent', why: attempt.why }, followup: 'not_needed' };
     } else {
-      final = { kind: 'unknown', at: deps.clock.now(), why: attempt.why };
+      final = { kind: 'maybe_sent', at: deps.clock.now(), why: attempt.why };
     }
     const done = { ...record, state: final };
     put(done);

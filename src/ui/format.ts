@@ -67,7 +67,7 @@ export function sourceError(e: SourceError): string {
 export function claimText(r: ClaimRecord): string {
   const s = r.state;
   if (s.kind === 'sending') return 'Claiming…';
-  if (s.kind === 'unknown') return `Outcome unknown (${s.why}). Checking on the next read; it will not be resent.`;
+  if (s.kind === 'maybe_sent') return `Outcome unknown (${s.why}). Checking on the next read; it will not be resent.`;
   const o = s.outcome;
   const followup =
     s.followup === 'done' ? ' CPA cooldown cleared.' : s.followup === 'failed' ? " CPA's cooldown was not cleared; use Clear cooldown." : '';

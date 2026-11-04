@@ -37,7 +37,7 @@ export interface UpstreamRequest {
 export type UpstreamResult =
   | { readonly kind: 'answered'; readonly status: number; readonly headers: Readonly<Record<string, string>>; readonly body: string }
   | { readonly kind: 'not_sent'; readonly why: string }
-  | { readonly kind: 'unknown'; readonly why: string };
+  | { readonly kind: 'maybe_sent'; readonly why: string };
 
 export type OAuthStatus = { readonly kind: 'wait' } | { readonly kind: 'ok' } | { readonly kind: 'error'; readonly error: string };
 
@@ -183,16 +183,16 @@ export function createCpa(opts: {
           });
         } catch (e) {
           if (isRefused(e)) return { kind: 'not_sent', why: 'CPA is not answering' };
-          return { kind: 'unknown', why: isTimeout(e) ? 'timed out waiting for CPA' : 'connection to CPA dropped' };
+          return { kind: 'maybe_sent', why: isTimeout(e) ? 'timed out waiting for CPA' : 'connection to CPA dropped' };
         }
         if (res.status === 401 || res.status === 403) {
           reject(k);
           return { kind: 'not_sent', why: 'CPA rejected the management key' };
         }
-        if (res.status >= 500) return { kind: 'unknown', why: `CPA answered ${res.status}` };
+        if (res.status >= 500) return { kind: 'maybe_sent', why: `CPA answered ${res.status}` };
         if (!res.ok) return { kind: 'not_sent', why: `CPA answered ${res.status}` };
         const env = WireApiCall.safeParse(await res.json().catch(() => null));
-        if (!env.success) return { kind: 'unknown', why: 'unreadable api-call envelope' };
+        if (!env.success) return { kind: 'maybe_sent', why: 'unreadable api-call envelope' };
         return { kind: 'answered', status: env.data.status_code, headers: flattenHeaders(env.data.header), body: env.data.body };
       });
     },

@@ -252,7 +252,7 @@ export type ClaimState =
       readonly outcome: ClaimOutcome;
       readonly followup: 'not_needed' | 'done' | 'failed';
     }
-  | { readonly kind: 'unknown'; readonly at: Instant; readonly why: string };
+  | { readonly kind: 'maybe_sent'; readonly at: Instant; readonly why: string };
 
 export interface ClaimRecord {
   readonly id: ClaimId;
