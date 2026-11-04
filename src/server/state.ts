@@ -43,9 +43,18 @@ export interface ReadBudget {
   readonly backoff: { readonly until: number; readonly streak: number } | null;
 }
 
+export type StoredFeed = 'limits' | 'spend' | 'cedar' | 'juniper' | 'profile';
+export type StoredSamples = Partial<Record<StoredFeed, { readonly value: unknown; readonly at: number }>>;
+
+/** Bump when a stored feed's or ClaimRecord's domain type changes, so an old file's copies are dropped instead of misread. */
+export const STORED_VERSION = 1;
+
 export interface DeckState {
   readonly rejectedKeys: readonly RejectedKey[];
   readonly budgets: Readonly<Record<string, ReadBudget>>;
+  readonly storedVersion: number;
+  readonly samples: Readonly<Record<string, StoredSamples>>;
+  readonly claims: readonly unknown[];
 }
 
 export interface StateFile {
@@ -53,7 +62,7 @@ export interface StateFile {
   update(fn: (s: DeckState) => DeckState): void;
 }
 
-const EMPTY: DeckState = { rejectedKeys: [], budgets: {} };
+const EMPTY: DeckState = { rejectedKeys: [], budgets: {}, storedVersion: STORED_VERSION, samples: {}, claims: [] };
 
 const WireState = z.object({
   rejectedKeys: z.array(z.object({ keyHash: z.string(), at: z.number() })).catch([]),
@@ -69,6 +78,9 @@ const WireState = z.object({
       }),
     )
     .catch({}),
+  storedVersion: z.number().catch(0),
+  samples: z.record(z.string(), z.record(z.string(), z.object({ value: z.unknown(), at: z.number() }))).catch({}),
+  claims: z.array(z.unknown()).catch([]),
 });
 
 export function openStateFile(path: string): StateFile {
@@ -87,7 +99,8 @@ export function openStateFile(path: string): StateFile {
 
 function load(path: string): DeckState {
   try {
-    return WireState.parse(JSON.parse(readFileSync(path, 'utf8')));
+    const s = WireState.parse(JSON.parse(readFileSync(path, 'utf8')));
+    return s.storedVersion === STORED_VERSION ? (s as DeckState) : { ...s, storedVersion: STORED_VERSION, samples: {}, claims: [] };
   } catch {
     return EMPTY;
   }

@@ -4,6 +4,7 @@ import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, Instant, Pro
 import { READ_CAP, type Anthropic, type Clock } from './anthropic';
 import type { Cpa } from './cpa';
 import type { Poller } from './poller';
+import type { StateFile } from './state';
 
 export const FOLLOWUP_TRIES = 3;
 export const FOLLOWUP_GAP_MS = 2_000;
@@ -20,12 +21,15 @@ export function createClaims(deps: {
   readonly poller: Poller;
   readonly clock: Clock;
   readonly followupGapMs?: number;
+  readonly state?: StateFile;
 }): Claims {
   const flights = new Map<string, Promise<ClaimRecord>>();
-  let records: ClaimRecord[] = [];
+  let records = restore(deps.state, deps.clock.now());
+  for (const r of records) if (r.state.kind !== 'sending') deps.poller.wantWall(r.account, (r.state.at + SETTLE_LAG_MS) as Instant);
 
   function put(r: ClaimRecord): void {
     records = [r, ...records.filter((x) => x.id !== r.id)].slice(0, KEEP_RESULTS);
+    deps.state?.update((s) => ({ ...s, claims: records }));
   }
 
   async function clearCooldown(account: AccountId): Promise<'done' | 'failed'> {
@@ -109,6 +113,12 @@ export function createClaims(deps: {
     },
     list: () => records,
   };
+}
+
+function restore(state: StateFile | undefined, now: Instant): ClaimRecord[] {
+  return ((state?.read().claims ?? []) as ClaimRecord[]).map((r) =>
+    r.state.kind === 'sending' ? { ...r, state: { kind: 'maybe_sent', at: now, why: 'the deck restarted while this claim was being sent' } } : r,
+  );
 }
 
 function describe(e: SourceError): string {

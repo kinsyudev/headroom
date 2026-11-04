@@ -84,3 +84,37 @@ describe('a claim with an unknown outcome holds its program', () => {
     });
   }
 });
+
+describe('a claim survives a restart', () => {
+  test('a claim in flight when the deck dies holds its program in the next process, so a second click sends nothing', async () => {
+    const fake = startFakeCpa({ key: KEY });
+    const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-restart-claim-'));
+    cleanups.push(() => fake.stop(), () => rmSync(dir, { recursive: true, force: true }));
+    fake.claimDelayMs = 2_000;
+    const boot = async () => {
+      const state = openStateFile(join(dir, 'state.json'));
+      const cpa = createCpa({ baseUrl: fake.url, envPath: '/dev/null', readKey: () => Secret.from(KEY), state, now: realClock.now });
+      const anthropic = createAnthropic({ cpa, cliVersion: '2.1.311', clock: realClock, state, gapMs: 0, claimTimeoutMs: 10_000 });
+      const observer = createObserver({ cpa, now: realClock.now });
+      await observer.refresh();
+      const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: () => true, clock: realClock, staggerMs: 0, state });
+      const claims = createClaims({ anthropic, cpa, poller, clock: realClock, followupGapMs: 10, state });
+      poller.tick();
+      for (let i = 0; i < 100 && !poller.profile(ACC3); i++) await Bun.sleep(10);
+      return { claims };
+    };
+    const sends = () => fake.mutations.filter((m) => m.path.endsWith('/reset_rate_limits'));
+
+    const dying = await boot();
+    void dying.claims.claim({ account: ACC3, program: 'juniper_tide' }).catch(() => undefined);
+    for (let i = 0; i < 200 && sends().length === 0; i++) await Bun.sleep(10);
+    expect(sends(), 'the first claim reached Anthropic').toHaveLength(1);
+
+    const next = await boot();
+    const restored = next.claims.list().find((c) => c.account === ACC3 && c.program === 'juniper_tide');
+    expect(restored?.state.kind, 'the in-flight claim comes back as maybe_sent').toBe('maybe_sent');
+    expect(await refusal(next.claims.claim({ account: ACC3, program: 'juniper_tide' }))).toBe('not_claimable');
+    await Bun.sleep(2_200);
+    expect(sends(), 'no second POST').toHaveLength(1);
+  });
+});

@@ -73,7 +73,7 @@ export function LimitRow(props: { readonly limit: LimitView }) {
   );
 }
 
-export function SpendRow(props: { readonly spend: SpendView | null }) {
+export function SpendRow(props: { readonly spend: SpendView | null; readonly atWall: boolean }) {
   const s = props.spend;
   if (!s) return null;
   const p = s.poll;
@@ -90,7 +90,7 @@ export function SpendRow(props: { readonly spend: SpendView | null }) {
           </span>
         </>
       ) : (
-        <span className="spend-off">{p ? `off${p.disabledReason ? ` · ${p.disabledReason}` : ''}` : 'not read at the wall'}</span>
+        <span className="spend-off">{p ? `off${p.disabledReason ? ` · ${p.disabledReason}` : ''}` : props.atWall ? 'not read at the wall' : 'not read yet'}</span>
       )}
       <span className="limit-source">
         {p && (

@@ -83,7 +83,7 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
         {a.limits.map((l) => (
           <LimitRow key={l.key} limit={l} />
         ))}
-        <SpendRow spend={a.spend} />
+        <SpendRow spend={a.spend} atWall={a.atWall} />
       </section>
 
       <ResetOffers account={a} onClaim={props.onClaim} />

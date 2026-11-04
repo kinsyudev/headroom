@@ -20,6 +20,7 @@ import {
 } from '../shared/domain';
 import type { RefreshHeld } from '../shared/actions';
 import type { Anthropic, Clock, Polled, UsageRead } from './anthropic';
+import type { StateFile, StoredFeed, StoredSamples } from './state';
 
 export const FIRST_READ_STAGGER_MS = 15_000;
 export const PROFILE_RETRY_MS = 15 * 60_000;
@@ -78,9 +79,11 @@ export function createPoller(deps: {
   readonly linkOk: () => boolean;
   readonly clock: Clock;
   readonly staggerMs?: number;
+  readonly state?: StateFile;
 }): Poller {
   const stagger = deps.staggerMs ?? FIRST_READ_STAGGER_MS;
   const states = new Map<AccountId, AccountState>();
+  const wallWantsBeforeFirstSight = new Map<AccountId, Instant>();
   let timer: ReturnType<typeof setInterval> | null = null;
 
   function reconcile(list: readonly CpaAccount[], now: Instant): void {
@@ -89,19 +92,31 @@ export function createPoller(deps: {
     let fresh = 0;
     for (const a of list) {
       if (states.has(a.id)) continue;
+      const saved = deps.state?.read().samples[a.id] ?? {};
+      const profile = restored<Profile>(saved.profile);
       states.set(a.id, {
         firstAt: (now + fresh++ * stagger) as Instant,
         lastAttemptAt: deps.anthropic.budget(a.id).lastReadAt,
         requestedAt: null,
-        wallWantedSince: null,
+        wallWantedSince: wallWantsBeforeFirstSight.get(a.id) ?? null,
         manualAt: null,
-        profileAttemptAt: null,
-        profileOkAt: null,
+        profileAttemptAt: profile.last?.at ?? null,
+        profileOkAt: profile.last?.at ?? null,
         pending: [],
         chain: Promise.resolve(),
-        feeds: { limits: emptySource(), spend: emptySource(), cedar: emptySource(), juniper: emptySource(), profile: emptySource() },
+        feeds: { limits: restored(saved.limits), spend: restored(saved.spend), cedar: restored(saved.cedar), juniper: restored(saved.juniper), profile },
       });
     }
+  }
+
+  function save(id: AccountId, feeds: AccountState['feeds']): void {
+    if (!deps.state) return;
+    const samples: StoredSamples = {};
+    for (const name of STORED_FEEDS) {
+      const last = feeds[name].last;
+      if (last) samples[name] = last;
+    }
+    deps.state.update((s) => ({ ...s, samples: { ...s.samples, [id]: samples } }));
   }
 
   function enqueue(id: AccountId, st: AccountState, kind: Kind): Promise<Polled<unknown>> {
@@ -113,6 +128,7 @@ export function createPoller(deps: {
           st.profileAttemptAt = r.at;
           if (r.ok) st.profileOkAt = r.at;
           st.feeds = { ...st.feeds, profile: record(st.feeds.profile, r, (v) => v) };
+          if (r.ok) save(id, st.feeds);
           return r;
         }
         const r = await deps.anthropic.read(id, kind);
@@ -127,6 +143,7 @@ export function createPoller(deps: {
             ? { spend: record(f.spend, r, (v) => (v.mode === 'normal' ? v.spend : null)) }
             : { juniper: record(f.juniper, r, (v) => (v.mode === 'wall' ? v.juniper : null)) }),
         };
+        if (r.ok) save(id, st.feeds);
         return r;
       } finally {
         st.pending.shift();
@@ -219,12 +236,19 @@ export function createPoller(deps: {
     wantWall(account, at) {
       const st = states.get(account);
       if (st) st.wallWantedSince = Math.max(st.wallWantedSince ?? -Infinity, at) as Instant;
+      else wallWantsBeforeFirstSight.set(account, Math.max(wallWantsBeforeFirstSight.get(account) ?? -Infinity, at) as Instant);
       tick();
     },
     profile(account) {
       return states.get(account)?.feeds.profile.last?.value ?? null;
     },
   };
+}
+
+const STORED_FEEDS: readonly StoredFeed[] = ['limits', 'spend', 'cedar', 'juniper', 'profile'];
+
+function restored<T>(s: StoredSamples[StoredFeed]): Source<T> {
+  return s ? { ...emptySource<T>(), last: { value: s.value as T, at: s.at as Instant } } : emptySource<T>();
 }
 
 function record<T, V>(src: Source<T>, r: Polled<V>, pick: (v: V) => T): Source<T> {

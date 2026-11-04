@@ -79,3 +79,49 @@ describe('the budget survives restarts', () => {
     });
   }
 });
+
+describe('the last readings survive restarts', () => {
+  test('a restarted deck shows the previous reads with their real age and does not re-read the profile', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-samples-'));
+    dirs.push(dir);
+    const clock = new FakeClock(T0);
+    const calls: { at: number; path: string }[] = [];
+    const cpa = {
+      link: () => ({ kind: 'ok' }),
+      apiCall: async (req: UpstreamRequest): Promise<UpstreamResult> => {
+        const u = new URL(req.url);
+        calls.push({ at: clock.now(), path: u.pathname });
+        if (u.pathname === '/api/oauth/profile') return ok(body('anthropic-profile-1.json'));
+        return ok(body('anthropic-usage-1.json'));
+      },
+    } as unknown as Cpa;
+    const accounts = only(ACC2);
+    const boot = () => {
+      const state = openStateFile(join(dir, 'state.json'));
+      return createPoller({ anthropic: createAnthropic({ cpa, cliVersion: '2.1.311', clock, state }), accounts: () => accounts, linkOk: () => true, clock, state });
+    };
+
+    const first = boot();
+    for (let t = 0; t < 60_000; t += 1_000) {
+      first.tick();
+      await clock.advance(1_000);
+    }
+    first.stop();
+    const readAt = first.feeds()[ACC2]!.limits.last!.at;
+    const profileCalls = calls.filter((c) => c.path === '/api/oauth/profile').length;
+
+    await clock.advance(30_000);
+    const second = boot();
+    second.tick();
+    const restored = second.feeds()[ACC2]!;
+    expect(restored.limits.last?.at, 'limits restored with their original read time').toBe(readAt);
+    expect(restored.limits.last?.value.length, 'limits restored with their values').toBeGreaterThan(0);
+    expect(restored.profile.last?.value.orgUuid, 'profile restored').toBeTruthy();
+    for (let t = 0; t < 60_000; t += 1_000) {
+      second.tick();
+      await clock.advance(1_000);
+    }
+    second.stop();
+    expect(calls.filter((c) => c.path === '/api/oauth/profile').length, 'no profile re-read after restart').toBe(profileCalls);
+  });
+});

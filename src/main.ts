@@ -18,9 +18,9 @@ const state = openStateFile(join(config.stateDir, 'state.json'));
 const cpa = createCpa({ baseUrl: config.cpaBaseUrl, envPath: config.envPath, readKey: () => readManagementKey(config.envPath), state, now: clock.now });
 const anthropic = createAnthropic({ cpa, cliVersion: config.claudeCliVersion, clock, state });
 const observer = createObserver({ cpa, now: clock.now });
-const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: () => cpa.link().kind === 'ok', clock });
+const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: () => cpa.link().kind === 'ok', clock, state });
 const keeper = openKeeper(config.keeperDbPath, clock.now);
-const claims = createClaims({ anthropic, cpa, poller, clock });
+const claims = createClaims({ anthropic, cpa, poller, clock, state });
 const oauth = createOAuthFlows({ cpa, observer, now: clock.now });
 
 const snapshot = (): Snapshot => ({
