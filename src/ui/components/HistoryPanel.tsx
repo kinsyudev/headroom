@@ -3,7 +3,7 @@ import type { AccountId } from '../../shared/domain';
 import { foldHistory, HISTORY_RANGES, ZERO_TOTALS, type HistoryRange, type TokenTotals } from '../../shared/history';
 import { useHistory } from '../api';
 import { useNow } from '../deck';
-import { clockTime, compact } from '../format';
+import { clockTime, compact, reasonText } from '../format';
 import { Age, Clock } from './Countdown';
 import { StackedColumns } from './StackedColumns';
 
@@ -11,7 +11,11 @@ type Metric = 'requests' | 'freshInput' | 'cacheRead' | 'output';
 
 const METRICS: readonly { readonly key: Metric; readonly label: string; readonly title: string }[] = [
   { key: 'requests', label: 'Requests', title: 'Requests, failed ones included' },
-  { key: 'freshInput', label: 'Fresh input', title: "Input minus cache reads and cache creation. keeper's input count already includes cache for Claude" },
+  {
+    key: 'freshInput',
+    label: 'Uncached input',
+    title: "Input tokens that were neither read from the cache nor written to it. keeper's input count already includes both for Claude, so they are subtracted",
+  },
   { key: 'cacheRead', label: 'Cache read', title: 'Cache read tokens' },
   { key: 'output', label: 'Output', title: 'Output tokens' },
 ];
@@ -155,13 +159,15 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                   <th className="num">Failed</th>
                   <th className="num">429</th>
                   <th className="num" title={METRICS[1]!.title}>
-                    Fresh in
+                    Uncached in
                   </th>
                   <th className="num">Cache read</th>
                   <th className="num">Cache write</th>
                   <th className="num">Output</th>
                   <th className="num">Latency</th>
-                  <th className="num">TTFT</th>
+                  <th className="num" title="Average time to first token (TTFT)">
+                    First token
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -218,7 +224,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                     <td>{e.at !== null ? <Clock at={e.at} /> : '—'}</td>
                     <td>{emailOf(e.account)?.email ?? e.account ?? '—'}</td>
                     <td className="num">{e.status ?? '—'}</td>
-                    <td>{e.quotaReason ?? '—'}</td>
+                    <td title={e.quotaReason ?? undefined}>{e.quotaReason === null ? '—' : reasonText(e.quotaReason)}</td>
                     <td>{e.recoverAt !== null ? <Clock at={e.recoverAt} /> : '—'}</td>
                     <td className="message" title={e.message}>
                       {e.message}

@@ -1,5 +1,6 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
+import { reasonText, reasonTitle, SERVING_WHY } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivitySparkline } from './ActivitySparkline';
 import { Clock, Countdown } from './Countdown';
@@ -7,17 +8,11 @@ import { ModeLine } from './Freshness';
 import { LimitRow, SpendRow } from './LimitRow';
 import { ResetOffers } from './ResetOffers';
 
-const WHY: Readonly<Record<string, string>> = {
-  fill_first_target: 'fill-first target',
-  affinity: 'session affinity',
-  round_robin: 'round-robin',
-};
-
-const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], string>> = {
-  reading: 'A read is already running',
-  rate_limited: 'Rate-limited; waiting for the backoff',
-  capped: 'At most 8 reads per account in 15 minutes; waiting for the oldest to age out',
-  debounced: 'Once per minute per account',
+const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], { readonly short: string; readonly long: string }>> = {
+  reading: { short: 'already reading', long: 'A read is already running' },
+  rate_limited: { short: 'rate-limited', long: 'Rate-limited; waiting for the backoff' },
+  capped: { short: 'read cap full', long: 'At most 8 reads per account in 15 minutes; waiting for the oldest to age out' },
+  debounced: { short: 'once per minute', long: 'Once per minute per account' },
 };
 
 export function AccountCard(props: { readonly account: AccountView; readonly color: string; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
@@ -43,7 +38,7 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
         <div className="problems">
           {groupCooldowns(a.cooldowns).map((g) => (
             <div key={g.key} className="cooldown">
-              <span className="badge critical">{g.models.length === 0 ? 'Account cooldown' : g.models.length === 1 ? 'Model cooldown' : `${g.models.length} model cooldowns`}</span> {g.reasons.join(', ')}
+              <span className="badge critical">{g.models.length === 0 ? 'Account cooldown' : g.models.length === 1 ? 'Model cooldown' : `${g.models.length} model cooldowns`}</span> <span title={g.reasons.join(', ')}>{[...new Set(g.reasons.map(reasonText))].join(', ')}</span>
               {g.models.length > 0 && <span className="muted"> · {g.models.join(', ')}</span>} · until <Clock at={g.retryAt} />{' '}
               <span className="muted">
                 (<Countdown at={g.retryAt} />)
@@ -116,8 +111,8 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
             kind="quota.refresh"
             input={{ account: a.id }}
             disabled={held !== null}
-            title={held === null ? 'Read Anthropic usage now' : REFRESH_HELD[held.why]}
-            done={(o) => (o.scheduled[0]?.held ? `held: ${o.scheduled[0].held}` : 'read queued')}
+            title={held === null ? 'Read Anthropic usage now' : REFRESH_HELD[held.why].long}
+            done={(o) => (o.scheduled[0]?.held ? `not queued: ${REFRESH_HELD[o.scheduled[0].held].short}` : 'read queued')}
             testId="refresh-quota"
           >
             ↻ Read now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
@@ -145,8 +140,8 @@ export function RoutingBadge(props: { readonly routing: AccountView['routing'] }
   switch (role.kind) {
     case 'serving':
       return (
-        <span className="badge good role" data-testid="role">
-          ● Serving <span className="badge-sub">{WHY[role.why]}</span>
+        <span className="badge good role" data-testid="role" title={SERVING_WHY[role.why].long}>
+          ● Serving <span className="badge-sub">{SERVING_WHY[role.why].short}</span>
         </span>
       );
     case 'standby':
@@ -157,7 +152,7 @@ export function RoutingBadge(props: { readonly routing: AccountView['routing'] }
       );
     case 'blocked':
       return (
-        <span className="badge critical role" data-testid="role" title={role.reason}>
+        <span className="badge critical role" data-testid="role" title={reasonTitle(role.reason)}>
           ■ Blocked {role.until !== null && <Countdown at={role.until} />}
         </span>
       );

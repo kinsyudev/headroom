@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
-import { age, clockTime, duration, money, percent } from '../format';
+import { age, clockTime, duration, money, percent, reasonText } from '../format';
 
 const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--muted)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
@@ -55,7 +55,11 @@ export function LimitRow(props: { readonly limit: LimitView }) {
     <div className={`limit phase-${l.phase}`} data-testid={`limit-${l.key}`} title={readings}>
       <span className="limit-label">
         {l.label}
-        {l.isActive && <span className="tag">binding</span>}
+        {l.isActive && (
+          <span className="tag" title="The limit that is holding this account back right now">
+            limiting
+          </span>
+        )}
       </span>
       <Meter percent={l.phase === 'open' ? l.percent : null} severity={l.severity} label={`${l.label} used`} tick={l.other?.percent ?? null} />
       <span className="limit-value num" data-testid="percent">
@@ -79,7 +83,10 @@ export function LimitRow(props: { readonly limit: LimitView }) {
 
 type Overage = NonNullable<SpendView['live']>;
 
-const overage = (o: Overage) => ['overage', percent(o.percent), o.status, o.reason && `(${o.reason})`].filter(Boolean).join(' ');
+const OVERAGE_STATUS: Readonly<Record<string, string>> = { allowed: 'allowed', allowed_warning: 'allowed, near the cap', rejected: 'rejected' };
+
+const overage = (o: Overage) =>
+  [o.percent !== null && percent(o.percent), o.status && (OVERAGE_STATUS[o.status] ?? o.status), o.reason && `(${reasonText(o.reason)})`].filter(Boolean).join(' ');
 
 export function SpendRow(props: { readonly spend: SpendView | null; readonly atWall: boolean }) {
   const now = useNow();
@@ -87,9 +94,12 @@ export function SpendRow(props: { readonly spend: SpendView | null; readonly atW
   if (!s) return null;
   const p = s.poll;
   const live = s.live;
-  const off = p ? `off${p.disabledReason ? ` · ${p.disabledReason}` : ''}` : props.atWall ? 'not read at the wall' : 'not read yet';
+  const off = p ? `off${p.disabledReason ? ` · ${reasonText(p.disabledReason)}` : ''}` : props.atWall ? 'not read at limit' : 'not read yet';
   const notable = live !== null && live.severity !== 'normal' && (p === null || p.enabled);
-  const readings = [p && `poll ${age(now - p.at)} ago`, live && `${overage(live)}, live ${age(now - live.at)} ago`].filter(Boolean).join(' · ');
+  const codes = [...new Set([p?.disabledReason, live?.reason].filter(Boolean))];
+  const readings = [p && `poll ${age(now - p.at)} ago`, live && `${overage(live)}, live ${age(now - live.at)} ago`, codes.length > 0 && `reason code: ${codes.join(', ')}`]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div className="limit spend" data-testid="spend" title={readings}>
       <span className="limit-label">Extra usage</span>

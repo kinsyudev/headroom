@@ -62,17 +62,17 @@ To check the real setup without changing it, stop the LaunchAgent and run `bun s
 
 The overview strip comes first. It has four tiles:
 
-- **Serving now** names the accounts with a successful request in the last 2 minutes, from keeper's request log. When keeper can't be read, CPA's response headers stand in, and the tile says so. The account a new session would land on is shown separately and labelled as a prediction.
+- **Serving now** names the accounts with a successful request in the last 2 minutes, from keeper's request log. When keeper can't be read, CPA's response headers stand in, and the tile's tooltip and a banner say so. The account a new session would land on is shown separately and labelled as a prediction.
 - **Next reset** counts down to the earliest window reset, and to the earliest moment a blocked account routes again.
 - **Claimable resets** lists every reset Anthropic says you can claim now, each with **Claim…**.
-- **Headroom** sums session and weekly room in accounts' worth. Each account's session room is capped by its weekly room.
+- **Headroom** sums session and weekly room in accounts' worth, and its footnote reads "Room left, counted in whole accounts". Each account's session room is capped by its weekly room.
 
 Each account card is as tall as its content. Cards sit three across from 1180 px of window width, two across from 860 px, and one below that. Each card shows these parts:
 
 - The routing role (serving, standby, blocked with a countdown, or disabled), the plan, and the priority.
-- One status line with the read mode, the age of the freshest successful usage read, and when the next read is due, for example "Normal · read 22s ago · next read in 4m 38s". At the wall, Headroom reads reset programs every 3 minutes. Otherwise it reads usage every 5 minutes. A feed that is aging, stale or failing shows in color on the line, for example "limits read failing · retry in 2m", and a feed held by design says so. Hover the line for every feed's age, last error and next read.
+- One status line with the read mode, the age of the freshest successful usage read, and when the next read is due, for example "Normal · read 22s ago · next read in 4m 38s". When the account is at its limit the badge reads "At limit" and Headroom reads reset programs every 3 minutes. Otherwise it reads usage every 5 minutes. A feed that is aging, stale or failing shows in color on the line, for example "limits read failing · retry in 2m", and a feed held by design gets a short note such as "weekly reset checked only at limit". Hover the line for every feed's age, last error and next read.
 - One row per window with the meter, the percent, and the reset as the countdown then the clock time, for example "4h 32m · 23:00". Hover the reset for "resets 23:00 · in 4h 32m". Each row shows the newer of the poll and the passive headers, with the other source as a faint tick. Hover the rest of the row for both readings and their ages. A window whose reset has passed reads "14:20 ✓ · awaiting data" instead of its old percent. A missing session limit reads `idle` and "no window running". In a card narrower than 400 px the countdown and the clock time stack on two lines.
-- Extra usage, which wall reads skip. At the wall only the header view of overage is current.
+- Extra usage, which wall reads skip. While the account is at its limit only the header view of overage is current.
 - Both Claude reset programs, with grants listed under `cedar_ember`.
 - CPA's last 20 ten-minute buckets of traffic.
 

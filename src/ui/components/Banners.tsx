@@ -43,10 +43,10 @@ function BannerText(props: { readonly banner: Banner }) {
     case 'claim_unknown':
       return (
         <>
-          A {b.program} claim on {b.email} may have reached Anthropic. The next reset read decides; it will not be resent.
+          A <span title={b.program}>{b.label.toLowerCase()}</span> claim on {b.email} may have reached Anthropic. The next reset read decides; it will not be resent.
         </>
       );
     case 'keeper_unavailable':
-      return <>keeper's database is unreadable ({b.message}). Serving evidence falls back to CPA headers; history is unavailable.</>;
+      return <>keeper's database is unreadable ({b.message}). The Serving now tile falls back to CPA response headers, and history is unavailable.</>;
   }
 }

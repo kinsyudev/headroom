@@ -479,6 +479,7 @@ export function deriveOffers(
         resetsTotal: g.resetsTotal,
         endsAt: g.endsAt,
         clears: g.clears,
+        clearsText: clearsText(g.clears),
         usable: cv !== null && usableGrant(cv, g),
       })),
     },
@@ -615,7 +616,7 @@ function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView)
   }
   for (const v of views) {
     for (const o of v.offers) {
-      if (o.state.kind === 'in_flight' && o.state.phase === 'maybe_sent') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program });
+      if (o.state.kind === 'in_flight' && o.state.phase === 'maybe_sent') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program, label: o.label });
     }
   }
   if (s.serving.error) {

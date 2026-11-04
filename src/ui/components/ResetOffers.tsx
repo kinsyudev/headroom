@@ -1,6 +1,7 @@
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, OfferView } from '../../shared/view';
 import { usePaused } from '../deck';
+import { claimResultText } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
@@ -35,7 +36,12 @@ function OfferRow(props: { readonly offer: OfferView; readonly onClaim: () => vo
           {o.grants.map((g) => (
             <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
               “{g.label}” <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
-              {g.clears.length > 0 && ` · clears ${g.clears.join(', ')}`}
+              {g.clears.length > 0 && (
+                <>
+                  {' · clears '}
+                  <span title={g.clears.join(', ')}>{g.clearsText}</span>
+                </>
+              )}
               {g.endsAt !== null && (
                 <>
                   {' · ends '}
@@ -58,7 +64,7 @@ function OfferState(props: { readonly offer: OfferView }) {
     case 'held':
       return (
         <span>
-          Offered at the wall
+          Offered when at limit
           {s.lastAt !== null && (
             <span className="muted">
               {' · '}last read {s.lastClaimable ? 'claimable' : 'not claimable'}, <Age at={s.lastAt} /> ago
@@ -76,7 +82,7 @@ function OfferState(props: { readonly offer: OfferView }) {
       );
     case 'ineligible':
       return (
-        <span title={s.explain}>
+        <span title={s.explain === s.reason ? s.explain : `${s.explain} (${s.reason})`}>
           Not eligible <span className="muted">· {s.explain}</span>
         </span>
       );
@@ -86,7 +92,7 @@ function OfferState(props: { readonly offer: OfferView }) {
       if (s.phase === 'maybe_sent') return <span className="badge warning">! Outcome unknown, checking</span>;
       return (
         <span>
-          <span className="spinner" aria-hidden /> {s.phase === 'sending' ? 'Claiming…' : `${s.result === 'reset' ? 'Claimed' : `Last claim: ${s.result}`}, waiting for a fresh read`}
+          <span className="spinner" aria-hidden /> {s.phase === 'sending' ? 'Claiming…' : `${s.result === 'reset' ? 'Claimed' : `Last claim: ${claimResultText(s.result ?? 'unknown')}`}, waiting for a fresh read`}
         </span>
       );
     case 'unknown':

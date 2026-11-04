@@ -233,6 +233,17 @@ describe('offers and claimability', () => {
     expect(offers(failing, true).cedar_ember).toEqual({ kind: 'unknown', why: 'failing' });
   });
 
+  test('a grant says in plain words what it clears and keeps the raw window codes', () => {
+    const cedarOffer = deriveOffers(ACC3, feedsFrom(synthetic, T0), true, [], T0).find((o) => o.program === 'cedar_ember')!;
+    expect(cedarOffer.grants[0]).toMatchObject({ clears: ['five_hour'], clearsText: 'the session (5h) limit' });
+  });
+
+  test('the unknown-outcome banner names the program by its label', () => {
+    const maybeSent = claim({ kind: 'maybe_sent', at: T0, why: 'timed out' });
+    const d = deriveDeck(snapshot({ claims: [maybeSent], feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0);
+    expect(d.banners).toContainEqual({ kind: 'claim_unknown', claim: 'c1' as ClaimId, email: 'account3@example.com', program: 'juniper_tide', label: 'Weekly session reset' });
+  });
+
   test('the overview lists every claimable offer with the grant label', () => {
     const d = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0);
     expect(d.overview.claimable).toEqual([

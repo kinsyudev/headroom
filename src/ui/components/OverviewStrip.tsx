@@ -1,14 +1,9 @@
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
 import { usePaused } from '../deck';
+import { SERVING_WHY } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 import { Meter } from './LimitRow';
-
-const WHY: Readonly<Record<string, string>> = {
-  fill_first_target: 'fill-first target',
-  affinity: 'session affinity',
-  round_robin: 'round-robin',
-};
 
 export function OverviewStrip(props: {
   readonly deck: DeckView;
@@ -20,7 +15,11 @@ export function OverviewStrip(props: {
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   return (
     <section className="overview" aria-label="Overview" data-testid="overview">
-      <div className="tile serving" data-testid="tile-serving">
+      <div
+        className="tile serving"
+        data-testid="tile-serving"
+        title={`Evidence: ${o.servingEvidence === 'keeper' ? "keeper's request log" : 'CPA response headers (keeper unavailable)'}`}
+      >
         <h2>Serving now</h2>
         {o.serving.length === 0 ? (
           <p className="tile-main muted">Idle · nothing answered in the last 2 min</p>
@@ -30,7 +29,7 @@ export function OverviewStrip(props: {
               {swatch(s.account)} <strong>{s.email}</strong>
               <span className="muted">
                 {' '}
-                · {WHY[s.why]} · last request <Age at={s.lastAt} /> ago
+                · {SERVING_WHY[s.why].long} · last request <Age at={s.lastAt} /> ago
               </span>
             </p>
           ))
@@ -44,7 +43,6 @@ export function OverviewStrip(props: {
             <span className="badge critical">No account can take traffic</span>
           )}
         </p>
-        <p className="tile-foot muted">Evidence: {o.servingEvidence === 'keeper' ? "keeper's request log" : 'CPA response headers (keeper unavailable)'}</p>
       </div>
 
       <div className="tile" data-testid="tile-next-reset">
@@ -101,7 +99,9 @@ export function OverviewStrip(props: {
         <h2>Headroom</h2>
         <HeadroomRow label="Session" h={o.headroom.session} />
         <HeadroomRow label="Weekly" h={o.headroom.weekly} />
-        <p className="tile-foot muted">In accounts' worth across enabled accounts. Session is capped by each account's weekly room.</p>
+        <p className="tile-foot muted" title="Each enabled account counts as 1.00 when all of its room is left. Session room is capped by each account's weekly room.">
+          Room left, counted in whole accounts
+        </p>
       </div>
     </section>
   );
