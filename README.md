@@ -70,12 +70,11 @@ The overview strip comes first. It has four tiles:
 Each account card shows these parts:
 
 - The routing role (serving, standby, blocked with a countdown, or disabled), the plan, and the priority.
-- The read mode. At the wall, Headroom reads reset programs every 3 minutes. Otherwise it reads usage every 5 minutes.
-- One row per window. Each row shows the newer of the poll and the passive headers, with the other source as a faint tick. A window whose reset has passed reads "reset 14:20 ✓, awaiting fresh data" instead of its old percent. A missing session limit reads `idle`.
+- One status line with the read mode, the age of the freshest successful usage read, and when the next read is due, for example "Normal · read 22s ago · next read in 4m 38s". At the wall, Headroom reads reset programs every 3 minutes. Otherwise it reads usage every 5 minutes. A feed that is aging, stale or failing shows in color on the line, for example "limits read failing · retry in 2m", and a feed held by design says so. Hover the line for every feed's age, last error and next read.
+- One row per window with the meter, the percent, and the reset as "resets 23:00 · in 4h 32m". Each row shows the newer of the poll and the passive headers, with the other source as a faint tick. Hover a row for both readings and their ages. A window whose reset has passed reads "reset 14:20 ✓ · awaiting fresh data" instead of its old percent. A missing session limit reads `idle` and "no session window running".
 - Extra usage, which wall reads skip. At the wall only the header view of overage is current.
 - Both Claude reset programs, with grants listed under `cedar_ember`.
 - CPA's last 20 ten-minute buckets of traffic.
-- One freshness chip per feed, for example "limits 4m · rate-limited 1m ago · retry 14:02".
 
 The history panel shows stacked columns per account for 24 hours, 7 days, or 30 days, in your local time. It also has a table view, totals per model, and keeper's newest 50 errors for these accounts.
 

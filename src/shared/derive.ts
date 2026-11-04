@@ -169,7 +169,12 @@ function deriveRead(feeds: AccountFeeds, now: Instant): ReadView {
           : manualUntil !== null && manualUntil > now
             ? { why: 'debounced', until: manualUntil }
             : null;
-  return { nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, capUntil: cap, refreshHeld };
+  return { lastAt: freshestRead(feeds), nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, capUntil: cap, refreshHeld };
+}
+
+function freshestRead(feeds: AccountFeeds): Instant | null {
+  const ats = [feeds.limits, feeds.spend, feeds.cedar, feeds.juniper].flatMap((s) => (s.last ? [s.last.at] : []));
+  return ats.length === 0 ? null : (Math.max(...ats) as Instant);
 }
 
 interface Seen {
@@ -341,7 +346,13 @@ export function deriveSpend(spend: Source<Spend | null>, headers: HeaderQuota | 
   const overage = headers?.windows.find((w) => w.key === 'Overage');
   const live =
     headers && (overage || headers.overageDisabledReason) && (!s || headers.observedAt > s.at)
-      ? { percent: overage?.percent ?? null, status: overage?.status ?? null, reason: headers.overageDisabledReason, at: headers.observedAt }
+      ? {
+          percent: overage?.percent ?? null,
+          status: overage?.status ?? null,
+          reason: headers.overageDisabledReason,
+          severity: overage ? headerSeverity(overage) : 'normal',
+          at: headers.observedAt,
+        }
       : null;
   const poll = s?.value ? { ...s.value, at: s.at } : null;
   return poll || live ? { poll, live } : null;

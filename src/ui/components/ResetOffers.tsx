@@ -88,6 +88,6 @@ function OfferState(props: { readonly offer: OfferView }) {
         </span>
       );
     case 'unknown':
-      return <span className="muted">{s.why === 'failing' ? 'Read failing, see chips below' : 'No data yet'}</span>;
+      return <span className="muted">{s.why === 'failing' ? 'Read failing, see the status line above' : 'No data yet'}</span>;
   }
 }

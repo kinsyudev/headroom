@@ -76,7 +76,7 @@ try {
   assert((await pct('account2@example.com', 'weekly_all')) === '1%', 'account2 weekly 1%');
   assert((await pct('account3@example.com', 'session')) === '100%', 'account3 session at the wall');
   assert((await text(card('account3@example.com').getByTestId('role'))).startsWith('■ Blocked'), 'account3 blocked');
-  assert((await text(card('account2@example.com').getByTestId('freshness'))).includes('weekly reset'), 'freshness chips render');
+  assert((await text(card('account2@example.com').getByTestId('freshness'))).includes('weekly reset'), 'freshness line names the held weekly reset read');
   await page.screenshot({ path: join(SHOTS, 'e2e-1-loaded.png'), fullPage: true });
   pass('overview and three cards render with real numbers');
   assert(mutations().length === 0, 'loading the page mutates nothing');

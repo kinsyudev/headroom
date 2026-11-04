@@ -3,6 +3,7 @@ import {
   cedarState,
   deriveDeck,
   deriveOffers,
+  deriveSpend,
   freshness,
   isAtWall,
   juniperState,
@@ -286,5 +287,39 @@ describe('freshness', () => {
     const f = freshness(held ? 'juniper' : 'limits', { ...emptySource(), ...src } as never, T0, held);
     expect(f.state).toBe(state);
     if (state === 'failing') expect(f).toMatchObject({ ageMs: 4 * MIN, errorAgeMs: MIN, error: { kind: 'rate_limited' } });
+  });
+});
+
+describe('card status line', () => {
+  const view = (feeds: Record<string, ReturnType<typeof emptyFeeds>>, id: string) => deriveDeck(snapshot({ feeds }), T0).accounts.find((a) => a.id === id)!;
+  const sampleAt = <T>(value: T, t: Instant) => ({ ...emptySource<T>(), last: { value, at: t } });
+
+  test('the freshest successful usage read wins over older reads, ignores the profile, and is null before any read', () => {
+    const read = feedsFrom(usage('anthropic-usage-2.json', 'normal'), plus(T0, -3 * MIN), 'anthropic-profile-1.json');
+    const feeds = {
+      ...read,
+      juniper: sampleAt(null, plus(T0, -20_000)),
+      profile: { ...read.profile, last: { ...read.profile.last!, at: plus(T0, -5_000) } },
+    };
+    expect(view({ [ACC1]: feeds }, ACC1).read.lastAt).toBe(plus(T0, -20_000));
+    expect(view({}, ACC2).read.lastAt).toBeNull();
+  });
+
+  test('a failed read does not move the last successful read', () => {
+    const t = plus(T0, -8 * MIN);
+    const failing = { ...feedsFrom(usage('anthropic-usage-2.json', 'normal'), t), limits: { ...sampleAt([], t), error: { value: { kind: 'upstream' as const, status: 503, message: '' }, at: plus(T0, -MIN) } } };
+    expect(view({ [ACC1]: { ...failing, spend: emptySource(), cedar: emptySource() } }, ACC1).read.lastAt).toBe(t);
+  });
+
+  test('live overage is critical when Anthropic rejects it, warning on a warning status, and normal when allowed', () => {
+    const headers = account(ACC3).headers!;
+    const withOverage = (status: 'rejected' | 'allowed_warning' | 'allowed', percent: number) => ({
+      ...headers,
+      overageDisabledReason: null,
+      windows: [...headers.windows.filter((w) => w.key !== 'Overage'), { key: 'Overage', percent: percent as never, resetsAt: null, status }],
+    });
+    expect(deriveSpend(emptySource(), headers)?.live).toMatchObject({ percent: 101, status: 'rejected', reason: 'org_spend_cap_reached', severity: 'critical' });
+    expect(deriveSpend(emptySource(), withOverage('allowed_warning', 78))?.live?.severity).toBe('warning');
+    expect(deriveSpend(emptySource(), withOverage('allowed', 0))?.live?.severity).toBe('normal');
   });
 });

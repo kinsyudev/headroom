@@ -74,6 +74,8 @@ export interface AccountView {
 }
 
 export interface ReadView {
+  /** The freshest successful Anthropic usage read: limits, spend, grants or weekly reset. */
+  readonly lastAt: Instant | null;
   readonly nextAt: Instant | null;
   readonly reading: boolean;
   readonly backoffUntil: Instant | null;
@@ -129,7 +131,13 @@ export interface SpendView {
     readonly disabledReason: string | null;
     readonly at: Instant;
   } | null;
-  readonly live: { readonly percent: Percent | null; readonly status: string | null; readonly reason: string | null; readonly at: Instant } | null;
+  readonly live: {
+    readonly percent: Percent | null;
+    readonly status: string | null;
+    readonly reason: string | null;
+    readonly severity: Severity;
+    readonly at: Instant;
+  } | null;
 }
 
 export type OfferState =

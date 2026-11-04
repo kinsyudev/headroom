@@ -3,7 +3,7 @@ import type { AccountView } from '../../shared/view';
 import { ActionButton } from './ActionButton';
 import { ActivitySparkline } from './ActivitySparkline';
 import { Clock, Countdown } from './Countdown';
-import { FreshnessChips } from './Freshness';
+import { ModeLine } from './Freshness';
 import { LimitRow, SpendRow } from './LimitRow';
 import { ResetOffers } from './ResetOffers';
 
@@ -38,30 +38,7 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
         <RoutingBadge routing={r} />
       </header>
 
-      <div className="mode">
-        {a.atWall ? <span className="badge warning">At the wall</span> : <span className="badge neutral">Normal</span>}{' '}
-        <span className="muted">
-          {a.atWall ? 'reset reads every 3 min' : 'usage reads every 5 min'}
-          {' · '}
-          {a.read.reading ? (
-            'reading now'
-          ) : (
-            <>
-              next <Countdown at={a.read.nextAt} />
-            </>
-          )}
-          {a.read.backoffUntil !== null && (
-            <>
-              {' · '}rate-limited until <Clock at={a.read.backoffUntil} />
-            </>
-          )}
-          {a.read.capUntil !== null && (
-            <>
-              {' · '}read cap full, next read allowed <Clock at={a.read.capUntil} />
-            </>
-          )}
-        </span>
-      </div>
+      <ModeLine account={a} />
 
       {(a.cooldowns.length > 0 || a.statusMessage) && (
         <div className="problems">
@@ -147,7 +124,6 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
             ↻ Read now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
           </ActionButton>
         </div>
-        <FreshnessChips feeds={a.freshness} testId="freshness" />
       </footer>
     </article>
   );
