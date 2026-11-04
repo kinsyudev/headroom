@@ -82,11 +82,4 @@ export const handlers: Handlers = {
     ctx.oauth.cancel(flow);
     return { ok: true };
   },
-
-  'claim.prepare': async ({ account, program, grant }, ctx) => {
-    ctx.account(account);
-    return ctx.claims.prepare({ account, program, grant });
-  },
-
-  'claim.confirm': async (input, ctx) => ctx.claims.confirm(input),
 };

@@ -28,7 +28,6 @@ import type { AccountId, ClaimId, ClaimRecord, GrantId, Instant, ProgramId, Rese
 import type { Anthropic } from './anthropic';
 import type { Cpa } from './cpa';
 import type { Observer } from './observer';
-import type { ClaimsTable } from './store';
 
 export const PREPARE_TTL_MS = 120_000;
 /** Refresh at-wall data during prepare if it's older than this (subject to rate budget). */
@@ -102,7 +101,6 @@ export interface Claims {
 }
 
 export function createClaims(deps: {
-  readonly table: ClaimsTable;
   readonly anthropic: Anthropic;
   readonly cpa: Cpa;
   readonly observer: Observer;
@@ -117,6 +115,6 @@ export function createClaims(deps: {
  * TODO: try cpa.clearCooldown(account) → followup 'done'; catch → 'failed' (the sweep retries);
  *       then observer.refreshCpa()
  */
-async function runFollowup(row: ClaimRecord, deps: { cpa: Cpa; table: ClaimsTable; observer: Observer; now: () => Instant }): Promise<void> {
+async function runFollowup(row: ClaimRecord, deps: { cpa: Cpa; observer: Observer; now: () => Instant }): Promise<void> {
   throw new Error('not implemented');
 }

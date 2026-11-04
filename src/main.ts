@@ -16,7 +16,6 @@
  */
 import app from './ui/index.html';
 import { loadConfig, readManagementKey, watchManagementKey } from './server/config';
-import { openStore } from './server/store';
 import { createCpa } from './server/cpa';
 import { createAnthropic } from './server/anthropic';
 import { createObserver } from './server/observer';
@@ -46,7 +45,7 @@ async function main(): Promise<void> {
   // server.acceptActions()                                                                                 // 5
   // watchManagementKey(config.envPath, (k) => void cpa.setKey(k))
   // SIGTERM → observer.stop(); server.stop(); store.close()
-  void [app, loadConfig, readManagementKey, watchManagementKey, openStore, createCpa, createAnthropic, createObserver, createClaims, createOAuthFlows, openKeeper, handlers, serve];
+  void [app, loadConfig, readManagementKey, watchManagementKey, createCpa, createAnthropic, createObserver, createClaims, createOAuthFlows, openKeeper, handlers, serve];
   void (0 as unknown as Instant);
   throw new Error('not implemented');
 }

@@ -16,7 +16,6 @@ export interface Config {
   readonly cpaBaseUrl: string; // http://127.0.0.1:8317
   readonly envPath: string; // /opt/homebrew/etc/cpa-usage-keeper.env
   readonly keeperDbPath: string; // /opt/homebrew/var/cpa-usage-keeper/app.db
-  readonly deckDbPath: string; // ~/Library/Application Support/cpa-deck/deck.db
   /** Sent as `User-Agent: claude-cli/<v> (external, cli)`. If offers say `cli_version`, bump it. */
   readonly claudeCliVersion: string;
   /** The Mac's IANA zone, used to fold keeper's UTC hours into local days. */

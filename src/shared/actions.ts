@@ -14,7 +14,7 @@
  * types (`out<T>()`) because the server constructs them.
  */
 import { z } from 'zod';
-import type { AccountId, ClaimId, ClaimRecord, FlowId, GrantId, Instant, ProgramId, RoutingStrategy } from './domain';
+import type { AccountId, FlowId, GrantId, Instant, ProgramId, RoutingStrategy } from './domain';
 
 const out = <T>() => undefined as unknown as T;
 
@@ -28,10 +28,6 @@ const grantId = z
   .min(1)
   .max(128)
   .transform((s) => s as GrantId);
-const claimId = z
-  .string()
-  .uuid()
-  .transform((s) => s as ClaimId);
 const flowId = z
   .string()
   .uuid()
@@ -63,19 +59,6 @@ export const ACTIONS = {
   },
   'oauth.start': { input: z.object({}), output: out<{ flow: FlowId; url: string }>() },
   'oauth.cancel': { input: z.object({ flow: flowId }), output: out<{ ok: true }>() },
-  /** Phase 1: check claimability, refresh at-wall data if stale, record preflight, return the intent. No upstream write. */
-  'claim.prepare': {
-    input: z.object({ account: accountId, program, grant: grantId.optional() }),
-    output: out<ClaimRecord>(),
-  },
-  /**
-   * Phase 2: send. Idempotent on `claim`. The account and program echo must match the prepared row,
-   * so a stale dialog can't confirm a different intent.
-   */
-  'claim.confirm': {
-    input: z.object({ claim: claimId, account: accountId, program }),
-    output: out<ClaimRecord>(),
-  },
 } as const;
 
 export type ActionKind = keyof typeof ACTIONS;
@@ -94,8 +77,6 @@ export type DeckErrorCode =
   | 'cpa_unreachable'
   | 'cpa_error' // CPA answered non-2xx (other than auth)
   | 'not_claimable' // preflight says no; message says why
-  | 'claim_mismatch' // confirm echo didn't match the prepared row
-  | 'claim_conflict' // another claim for this account and program is open
   | 'flow_busy';
 
 /** HTTP status per code, so http.ts has no switch of its own. */
@@ -106,8 +87,6 @@ export const DECK_ERROR_STATUS: Readonly<Record<DeckErrorCode, number>> = {
   cpa_unreachable: 502,
   cpa_error: 502,
   not_claimable: 409,
-  claim_mismatch: 409,
-  claim_conflict: 409,
   flow_busy: 409,
 };
 

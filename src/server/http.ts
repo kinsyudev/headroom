@@ -68,7 +68,7 @@ export function serve(deps: HttpDeps): DeckServer {
 }
 
 /** Returns a Response to send instead of routing, or null to continue. Pure apart from reading the request. */
-export function guard(req: Request, opts: { port: number; csrf: string; mutate: boolean }): Response | null {
+export function guard(req: Request, opts: { port: number; mutate: boolean }): Response | null {
   throw new Error('not implemented');
 }
 

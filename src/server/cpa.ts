@@ -23,7 +23,6 @@ import { z } from 'zod';
 import type { AccountId, CpaAccount, Instant, LinkState, RoutingStrategy } from '../shared/domain';
 import { DeckError } from '../shared/actions';
 import type { ManagementKey } from './config';
-import type { AuthFailuresTable } from './store';
 
 export const LOCKOUT_WINDOW_MS = 30 * 60_000;
 export const LOCKOUT_BUDGET = 2;
@@ -83,7 +82,6 @@ export function createCpa(opts: {
   readonly baseUrl: string;
   readonly key: ManagementKey | null;
   readonly envPath: string;
-  readonly authFailures: AuthFailuresTable;
   readonly now: () => Instant;
 }): Cpa {
   throw new Error('not implemented');

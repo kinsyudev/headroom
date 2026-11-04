@@ -22,7 +22,6 @@
 import type { AccountFeeds, AccountId, CpaAccount, Instant, Profile, ResetPrograms, Sample, Snapshot, Source } from '../shared/domain';
 import type { Anthropic } from './anthropic';
 import type { Cpa } from './cpa';
-import type { PollSlotsTable } from './store';
 
 export const CPA_EVERY_MS = 5_000;
 export const STRATEGY_EVERY_MS = 60_000;
@@ -70,7 +69,6 @@ export interface Observer {
 export function createObserver(deps: {
   readonly cpa: Cpa;
   readonly anthropic: Anthropic;
-  readonly slots: PollSlotsTable;
   readonly now: () => Instant;
 }): Observer {
   // TODO:
