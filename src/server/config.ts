@@ -17,12 +17,12 @@ export const FALLBACK_CLI_VERSION = '2.1.311';
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   return {
     hostname: '127.0.0.1',
-    port: Number(env.CPA_DECK_PORT ?? 1338),
+    port: Number(env.HEADROOM_PORT ?? 1338),
     cpaBaseUrl: env.CPA_BASE_URL ?? 'http://127.0.0.1:8317',
-    envPath: env.CPA_DECK_ENV_FILE ?? '/opt/homebrew/etc/cpa-usage-keeper.env',
-    keeperDbPath: env.CPA_DECK_KEEPER_DB ?? '/opt/homebrew/var/cpa-usage-keeper/app.db',
-    stateDir: env.CPA_DECK_STATE_DIR ?? join(import.meta.dir, '../../var'),
-    claudeCliVersion: env.CPA_DECK_CLI_VERSION ?? detectCliVersion(),
+    envPath: env.HEADROOM_ENV_FILE ?? '/opt/homebrew/etc/cpa-usage-keeper.env',
+    keeperDbPath: env.HEADROOM_KEEPER_DB ?? '/opt/homebrew/var/cpa-usage-keeper/app.db',
+    stateDir: env.HEADROOM_STATE_DIR ?? join(import.meta.dir, '../../var'),
+    claudeCliVersion: env.HEADROOM_CLI_VERSION ?? detectCliVersion(),
   };
 }
 

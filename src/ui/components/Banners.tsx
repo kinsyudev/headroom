@@ -6,7 +6,7 @@ export function Banners(props: { readonly banners: readonly Banner[]; readonly c
   if (props.banners.length === 0 && props.connection !== 'lost') return null;
   return (
     <div className="banners" role="alert">
-      {props.connection === 'lost' && <p className="banner critical">Lost contact with the deck server. Retrying every 2 s; ages keep counting.</p>}
+      {props.connection === 'lost' && <p className="banner critical">Lost contact with the Headroom server. Retrying every 2 s; ages keep counting.</p>}
       {props.banners.map((b, i) => (
         <p key={i} className={`banner ${b.kind === 'claim_unknown' || b.kind === 'keeper_unavailable' ? 'warning' : 'critical'}`}>
           <BannerText banner={b} />
@@ -21,10 +21,10 @@ function BannerText(props: { readonly banner: Banner }) {
   switch (b.kind) {
     case 'link':
       return b.link.kind === 'missing_key' ? (
-        <>No CPA_MANAGEMENT_KEY in {b.link.envPath}. Nothing is sent to CPA until it is set; the deck re-reads the file on its own.</>
+        <>No CPA_MANAGEMENT_KEY in {b.link.envPath}. Nothing is sent to CPA until it is set; Headroom re-reads the file on its own.</>
       ) : (
         <>
-          CPA rejected the management key, so the deck stopped every management call to avoid CPA's IP ban. Fix CPA_MANAGEMENT_KEY in {b.link.envPath}. A changed key is tried at once; the same key is tried again at{' '}
+          CPA rejected the management key, so Headroom stopped every management call to avoid CPA's IP ban. Fix CPA_MANAGEMENT_KEY in {b.link.envPath}. A changed key is tried at once; the same key is tried again at{' '}
           {b.retryAt !== null && <Clock at={b.retryAt} />}.
         </>
       );

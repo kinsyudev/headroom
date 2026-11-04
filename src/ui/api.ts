@@ -54,7 +54,7 @@ export function useSnapshotPoll(): { snapshot: Snapshot | null; connection: Conn
 export async function act<K extends ActionKind>(kind: K, input: ActionInput<K>): Promise<ActionOutput<K>> {
   const res = await fetch('/api/act', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CPA-Deck': '1' },
+    headers: { 'Content-Type': 'application/json', 'X-Headroom': '1' },
     body: JSON.stringify({ kind, input }),
   });
   const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;

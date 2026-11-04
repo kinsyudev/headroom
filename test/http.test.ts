@@ -28,7 +28,7 @@ let snapshot: () => Snapshot;
 
 beforeAll(async () => {
   fake = startFakeCpa({ key: KEY });
-  dir = mkdtempSync(join(tmpdir(), 'cpa-deck-http-'));
+  dir = mkdtempSync(join(tmpdir(), 'headroom-http-'));
   createKeeperDb(join(dir, 'app.db'));
   const state = openStateFile(join(dir, 'state.json'));
   const cpa = createCpa({ baseUrl: fake.url, envPath: '/dev/null', readKey: () => Secret.from(KEY), state, now: realClock.now });
@@ -76,7 +76,7 @@ afterAll(async () => {
 const act = (kind: string, input: unknown, headers: Record<string, string> = {}) =>
   fetch(`${base}/api/act`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CPA-Deck': '1', ...headers },
+    headers: { 'Content-Type': 'application/json', 'X-Headroom': '1', ...headers },
     body: JSON.stringify({ kind, input }),
   });
 
@@ -93,7 +93,7 @@ describe('guard', () => {
   });
 
   test.each([
-    ['without X-CPA-Deck', { 'X-CPA-Deck': '' }, 403],
+    ['without X-Headroom', { 'X-Headroom': '' }, 403],
     ['with a form content type', { 'Content-Type': 'text/plain' }, 415],
     ['from another origin', { Origin: 'http://evil.example' }, 403],
     ['from this origin', { Origin: '__self__' }, 200],
@@ -103,7 +103,7 @@ describe('guard', () => {
     const before = fake.mutations.length;
     const res = await fetch(`${base}/api/act`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...('X-CPA-Deck' in headers ? {} : { 'X-CPA-Deck': '1' }), ...h },
+      headers: { 'Content-Type': 'application/json', ...('X-Headroom' in headers ? {} : { 'X-Headroom': '1' }), ...h },
       body: JSON.stringify({ kind: 'routing.setStrategy', input: { strategy: 'fill-first' } }),
     });
     expect(res.status).toBe(status);

@@ -45,7 +45,7 @@ const server = serve({
 });
 
 startAfterBind(server, [observer, keeper, poller]);
-console.log(`cpa-deck on ${server.url} (CPA ${config.cpaBaseUrl}, claude-cli/${config.claudeCliVersion}, link ${cpa.link().kind})`);
+console.log(`Headroom on ${server.url} (CPA ${config.cpaBaseUrl}, claude-cli/${config.claudeCliVersion}, link ${cpa.link().kind})`);
 
 function startAfterBind(_bound: ReturnType<typeof serve>, loops: readonly { start(): void }[]): void {
   for (const loop of loops) loop.start();

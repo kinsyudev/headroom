@@ -23,7 +23,7 @@ const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
 
 async function restartLoop(opts: { readonly totalMs: number; readonly lifeMs: number; readonly accounts?: readonly CpaAccount[]; readonly always429?: boolean; readonly step?: number }) {
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-restart-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-restart-'));
   dirs.push(dir);
   const clock = new FakeClock(T0);
   const usage: { at: number; account: AccountId; status: number }[] = [];
@@ -82,7 +82,7 @@ describe('the budget survives restarts', () => {
 
 describe('the last readings survive restarts', () => {
   test('a restarted deck shows the previous reads with their real age and does not re-read the profile', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-samples-'));
+    const dir = mkdtempSync(join(tmpdir(), 'headroom-samples-'));
     dirs.push(dir);
     const clock = new FakeClock(T0);
     const calls: { at: number; path: string }[] = [];

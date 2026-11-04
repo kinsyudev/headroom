@@ -27,7 +27,7 @@ function fakeCpa(): FakeCpa {
 }
 
 function stateFile(): StateFile {
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-strikes-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-strikes-'));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   return openStateFile(join(dir, 'state.json'));
 }

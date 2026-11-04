@@ -2,19 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.kinsyu.cpa-deck</string>
+  <key>Label</key><string>com.kinsyu.headroom</string>
   <key>ProgramArguments</key>
   <array>
     <string>/Users/kinsyu/.bun/bin/bun</string>
     <string>run</string>
     <string>src/main.ts</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/kinsyu/.t3/scratch/2026-11-04-pstack-cc-poteto-mode-i-bed40a2c</string>
+  <key>WorkingDirectory</key><string>/Users/kinsyu/Documents/repos/headroom</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>30</integer>
-  <key>StandardOutPath</key><string>/Users/kinsyu/Library/Logs/cpa-deck.log</string>
-  <key>StandardErrorPath</key><string>/Users/kinsyu/Library/Logs/cpa-deck.log</string>
+  <key>StandardOutPath</key><string>/Users/kinsyu/Library/Logs/headroom.log</string>
+  <key>StandardErrorPath</key><string>/Users/kinsyu/Library/Logs/headroom.log</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key><string>/Users/kinsyu/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>

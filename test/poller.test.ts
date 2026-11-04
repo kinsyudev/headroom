@@ -35,7 +35,7 @@ interface Sent {
 
 let dir: string;
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'cpa-deck-poller-'));
+  dir = mkdtempSync(join(tmpdir(), 'headroom-poller-'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

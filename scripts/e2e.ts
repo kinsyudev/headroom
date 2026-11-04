@@ -160,8 +160,8 @@ try {
   const foreign = await fetch(`${stack.url}/api/snapshot`, { headers: { Host: `evil.example:${stack.port}` } });
   assert(foreign.status === 421, `foreign Host answered ${foreign.status}`);
   const bare = await fetch(`${stack.url}/api/act`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'routing.setStrategy', input: { strategy: 'fill-first' } }) });
-  assert(bare.status === 403, `POST without X-CPA-Deck answered ${bare.status}`);
-  pass('guard rejects a foreign Host (421) and a POST without X-CPA-Deck (403)');
+  assert(bare.status === 403, `POST without X-Headroom answered ${bare.status}`);
+  pass('guard rejects a foreign Host (421) and a POST without X-Headroom (403)');
 
   const got = mutations().map((m) => ({ method: m.method, path: m.path, body: m.body }));
   assert(Bun.deepEquals(got, EXPECTED_MUTATIONS), `mutations differ:\n${JSON.stringify(got, null, 2)}`);

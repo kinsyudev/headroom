@@ -17,7 +17,7 @@ export interface Stack {
 
 export async function startStack(opts: { readonly port?: number; readonly log?: string } = {}): Promise<Stack> {
   const port = opts.port ?? 1338;
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-stack-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-stack-'));
   const fake = startFakeCpa({ key: KEY });
   writeFileSync(join(dir, 'cpa-usage-keeper.env'), `APP_PORT=1337\nCPA_MANAGEMENT_KEY=${KEY}\n`);
   const keeperPath = join(dir, 'app.db');
@@ -35,10 +35,10 @@ export async function startStack(opts: { readonly port?: number; readonly log?: 
     env: {
       ...process.env,
       CPA_BASE_URL: fake.url,
-      CPA_DECK_PORT: String(port),
-      CPA_DECK_ENV_FILE: join(dir, 'cpa-usage-keeper.env'),
-      CPA_DECK_KEEPER_DB: keeperPath,
-      CPA_DECK_STATE_DIR: join(dir, 'state'),
+      HEADROOM_PORT: String(port),
+      HEADROOM_ENV_FILE: join(dir, 'cpa-usage-keeper.env'),
+      HEADROOM_KEEPER_DB: keeperPath,
+      HEADROOM_STATE_DIR: join(dir, 'state'),
     },
     stdout: Bun.file(logPath),
     stderr: Bun.file(logPath),

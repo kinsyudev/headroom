@@ -51,7 +51,7 @@ try {
 
   const foreign = await fetch(`${URL}/api/snapshot`, { headers: { Host: 'evil.example:1338' } });
   const bare = await fetch(`${URL}/api/act`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"kind":"no.such.action"}' });
-  console.log(`guard: foreign Host -> ${foreign.status}, POST without X-CPA-Deck -> ${bare.status}`);
+  console.log(`guard: foreign Host -> ${foreign.status}, POST without X-Headroom -> ${bare.status}`);
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1480, height: 1000 } });

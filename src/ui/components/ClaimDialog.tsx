@@ -56,7 +56,7 @@ export function ClaimDialog(props: {
           <dd>{offer.effect}</dd>
           <dt>Based on</dt>
           <dd>
-            reset data from <Age at={offer.dataAt} /> ago. The deck reads Anthropic again before sending and sends nothing unless it still says claimable.
+            reset data from <Age at={offer.dataAt} /> ago. Headroom reads Anthropic again before sending and sends nothing unless it still says claimable.
           </dd>
         </dl>
         <p className="irreversible">This cannot be undone. It uses one of this account's resets.</p>

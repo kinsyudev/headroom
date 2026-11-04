@@ -117,7 +117,7 @@ export function createClaims(deps: {
 
 function restore(state: StateFile | undefined, now: Instant): ClaimRecord[] {
   return ((state?.read().claims ?? []) as ClaimRecord[]).map((r) =>
-    r.state.kind === 'sending' ? { ...r, state: { kind: 'maybe_sent', at: now, why: 'the deck restarted while this claim was being sent' } } : r,
+    r.state.kind === 'sending' ? { ...r, state: { kind: 'maybe_sent', at: now, why: 'Headroom restarted while this claim was being sent' } } : r,
   );
 }
 

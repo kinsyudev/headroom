@@ -21,7 +21,7 @@ afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
 async function rig() {
   const fake = startFakeCpa({ key: KEY });
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-hold-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-hold-'));
   cleanups.push(() => fake.stop(), () => rmSync(dir, { recursive: true, force: true }));
   const state = openStateFile(join(dir, 'state.json'));
   const cpa = createCpa({ baseUrl: fake.url, envPath: '/dev/null', readKey: () => Secret.from(KEY), state, now: realClock.now });
@@ -86,9 +86,9 @@ describe('a claim with an unknown outcome holds its program', () => {
 });
 
 describe('a claim survives a restart', () => {
-  test('a claim in flight when the deck dies holds its program in the next process, so a second click sends nothing', async () => {
+  test('a claim in flight when Headroom dies holds its program in the next process, so a second click sends nothing', async () => {
     const fake = startFakeCpa({ key: KEY });
-    const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-restart-claim-'));
+    const dir = mkdtempSync(join(tmpdir(), 'headroom-restart-claim-'));
     cleanups.push(() => fake.stop(), () => rmSync(dir, { recursive: true, force: true }));
     fake.claimDelayMs = 2_000;
     const boot = async () => {

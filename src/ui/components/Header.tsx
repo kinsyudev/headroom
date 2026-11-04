@@ -18,7 +18,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
   return (
     <header className="topbar">
       <div className="brand">
-        <h1>cpa-deck</h1>
+        <h1>Headroom</h1>
         <span className={`live-dot ${props.connection}`} title={`snapshot ${props.connection}`} aria-label={`connection ${props.connection}`} />
       </div>
       <div className="topbar-controls">

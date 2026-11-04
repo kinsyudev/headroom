@@ -12,7 +12,7 @@ test('the HTTP idle timeout outlasts one claim request: fresh wall read, claim, 
   expect(BUN_MAX_IDLE_TIMEOUT_S * 1000).toBeGreaterThan(freshWallRead + claim + cooldownClears);
 });
 
-test("the deck's wait on CPA for a claim outlasts Claude Code's own claim timeout", () => {
+test("Headroom's wait on CPA for a claim outlasts Claude Code's own claim timeout", () => {
   expect(CLAIM_TIMEOUT_MS).toBeGreaterThan(CLAUDE_CODE_CLAIM_TIMEOUT_MS);
 });
 

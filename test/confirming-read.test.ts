@@ -32,7 +32,7 @@ function consumed(): string {
 
 test('a confirming wall read that 429s stays wanted, so the claim resolves once reads succeed again', async () => {
   const clock = new FakeClock(T0);
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-confirm-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-confirm-'));
   dirs.push(dir);
   const sent: { at: number; path: string; status: number }[] = [];
   let claimed = false;

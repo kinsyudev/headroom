@@ -46,8 +46,8 @@ export function App() {
 function Splash(props: { readonly connection: Connection }) {
   return (
     <div className="splash">
-      <h1>cpa-deck</h1>
-      <p className="muted">{props.connection === 'lost' ? 'Cannot reach the deck server. Retrying every 2 s.' : 'Connecting…'}</p>
+      <h1>Headroom</h1>
+      <p className="muted">{props.connection === 'lost' ? 'Cannot reach the Headroom server. Retrying every 2 s.' : 'Connecting…'}</p>
     </div>
   );
 }

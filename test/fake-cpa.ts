@@ -251,7 +251,7 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
       if (path.startsWith('/v0/management')) return management(req, path.slice('/v0/management'.length));
       if (path === '/__fake/mutations') return ok(fake.mutations);
       if (path === '/__fake/calls') return ok(fake.calls);
-      if (path === '/__fake/oauth/authorize') return new Response('<!doctype html><title>Fake Anthropic sign-in</title><p>Fake Anthropic sign-in. The deck finishes the flow.</p>', { headers: { 'Content-Type': 'text/html' } });
+      if (path === '/__fake/oauth/authorize') return new Response('<!doctype html><title>Fake Anthropic sign-in</title><p>Fake Anthropic sign-in. Headroom finishes the flow.</p>', { headers: { 'Content-Type': 'text/html' } });
       return ok({ error: 'not found' }, 404);
     },
   });

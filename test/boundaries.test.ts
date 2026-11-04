@@ -52,7 +52,7 @@ describe('hard constraints', () => {
   });
 
   test('the server binds 127.0.0.1 only, whatever the environment says', () => {
-    expect(loadConfig({ CPA_DECK_PORT: '1338', CPA_DECK_CLI_VERSION: '1.0.0' }).hostname).toBe('127.0.0.1');
+    expect(loadConfig({ HEADROOM_PORT: '1338', HEADROOM_CLI_VERSION: '1.0.0' }).hostname).toBe('127.0.0.1');
     expect(where(/0\.0\.0\.0/)).toEqual([]);
   });
 
@@ -60,7 +60,7 @@ describe('hard constraints', () => {
     expect(where(/input_tokens/)).toEqual(['server/keeper.ts']);
   });
 
-  test('no package script hot-reloads the deck, which would leave the old pollers running', () => {
+  test('no package script hot-reloads Headroom, which would leave the old pollers running', () => {
     const scripts = JSON.parse(readFileSync(join(SRC, '../package.json'), 'utf8')).scripts as Record<string, string>;
     expect(Object.entries(scripts).filter(([, cmd]) => /--(hot|watch)\b/.test(cmd))).toEqual([]);
   });
@@ -104,7 +104,7 @@ describe('secrets', () => {
   });
 
   test('readManagementKey handles quotes and a missing file', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-env-'));
+    const dir = mkdtempSync(join(tmpdir(), 'headroom-env-'));
     writeFileSync(join(dir, 'env'), 'APP_PORT=1337\nCPA_MANAGEMENT_KEY="quoted-key"\n');
     expect(readManagementKey(join(dir, 'env'))?.reveal()).toBe('quoted-key');
     expect(readManagementKey('/nonexistent/env')).toBeNull();

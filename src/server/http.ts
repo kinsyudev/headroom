@@ -1,6 +1,6 @@
 /**
  * Guard, every route: Host must be exactly 127.0.0.1:<port> or localhost:<port>, which stops DNS
- * rebinding. POST also needs `X-CPA-Deck: 1` and `Content-Type: application/json`; a cross-origin
+ * rebinding. POST also needs `X-Headroom: 1` and `Content-Type: application/json`; a cross-origin
  * page can't send either without a preflight, and nothing here answers preflights or sends CORS
  * headers.
  */
@@ -72,7 +72,7 @@ export function guard(req: Request, opts: { readonly port: number; readonly muta
     return json({ error: { code: 'forbidden', message: 'host not allowed' } }, 421);
   }
   if (!opts.mutate) return null;
-  if (req.headers.get('x-cpa-deck') !== '1') return json({ error: { code: 'forbidden', message: 'missing X-CPA-Deck header' } }, 403);
+  if (req.headers.get('x-headroom') !== '1') return json({ error: { code: 'forbidden', message: 'missing X-Headroom header' } }, 403);
   if (!(req.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
     return json({ error: { code: 'forbidden', message: 'Content-Type must be application/json' } }, 415);
   }
@@ -105,7 +105,7 @@ function json(value: unknown, status = 200): Response {
 function errorResponse(e: unknown): Response {
   if (e instanceof DeckError) return json({ error: { code: e.code, message: e.message } }, DECK_ERROR_STATUS[e.code]);
   if (e instanceof ZodError) return json({ error: { code: 'invalid', message: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') } }, 400);
-  console.error('cpa-deck internal error:', e instanceof Error ? e.message : String(e));
+  console.error('Headroom internal error:', e instanceof Error ? e.message : String(e));
   return json({ error: { code: 'internal', message: 'internal error' } }, 500);
 }
 

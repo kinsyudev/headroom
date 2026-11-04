@@ -1,4 +1,4 @@
-# cpa-deck design
+# Headroom design
 
 This document is the contract for the implementation. The scaffold in `src/` and `test/` is candidate 1 from the design arena. This document changes that scaffold, and where the two disagree, this document wins. The external surfaces are specified in `docs/upstream.md`.
 
@@ -62,7 +62,7 @@ All three candidates polled two usage endpoints at 60 s, which contradicts the m
   - Any limit's `percent >= 100`.
   - The header snapshot `status === 'rejected'`.
   - A live credential-scope cooldown whose reason is `quota` or `credential_quota`.
-- Claude Code only reads `at_wall` at the wall, and the deck mirrors that. Away from the wall, juniper_tide shows as `held`, meaning it is offered at the wall, with its last known value and age if one exists.
+- Claude Code only reads `at_wall` at the wall, and Headroom mirrors that. Away from the wall, juniper_tide shows as `held`, meaning it is offered at the wall, with its last known value and age if one exists.
 - **Budget rules.** `anthropic.ts` enforces them at the one place requests leave:
   - At least 10 s between any two Anthropic calls, process-wide.
   - At most 8 usage reads per account in any rolling 15 minutes, two thirds of the ~12 that earned a 429. The cap counts every kind of read: scheduled, manual, and a claim's fresh read. While the cap is full, the card shows when the next read is allowed, and a claim answers `not_claimable` with that time.
@@ -117,11 +117,11 @@ There is nothing else. No SQLite of our own.
 - SSE is dropped. The UI polls `/api/snapshot` every 2 s. The server builds the snapshot from in-memory owners, so each poll is cheap.
 - The `/api/session` CSRF token is dropped. The guard is:
   - Host allowlist (`127.0.0.1:1338`, `localhost:1338`), against DNS rebinding.
-  - Every POST requires `X-CPA-Deck: 1` and `Content-Type: application/json`. A custom header can't be sent cross-origin without a preflight, and we never answer preflights.
+  - Every POST requires `X-Headroom: 1` and `Content-Type: application/json`. A custom header can't be sent cross-origin without a preflight, and we never answer preflights.
   - `Origin`, when present, must be same-origin.
   - The server sends no CORS headers.
 - `Secret` from candidate 2 wraps the management key and redacts itself in `JSON.stringify`, template literals, and `inspect`.
-- `cpa.ts` sends management requests one at a time, and each one reads the latch when it reaches the front of the queue. Concurrent requests would each meet the wrong key before the first 401 came back, at startup and again when CPA reloads a new key under a running deck. One at a time, a wrong key costs exactly one strike. The cost is that a slow `api-call` delays the CPA reads queued behind it. An Anthropic call through CPA usually takes under a second. The 20 s read timeout and the 35 s claim timeout bound the delay.
+- `cpa.ts` sends management requests one at a time, and each one reads the latch when it reaches the front of the queue. Concurrent requests would each meet the wrong key before the first 401 came back, at startup and again when CPA reloads a new key under a running Headroom. One at a time, a wrong key costs exactly one strike. The cost is that a slow `api-call` delays the CPA reads queued behind it. An Anthropic call through CPA usually takes under a second. The 20 s read timeout and the 35 s claim timeout bound the delay.
 
 ### 6. Derivations to add (from candidate 3)
 
@@ -144,7 +144,7 @@ There is nothing else. No SQLite of our own.
 
 - Bun 1.3, TypeScript, React 19, and zod. Charts are hand-written SVG; read the `dataviz` skill before writing chart code.
 - Port 1338.
-- LaunchAgent `com.kinsyu.cpa-deck` runs `/Users/kinsyu/.bun/bin/bun run src/main.ts`, with this repo as its working directory. Logs go to `~/Library/Logs/cpa-deck.log`. It sets `KeepAlive` and `ThrottleInterval 30`.
+- LaunchAgent `com.kinsyu.headroom` runs `/Users/kinsyu/.bun/bin/bun run src/main.ts`, with this repo as its working directory. Logs go to `~/Library/Logs/headroom.log`. It sets `KeepAlive` and `ThrottleInterval 30`.
 
 ## Synthesis decision
 

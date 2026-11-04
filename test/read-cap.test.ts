@@ -45,7 +45,7 @@ function stubCpa(clock: FakeClock, sent: Sent[]): Cpa {
 function rig(opts: { readonly accounts?: readonly CpaAccount[]; readonly clock?: FakeClock; readonly dir?: string; readonly sent?: Sent[] } = {}) {
   const clock = opts.clock ?? new FakeClock(T0);
   const sent = opts.sent ?? [];
-  const dir = opts.dir ?? mkdtempSync(join(tmpdir(), 'cpa-deck-cap-'));
+  const dir = opts.dir ?? mkdtempSync(join(tmpdir(), 'headroom-cap-'));
   if (!opts.dir) dirs.push(dir);
   const cpa = stubCpa(clock, sent);
   const state = openStateFile(join(dir, 'state.json'));

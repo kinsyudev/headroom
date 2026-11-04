@@ -16,7 +16,7 @@ const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
 
 function db(): { path: string; handle: Database } {
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-keeper-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-keeper-'));
   dirs.push(dir);
   const path = join(dir, 'app.db');
   const handle = new Database(path, { create: true });

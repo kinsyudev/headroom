@@ -21,7 +21,7 @@ afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
 async function rig(opts: { claimTimeoutMs?: number; before?: (fake: FakeCpa) => void; fake?: FakeCpa } = {}) {
   const fake = opts.fake ?? startFakeCpa({ key: KEY });
-  const dir = mkdtempSync(join(tmpdir(), 'cpa-deck-claims-'));
+  const dir = mkdtempSync(join(tmpdir(), 'headroom-claims-'));
   if (!opts.fake) cleanups.push(() => fake.stop());
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const state = openStateFile(join(dir, 'state.json'));

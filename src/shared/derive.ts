@@ -67,9 +67,9 @@ const KIND_ORDER = ['session', 'weekly_all', 'weekly_scoped'];
 export const INELIGIBLE_EXPLAIN: Readonly<Record<string, string>> = {
   tier: 'Plan tier is not in the program.',
   tenure: 'Account is too new.',
-  surface: 'Request did not look like Claude Code. The deck sent the wrong User-Agent or x-app header.',
+  surface: 'Request did not look like Claude Code. Headroom sent the wrong User-Agent or x-app header.',
   mobile: 'Only offered on mobile.',
-  cli_version: 'The Claude Code version the deck reports is too old.',
+  cli_version: 'The Claude Code version Headroom reports is too old.',
   not_at_wall: 'Anthropic says this account is not at a limit right now.',
   weekly_limit: 'The weekly limit is binding, so a session reset would not help.',
   no_weekly_limit: 'Account has no weekly limit.',
