@@ -71,6 +71,8 @@ export function emptySource<T>(): Source<T> {
 
 export type SourceError =
   | { readonly kind: 'rate_limited'; readonly retryAt: Instant }
+  /** The deck's own cap on usage reads is full, so nothing was sent. */
+  | { readonly kind: 'read_cap'; readonly retryAt: Instant }
   /** Anthropic said 401/403 for this account's token. */
   | { readonly kind: 'auth'; readonly status: number }
   | { readonly kind: 'cpa_unreachable' }
@@ -245,6 +247,8 @@ export interface AccountFeeds {
 /** The poll budget's facts for one account. The UI derives "can refresh now" from them. */
 export interface ReadGate {
   readonly backoffUntil: Instant | null;
+  /** The per-account read cap is full until then. */
+  readonly capUntil: Instant | null;
   readonly manualAt: Instant | null;
   readonly reading: ReadMode | 'profile' | null;
 }
@@ -256,7 +260,7 @@ export function emptyFeeds(): AccountFeeds {
     cedar: emptySource(),
     juniper: emptySource(),
     profile: emptySource(),
-    gate: { backoffUntil: null, manualAt: null, reading: null },
+    gate: { backoffUntil: null, capUntil: null, manualAt: null, reading: null },
   };
 }
 

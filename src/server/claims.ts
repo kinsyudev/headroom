@@ -3,7 +3,8 @@
  *
  * Anthropic's program status is the ledger, so there is no local journal. Per (account, program):
  *   1. A claim already in flight returns the same promise (double-click, second tab).
- *   2. One fresh `wall` read, subject to backoff. If it can't be made: not_claimable, stale.
+ *   2. One fresh `wall` read, subject to backoff and the read cap. If it can't be made:
+ *      not_claimable, stale, with when a read is next allowed.
  *   3. The pure offer derivation runs on that fresh sample. Not claimable: not_claimable, why.
  *   4. One POST reset_rate_limits. Never retried.
  *   5. On `reset` or `not_limited`, CPA reset-quota, at most 3 tries 2 s apart.
@@ -15,7 +16,7 @@
 import { DeckError } from '../shared/errors';
 import { cedarState, explainOffer, juniperState, usableGrant } from '../shared/derive';
 import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, ProgramId, SourceError } from '../shared/domain';
-import type { Anthropic, Clock } from './anthropic';
+import { READ_CAP, type Anthropic, type Clock } from './anthropic';
 import type { Cpa } from './cpa';
 import type { Poller } from './poller';
 
@@ -117,6 +118,8 @@ function describe(e: SourceError): string {
   switch (e.kind) {
     case 'rate_limited':
       return `rate-limited until ${new Date(e.retryAt).toISOString()}`;
+    case 'read_cap':
+      return `read cap: ${READ_CAP} reads in 15 min used, next read allowed at ${new Date(e.retryAt).toISOString()}`;
     case 'upstream':
       return `upstream ${e.status} ${e.message}`.trim();
     case 'malformed':

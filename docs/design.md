@@ -65,10 +65,11 @@ All three candidates polled two usage endpoints at 60 s, which contradicts the m
 - Claude Code only reads `at_wall` at the wall, and the deck mirrors that. Away from the wall, juniper_tide shows as `held`, meaning it is offered at the wall, with its last known value and age if one exists.
 - **Budget rules.** `anthropic.ts` enforces them at the one place requests leave:
   - At least 10 s between any two Anthropic calls, process-wide.
+  - At most 8 usage reads per account in any rolling 15 minutes, two thirds of the ~12 that earned a 429. The cap counts every kind of read: scheduled, manual, and a claim's fresh read. While the cap is full, the card shows when the next read is allowed, and a claim answers `not_claimable` with that time.
   - Stagger the first poll per account by 15 s after start.
   - On a 429, back off that account only. Honor `retry-after` when present, otherwise use 5, 10, 20, then 30 min, capped. Reset the backoff on a successful usage read. A profile 2xx does not reset it, because the usage endpoint is the one Anthropic limits.
   - A restarted process continues the same budget. At start, the scheduler takes each account's last usage read from `var/state.json`, so a restart loop reads no account more often than one long-lived process would.
-  - A manual refresh moves an account's next read to now. It is allowed once per 60 s per account and never during backoff.
+  - A manual refresh moves an account's next read to now. It is allowed once per 60 s per account, and never during backoff or while the cap is full.
 - **Claude Code identity.** Send `User-Agent: claude-cli/<version> (external, cli)` and `x-app: cli` on every Anthropic call. At startup, read `<version>` from `claude --version`. If that fails, fall back to `2.1.311`. Without these headers, every program reads `ineligible: surface`.
 
 ### 2. Feeds split by which read writes them
@@ -93,7 +94,7 @@ Per make-operations-idempotent, each step is derived from the state that exists.
 - There is one action, `claim`, with input `{account, program, grant?}`. The prepare/confirm split goes away. The confirm dialog shows the client-derived offer and the age of the data behind it.
 - On the server, `claims.ts` runs these steps for each (account, program):
   1. If a claim for this (account, program) is `sending`, return the same in-flight promise. That covers a double-click or a second tab.
-  2. Force one `wall` read for the account, subject to backoff. If the read can't be made, return `not_claimable: stale`.
+  2. Force one `wall` read for the account, subject to backoff and the read cap. If the read can't be made, return `not_claimable: stale` with when a read is next allowed.
   3. Run `deriveOffers` on that fresh sample. If the offer isn't `claimable`, return `not_claimable` with `explainOffer()`.
   4. Send `POST /api/organizations/{org}/reset_rate_limits` once. Use `{program:'juniper_tide'}`, or `{program:'cedar_ember', grant_id, request_id: crypto.randomUUID()}`. Never retry automatically.
   5. On `reset` or `not_limited`, call CPA `POST /reset-quota {auth_index}`. Try at most 3 times, 2 s apart. If it still fails, report that the claim succeeded but CPA's cooldown wasn't cleared, and point at **Clear cooldown**.

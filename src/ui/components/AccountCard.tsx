@@ -17,6 +17,13 @@ const WHY: Readonly<Record<string, string>> = {
   round_robin: 'round-robin',
 };
 
+const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], string>> = {
+  reading: 'A read is already running',
+  rate_limited: 'Rate-limited; waiting for the backoff',
+  capped: 'At most 8 reads per account in 15 minutes; waiting for the oldest to age out',
+  debounced: 'Once per minute per account',
+};
+
 export function AccountCard(props: { readonly account: AccountView; readonly color: string; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const a = props.account;
   const r = a.routing;
@@ -51,6 +58,11 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
             <>
               {' · '}rate-limited until <Clock at={a.read.backoffUntil} />
             </>
+          )}
+          {a.read.capUntil !== null && (
+            <span data-testid="read-cap">
+              {' · '}read cap full, next read allowed <Clock at={a.read.capUntil} />
+            </span>
           )}
         </span>
       </div>
@@ -132,19 +144,11 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
             kind="quota.refresh"
             input={{ account: a.id }}
             disabled={held !== null}
-            title={
-              held === null
-                ? 'Read Anthropic usage now'
-                : held.why === 'rate_limited'
-                  ? 'Rate-limited; waiting for the backoff'
-                  : held.why === 'reading'
-                    ? 'A read is already running'
-                    : 'Once per minute per account'
-            }
+            title={held === null ? 'Read Anthropic usage now' : REFRESH_HELD[held.why]}
             done={(o) => (o.scheduled[0]?.held ? `held: ${o.scheduled[0].held}` : 'read queued')}
             testId="refresh-quota"
           >
-            ↻ Read now{held?.why === 'debounced' && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
+            ↻ Read now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
           </ActionButton>
         </div>
         <FreshnessChips feeds={a.freshness} testId="freshness" />

@@ -5,7 +5,9 @@
  * - a 429 or `rate_limit_error` backs off that account only: `retry-after` when present, else
  *   5, 10, 20, then 30 min; only a successful usage read resets it, because the usage endpoint
  *   is the one Anthropic limits;
- * - nothing is sent for an account in backoff.
+ * - nothing is sent for an account in backoff;
+ * - at most READ_CAP usage reads per account in any READ_CAP_WINDOW_MS, whatever asked for them:
+ *   the schedule, Read now, or a claim's fresh read.
  * Each account's budget (when its usage reads left, and its backoff with the ladder step) lives
  * in state.json, so a restarted process continues the same budget instead of starting a new one.
  * Scheduling (which account, which mode, when) belongs to poller.ts. Nothing here retries.
@@ -32,8 +34,9 @@ import type { ReadBudget, StateFile } from './state';
 const BASE = 'https://api.anthropic.com';
 export const ANTHROPIC_GAP_MS = 10_000;
 export const BACKOFF_LADDER_MS = [5, 10, 20, 30].map((m) => m * 60_000);
-/** How long state.json remembers each usage read. */
-export const READ_LOG_MS = 15 * 60_000;
+/** Two thirds of the ~12 per 15 min that earned a 429 when measured. */
+export const READ_CAP = 8;
+export const READ_CAP_WINDOW_MS = 15 * 60_000;
 export const READ_TIMEOUT_MS = 20_000;
 /** Claude Code gives the claim 25 s upstream; our wait on CPA must outlast it. */
 export const CLAIM_TIMEOUT_MS = 35_000;
@@ -79,6 +82,8 @@ export interface Budget {
   readonly lastReadAt: Instant | null;
   /** A live 429 backoff: nothing is sent for the account until then. */
   readonly backoffUntil: Instant | null;
+  /** The read cap is full: the next usage read is allowed then. */
+  readonly capUntil: Instant | null;
 }
 
 const NO_BUDGET: ReadBudget = { reads: [], backoff: null };
@@ -94,7 +99,7 @@ export function claudeHeaders(cliVersion: string): Record<string, string> {
   };
 }
 
-type Sent = UpstreamResult | { readonly kind: 'held'; readonly until: Instant };
+type Sent = UpstreamResult | { readonly kind: 'held'; readonly why: 'backoff' | 'read_cap'; readonly until: Instant };
 
 export function createAnthropic(deps: {
   readonly cpa: Cpa;
@@ -115,10 +120,13 @@ export function createAnthropic(deps: {
   }
 
   function budget(account: AccountId): Budget {
+    const now = deps.clock.now();
     const b = stored(account);
+    const recent = b.reads.filter((t) => t > now - READ_CAP_WINDOW_MS);
     return {
       lastReadAt: (b.reads.at(-1) ?? null) as Instant | null,
-      backoffUntil: b.backoff !== null && b.backoff.until > deps.clock.now() ? (b.backoff.until as Instant) : null,
+      backoffUntil: b.backoff !== null && b.backoff.until > now ? (b.backoff.until as Instant) : null,
+      capUntil: recent.length >= READ_CAP ? ((recent[recent.length - READ_CAP]! + READ_CAP_WINDOW_MS) as Instant) : null,
     };
   }
 
@@ -135,11 +143,12 @@ export function createAnthropic(deps: {
     const run = async (): Promise<Sent> => {
       const wait = lastAt + gap - deps.clock.now();
       if (wait > 0) await deps.clock.sleep(wait);
-      const held = budget(account).backoffUntil;
-      if (held !== null) return { kind: 'held', until: held };
+      const b = budget(account);
+      if (b.backoffUntil !== null) return { kind: 'held', why: 'backoff', until: b.backoffUntil };
+      if (usage && b.capUntil !== null) return { kind: 'held', why: 'read_cap', until: b.capUntil };
       const sentAt = (lastAt = deps.clock.now());
       // Recorded before the request leaves, so a process killed mid-read still counts it.
-      if (usage) write(account, (b) => ({ ...b, reads: [...b.reads.filter((t) => t > sentAt - READ_LOG_MS), sentAt] }));
+      if (usage) write(account, (x) => ({ ...x, reads: [...x.reads.filter((t) => t > sentAt - READ_CAP_WINDOW_MS), sentAt] }));
       const r = await deps.cpa.apiCall({
         account,
         method,
@@ -164,7 +173,7 @@ export function createAnthropic(deps: {
   function toPolled<T>(account: AccountId, r: Sent, parse: (json: unknown) => T): Polled<T> {
     const at = deps.clock.now();
     const fail = (error: SourceError): Polled<T> => ({ ok: false, error, at });
-    if (r.kind === 'held') return fail({ kind: 'rate_limited', retryAt: r.until });
+    if (r.kind === 'held') return fail({ kind: r.why === 'read_cap' ? 'read_cap' : 'rate_limited', retryAt: r.until });
     if (r.kind === 'not_sent') return fail(deps.cpa.link().kind === 'ok' ? { kind: 'cpa_unreachable' } : { kind: 'link_down' });
     if (r.kind === 'unknown') return fail({ kind: 'upstream', status: 0, message: r.why });
     if (rateLimit(r) !== undefined) return fail({ kind: 'rate_limited', retryAt: budget(account).backoffUntil ?? at });

@@ -4,8 +4,8 @@
  * One read per account per cycle. The mode comes from `isAtWall`, the same pure function the UI
  * shows: `wall` every 3 min while at the wall, `normal` every 5 min otherwise. Profile at start,
  * then every 6 h. First reads are staggered 15 s per account. A manual refresh moves the next
- * read to now, once per 60 s per account, and never during backoff. The budget itself (10 s gap,
- * backoff) is enforced in anthropic.ts, where requests leave. Each account's last read comes from
+ * read to now, once per 60 s per account, and never during backoff or while the read cap is full.
+ * The budget itself (10 s gap, backoff, read cap) is enforced in anthropic.ts, where requests leave. Each account's last read comes from
  * that budget at start, so a restarted process keeps the cadence of the one before it.
  */
 import { DeckError } from '../shared/errors';
@@ -38,12 +38,13 @@ export interface ReadClock {
   readonly lastAttemptAt: Instant | null;
   readonly requestedAt: Instant | null;
   readonly backoffUntil: Instant | null;
+  readonly capUntil: Instant | null;
 }
 
 export function readDueAt(c: ReadClock, atWall: boolean): Instant {
   const cadence = Math.max(c.firstAt, c.lastAttemptAt === null ? -Infinity : c.lastAttemptAt + (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS));
   const requested = c.requestedAt !== null && (c.lastAttemptAt === null || c.requestedAt > c.lastAttemptAt) ? c.requestedAt : null;
-  return Math.max(requested === null ? cadence : Math.min(cadence, requested), c.backoffUntil ?? -Infinity) as Instant;
+  return Math.max(requested === null ? cadence : Math.min(cadence, requested), c.backoffUntil ?? -Infinity, c.capUntil ?? -Infinity) as Instant;
 }
 
 export function profileDueAt(c: { readonly firstAt: Instant; readonly attemptAt: Instant | null; readonly okAt: Instant | null; readonly backoffUntil: Instant | null }): Instant {
@@ -153,13 +154,13 @@ export function createPoller(deps: {
     for (const a of list) {
       const st = states.get(a.id)!;
       if (st.pending.length > 0) continue;
-      const { backoffUntil } = deps.anthropic.budget(a.id);
+      const { backoffUntil, capUntil } = deps.anthropic.budget(a.id);
       if (now >= profileDueAt({ firstAt: st.firstAt, attemptAt: st.profileAttemptAt, okAt: st.profileOkAt, backoffUntil })) {
         void enqueue(a.id, st, 'profile');
         continue;
       }
       const atWall = isAtWall(a, st.feeds.limits.last, now);
-      if (now < readDueAt({ ...st, backoffUntil }, atWall)) continue;
+      if (now < readDueAt({ ...st, backoffUntil, capUntil }, atWall)) continue;
       const mode = st.wallRequested || atWall ? 'wall' : 'normal';
       if (mode === 'wall') st.wallRequested = false;
       void enqueue(a.id, st, mode);
@@ -183,9 +184,9 @@ export function createPoller(deps: {
       for (const a of deps.accounts()) {
         const st = states.get(a.id);
         if (!st) continue;
-        const { backoffUntil } = deps.anthropic.budget(a.id);
+        const { backoffUntil, capUntil } = deps.anthropic.budget(a.id);
         const atWall = isAtWall(a, st.feeds.limits.last, now);
-        const due = linkOk ? readDueAt({ ...st, backoffUntil }, atWall) : null;
+        const due = linkOk ? readDueAt({ ...st, backoffUntil, capUntil }, atWall) : null;
         const f = st.feeds;
         out[a.id] = {
           limits: { ...f.limits, nextAt: due },
@@ -193,7 +194,7 @@ export function createPoller(deps: {
           spend: { ...f.spend, nextAt: atWall ? null : due },
           juniper: { ...f.juniper, nextAt: atWall ? due : null },
           profile: { ...f.profile, nextAt: linkOk ? profileDueAt({ firstAt: st.firstAt, attemptAt: st.profileAttemptAt, okAt: st.profileOkAt, backoffUntil }) : null },
-          gate: { backoffUntil, manualAt: st.manualAt, reading: st.pending[0] ?? null },
+          gate: { backoffUntil, capUntil, manualAt: st.manualAt, reading: st.pending[0] ?? null },
         };
       }
       return out;
@@ -204,14 +205,17 @@ export function createPoller(deps: {
       const result = ids.flatMap((id) => {
         const st = states.get(id);
         if (!st) return [];
+        const b = deps.anthropic.budget(id);
         const held: RefreshHeld | null =
           st.pending.length > 0
             ? 'reading'
-            : deps.anthropic.budget(id).backoffUntil !== null
+            : b.backoffUntil !== null
               ? 'rate_limited'
-              : st.manualAt !== null && now - st.manualAt < MANUAL_REFRESH_EVERY_MS
-                ? 'debounced'
-                : null;
+              : b.capUntil !== null
+                ? 'capped'
+                : st.manualAt !== null && now - st.manualAt < MANUAL_REFRESH_EVERY_MS
+                  ? 'debounced'
+                  : null;
         if (held === null) st.manualAt = st.requestedAt = now;
         return [{ account: id, held }];
       });

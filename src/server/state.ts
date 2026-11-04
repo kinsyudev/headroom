@@ -16,7 +16,7 @@ export interface RejectedKey {
 }
 
 export interface ReadBudget {
-  /** When each usage read left, oldest first, kept for the last READ_LOG_MS. */
+  /** When each usage read left, oldest first, kept for the last READ_CAP_WINDOW_MS. */
   readonly reads: readonly number[];
   /** Set by a 429. `streak` counts 429s since the last successful usage read and picks the ladder step. */
   readonly backoff: { readonly until: number; readonly streak: number } | null;

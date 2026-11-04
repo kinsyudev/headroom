@@ -91,8 +91,10 @@ export interface ReadView {
   readonly nextAt: Instant | null;
   readonly reading: boolean;
   readonly backoffUntil: Instant | null;
+  /** The read cap is full: the next read is allowed then. */
+  readonly capUntil: Instant | null;
   /** Why a manual refresh is refused right now, and until when. */
-  readonly refreshHeld: { readonly why: 'rate_limited' | 'debounced' | 'reading'; readonly until: Instant | null } | null;
+  readonly refreshHeld: { readonly why: 'rate_limited' | 'capped' | 'debounced' | 'reading'; readonly until: Instant | null } | null;
 }
 
 export interface PlanView {

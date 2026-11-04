@@ -165,16 +165,19 @@ export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limi
 function deriveRead(feeds: AccountFeeds, now: Instant): ReadView {
   const g = feeds.gate;
   const backoff = g.backoffUntil !== null && g.backoffUntil > now ? g.backoffUntil : null;
+  const cap = g.capUntil !== null && g.capUntil > now ? g.capUntil : null;
   const manualUntil = g.manualAt === null ? null : ((g.manualAt + MANUAL_REFRESH_EVERY_MS) as Instant);
   const refreshHeld: ReadView['refreshHeld'] =
     g.reading !== null
       ? { why: 'reading', until: null }
       : backoff !== null
         ? { why: 'rate_limited', until: backoff }
-        : manualUntil !== null && manualUntil > now
-          ? { why: 'debounced', until: manualUntil }
-          : null;
-  return { nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, refreshHeld };
+        : cap !== null
+          ? { why: 'capped', until: cap }
+          : manualUntil !== null && manualUntil > now
+            ? { why: 'debounced', until: manualUntil }
+            : null;
+  return { nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, capUntil: cap, refreshHeld };
 }
 
 interface Seen {

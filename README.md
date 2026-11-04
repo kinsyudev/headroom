@@ -83,7 +83,7 @@ The history panel shows stacked columns per account for 24 hours, 7 days, or 30 
 | **Clear cooldown** | CPA `POST /reset-quota`. This changes CPA's local scheduler only. | Repeats are safe. |
 | **Refresh token** | CPA `POST /auth-files/refresh` | The response holds tokens. `cpa.ts` keeps only `ok`. |
 | Routing **fill-first** or **round-robin** | `PUT /routing/strategy` | Sets a value. |
-| **↻ Read now**, **↻ Read all** | Moves the account's next Anthropic read to now. | Allowed once per 60 s per account. Never allowed during a rate-limit backoff. |
+| **↻ Read now**, **↻ Read all** | Moves the account's next Anthropic read to now. | Allowed once per 60 s per account. Never allowed during a rate-limit backoff, or once the account has had 8 reads in the last 15 minutes. The card then shows when the next read is allowed. |
 | **+ Add account** | Opens Anthropic's OAuth page in a new tab. The server polls CPA until the new account appears. | One flow at a time. A flow expires after 5 minutes. |
 
 Every button shows a spinner while its action runs, a check when it succeeds, and the server's message when it fails. A CPA mutation answers only after the server has re-read CPA, so the card already shows the new state when the spinner stops.
@@ -114,4 +114,4 @@ curl -s 127.0.0.1:1338/api/snapshot | jq '.feeds | map_values(.juniper.last.valu
 - It never consumes CPA's usage queue, and it never writes to keeper's DB. keeper is opened `mode=ro` with `query_only`.
 - It never sends a management request without the key, and it never sends the key anywhere but CPA. Requests go to CPA one at a time, so a wrong key meets one 401 and the requests behind it fail without sending. The 401 or 403 records the key's hash in `var/state.json`, and that key is not tried again for 35 minutes. Each distinct key costs at most one strike per ban window, across restarts, which keeps the deck under CPA's 5-strike IP ban. A changed key is tried at once.
 - It never forwards token material.
-- It never calls Anthropic more than once per 10 s overall. A 429 backs off that account for its `retry-after`, or else for 5, 10, 20, then 30 minutes. `var/state.json` keeps each account's recent usage reads and its backoff, so a restart loop reads no more often than one long-lived process and the backoff keeps climbing.
+- It never calls Anthropic more than once per 10 s overall, and never reads one account's usage more than 8 times in 15 minutes, whatever asked for the read. A 429 backs off that account for its `retry-after`, or else for 5, 10, 20, then 30 minutes. `var/state.json` keeps each account's recent usage reads and its backoff, so a restart loop reads no more often than one long-lived process and the backoff keeps climbing.

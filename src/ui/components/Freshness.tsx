@@ -38,7 +38,7 @@ function Chip(props: { readonly f: FreshnessView }) {
   const data = f.ageMs === null ? '—' : age(f.ageMs);
   const parts = f.state === 'held' ? [...(data === '—' ? [] : [data]), HELD[f.feed] ?? 'held'] : [data];
   if (f.error && f.errorAgeMs !== null) parts.push(`${sourceError(f.error)} ${age(f.errorAgeMs)} ago`);
-  const retry = f.error?.kind === 'rate_limited' ? f.error.retryAt : f.state === 'failing' ? f.nextAt : null;
+  const retry = f.error?.kind === 'rate_limited' || f.error?.kind === 'read_cap' ? f.error.retryAt : f.state === 'failing' ? f.nextAt : null;
   if (retry !== null && retry > now) parts.push(`retry ${clockTime(retry, now)}`);
   const title = [
     `${LABEL[f.feed]}: ${f.state}`,

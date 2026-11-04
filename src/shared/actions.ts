@@ -19,7 +19,7 @@ export interface Applied {
   readonly cpaAt: Instant;
 }
 
-export type RefreshHeld = 'debounced' | 'rate_limited' | 'reading';
+export type RefreshHeld = 'debounced' | 'rate_limited' | 'capped' | 'reading';
 
 export const ACTIONS = {
   'account.setDisabled': { input: z.object({ account: accountId, disabled: z.boolean() }), output: out<Applied>() },
@@ -34,7 +34,7 @@ export const ACTIONS = {
     input: z.object({ strategy: z.enum(['fill-first', 'round-robin']).transform((s) => s as RoutingStrategy) }),
     output: out<Applied>(),
   },
-  /** Moves the next Anthropic read to now. Never bypasses backoff. */
+  /** Moves the next Anthropic read to now. Never bypasses backoff or the read cap. */
   'quota.refresh': {
     input: z.object({ account: z.union([accountId, z.literal('all')]) }),
     output: out<{ scheduled: readonly { account: AccountId; held: RefreshHeld | null }[] }>(),

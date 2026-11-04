@@ -52,6 +52,8 @@ export function sourceError(e: SourceError): string {
   switch (e.kind) {
     case 'rate_limited':
       return 'rate-limited';
+    case 'read_cap':
+      return 'read cap full';
     case 'auth':
       return `Anthropic auth ${e.status}`;
     case 'cpa_unreachable':
