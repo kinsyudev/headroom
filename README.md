@@ -69,6 +69,8 @@ The overview strip comes first. It has four tiles:
 - **Claimable resets** lists every reset Anthropic says you can claim now, grouped under its account. Each reset is named by what it does and where it comes from, for example "Session reset · weekly allowance" or "Session reset · grant" with how many grant resets are left beside it, and has its own **Claim…**. The account card and the claim dialog use the same names.
 - **Headroom** shows **Session room** and **Weekly room** as "1.72 of 3 accounts", counting each enabled account as 1.00 when all of its room is left. Each account's session room is capped by its weekly room, and the tile's tooltip says so.
 
+Below 1010 px of window width the tiles sit in two columns and each is as tall as its content. Serving now sits over Next reset on the left, and Claimable resets over Headroom on the right.
+
 Each account card is as tall as its content. Cards sit three across from 1180 px of window width, two across from 860 px, and one below that. Each card shows these parts:
 
 - The routing role (serving, standby, blocked with a countdown, or disabled) and the plan.
@@ -79,7 +81,7 @@ Each account card is as tall as its content. Cards sit three across from 1180 px
 - Both Claude reset programs. A claimable one shows its **Claim…** button and no status text. Grants are listed under `cedar_ember` as how many resets are left and when the grant ends. With more than one grant, each line also gives the grant's name and what it clears. When nothing on the card is claimable, waiting, in flight or unreadable, they collapse to one quiet line such as "none to claim · weekly reset offered at limit · no grants". Click the line to open each program's detail. A narrow card clips the line after the last phrase that fits.
 - CPA's last 20 ten-minute buckets of traffic.
 
-The history panel shows stacked columns per account for 24 hours, 7 days, or 30 days, in your local time. It also has a table view, totals per model, and keeper's newest 50 errors for these accounts.
+The history panel shows stacked columns per account for 24 hours, 7 days, or 30 days, in your local time. It also has a table view, totals per model, and keeper's newest 50 errors for these accounts. Below 1010 px of window width the per-model table shows the **Usage** columns (requests, failed, 429s and output), and the **Cache and latency** switch above it swaps in the uncached input, cache read, cache write, latency and first-token columns. A table that is still wider than the panel scrolls sideways and fades the edge that has more.
 
 ## What you can do
 

@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { AccountId } from '../../shared/domain';
-import { foldHistory, HISTORY_RANGES, ZERO_TOTALS, type HistoryRange, type TokenTotals } from '../../shared/history';
+import { foldHistory, HISTORY_RANGES, ZERO_TOTALS, type HistoryRange, type ModelRow, type TokenTotals } from '../../shared/history';
 import { useHistory } from '../api';
 import { useNow } from '../deck';
 import { clockTime, compact, reasonText } from '../format';
 import { Age, Clock } from './Countdown';
 import { Segments } from './Segments';
 import { StackedColumns } from './StackedColumns';
+import { TableScroll } from './TableScroll';
 
 type Metric = 'requests' | 'freshInput' | 'cacheRead' | 'output';
 
@@ -29,10 +30,51 @@ export interface HistoryAccount {
   readonly color: string;
 }
 
+type ColumnGroup = 'usage' | 'cache';
+
+const COLUMN_GROUPS: readonly { readonly key: ColumnGroup; readonly label: string }[] = [
+  { key: 'usage', label: 'Usage' },
+  { key: 'cache', label: 'Cache and latency' },
+];
+
+interface ModelColumn {
+  readonly label: string;
+  readonly title?: string;
+  readonly group?: ColumnGroup;
+  readonly num?: boolean;
+  readonly cell: (m: ModelRow, account: HistoryAccount | undefined) => ReactNode;
+}
+
+const seconds = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}s`);
+
+const MODEL_COLUMNS: readonly ModelColumn[] = [
+  {
+    label: 'Account',
+    cell: (m, account) => (
+      <>
+        <span className="swatch small" style={{ background: account?.color }} /> {account?.email ?? m.account}
+      </>
+    ),
+  },
+  { label: 'Model', cell: (m) => m.model },
+  { label: 'Requests', group: 'usage', num: true, cell: (m) => m.totals.requests.toLocaleString() },
+  { label: 'Failed', group: 'usage', num: true, cell: (m) => m.totals.failed },
+  { label: '429', title: 'Rate-limited (HTTP 429)', group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
+  { label: 'Uncached in', title: METRICS[1]!.title, group: 'cache', num: true, cell: (m) => compact(m.totals.freshInput) },
+  { label: 'Cache read', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheRead) },
+  { label: 'Cache write', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheCreation) },
+  { label: 'Output', group: 'usage', num: true, cell: (m) => compact(m.totals.output) },
+  { label: 'Latency', group: 'cache', num: true, cell: (m) => seconds(m.avgLatencyMs) },
+  { label: 'First token', title: 'Average time to first token (TTFT)', group: 'cache', num: true, cell: (m) => seconds(m.avgTtftMs) },
+];
+
+const columnClass = (c: ModelColumn) => [c.num && 'num', c.group && `col-${c.group}`].filter(Boolean).join(' ') || undefined;
+
 export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount[] }) {
   const [range, setRange] = useState<HistoryRange>('24h');
   const [metric, setMetric] = useState<Metric>('requests');
   const [table, setTable] = useState(false);
+  const [group, setGroup] = useState<ColumnGroup>('usage');
   const { history, loading, error } = useHistory(range);
   const now = useNow();
 
@@ -104,7 +146,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
             ))}
           </div>
           {table ? (
-            <div className="table-wrap">
+            <TableScroll label={`Usage per ${folded.bucket}`}>
               <table className="data">
                 <thead>
                   <tr>
@@ -131,7 +173,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           ) : (
             <StackedColumns
               buckets={folded.buckets}
@@ -155,91 +197,86 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
 
       {history && (
         <div className="history-tables">
-          <div className="table-wrap">
-            <h3>Per model · {RANGE_LABEL[range].toLowerCase()}</h3>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Model</th>
-                  <th className="num">Requests</th>
-                  <th className="num">Failed</th>
-                  <th className="num">429</th>
-                  <th className="num" title={METRICS[1]!.title}>
-                    Uncached in
-                  </th>
-                  <th className="num">Cache read</th>
-                  <th className="num">Cache write</th>
-                  <th className="num">Output</th>
-                  <th className="num">Latency</th>
-                  <th className="num" title="Average time to first token (TTFT)">
-                    First token
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.models.length === 0 && (
-                  <tr>
-                    <td colSpan={11} className="muted">
-                      No requests in this range.
-                    </td>
-                  </tr>
-                )}
-                {history.models.map((m) => (
-                  <tr key={`${m.account}:${m.model}`}>
-                    <td>
-                      <span className="swatch small" style={{ background: emailOf(m.account)?.color }} /> {emailOf(m.account)?.email ?? m.account}
-                    </td>
-                    <td>{m.model}</td>
-                    <td className="num">{m.totals.requests.toLocaleString()}</td>
-                    <td className="num">{m.totals.failed}</td>
-                    <td className="num">{m.totals.rateLimited}</td>
-                    <td className="num">{compact(m.totals.freshInput)}</td>
-                    <td className="num">{compact(m.totals.cacheRead)}</td>
-                    <td className="num">{compact(m.totals.cacheCreation)}</td>
-                    <td className="num">{compact(m.totals.output)}</td>
-                    <td className="num">{m.avgLatencyMs === null ? '—' : `${(m.avgLatencyMs / 1000).toFixed(1)}s`}</td>
-                    <td className="num">{m.avgTtftMs === null ? '—' : `${(m.avgTtftMs / 1000).toFixed(1)}s`}</td>
-                  </tr>
+          <div className="history-table" data-group={group}>
+            <div className="table-head">
+              <h3>Per model · {RANGE_LABEL[range].toLowerCase()}</h3>
+              <div className="segmented columns" role="group" aria-label="Columns">
+                {COLUMN_GROUPS.map((g) => (
+                  <button key={g.key} type="button" className={`btn small ${g.key === group ? 'selected' : 'quiet'}`} aria-pressed={g.key === group} onClick={() => setGroup(g.key)}>
+                    {g.label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+            <TableScroll label="Per model totals">
+              <table className="data">
+                <thead>
+                  <tr>
+                    {MODEL_COLUMNS.map((c) => (
+                      <th key={c.label} className={columnClass(c)} title={c.title}>
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.models.length === 0 && (
+                    <tr>
+                      <td colSpan={MODEL_COLUMNS.length} className="muted">
+                        No requests in this range.
+                      </td>
+                    </tr>
+                  )}
+                  {history.models.map((m) => (
+                    <tr key={`${m.account}:${m.model}`}>
+                      {MODEL_COLUMNS.map((c) => (
+                        <td key={c.label} className={columnClass(c)}>
+                          {c.cell(m, emailOf(m.account))}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           </div>
-          <div className="table-wrap">
+          <div className="history-table">
             <h3>Recent errors and 429s</h3>
-            <table className="data errors">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Account</th>
-                  <th className="num">Status</th>
-                  <th>Quota reason</th>
-                  <th>Recovers</th>
-                  <th>Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.errors.length === 0 && (
+            <TableScroll label="Recent errors and 429s">
+              <table className="data errors">
+                <thead>
                   <tr>
-                    <td colSpan={6} className="muted">
-                      No errors recorded.
-                    </td>
+                    <th>When</th>
+                    <th>Account</th>
+                    <th className="num">Status</th>
+                    <th>Quota reason</th>
+                    <th>Recovers</th>
+                    <th>Message</th>
                   </tr>
-                )}
-                {history.errors.map((e) => (
-                  <tr key={e.id}>
-                    <td>{e.at !== null ? <Clock at={e.at} /> : '—'}</td>
-                    <td>{emailOf(e.account)?.email ?? e.account ?? '—'}</td>
-                    <td className="num">{e.status ?? '—'}</td>
-                    <td title={e.quotaReason ?? undefined}>{e.quotaReason === null ? '—' : reasonText(e.quotaReason)}</td>
-                    <td>{e.recoverAt !== null ? <Clock at={e.recoverAt} /> : '—'}</td>
-                    <td className="message" title={e.message}>
-                      {e.message}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.errors.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        No errors recorded.
+                      </td>
+                    </tr>
+                  )}
+                  {history.errors.map((e) => (
+                    <tr key={e.id}>
+                      <td>{e.at !== null ? <Clock at={e.at} /> : '—'}</td>
+                      <td>{emailOf(e.account)?.email ?? e.account ?? '—'}</td>
+                      <td className="num">{e.status ?? '—'}</td>
+                      <td title={e.quotaReason ?? undefined}>{e.quotaReason === null ? '—' : reasonText(e.quotaReason)}</td>
+                      <td>{e.recoverAt !== null ? <Clock at={e.recoverAt} /> : '—'}</td>
+                      <td className="message" title={e.message}>
+                        {e.message}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           </div>
         </div>
       )}

@@ -22,117 +22,120 @@ export function OverviewStrip(props: {
   );
   return (
     <section className="overview" aria-label="Overview" data-testid="overview">
-      <div
-        className="tile serving"
-        data-testid="tile-serving"
-        title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
-      >
-        <h2>Serving now</h2>
-        {lead ? (
-          <p className="hero hero-id" title={lead.email}>
-            {swatch(lead.account)}
-            <span className="hero-text">{lead.email}</span>
+      <div className="overview-col">
+        <div
+          className="tile serving"
+          data-testid="tile-serving"
+          title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
+        >
+          <h2>Serving now</h2>
+          {lead ? (
+            <p className="hero hero-id" title={lead.email}>
+              {swatch(lead.account)}
+              <span className="hero-text">{lead.email}</span>
+            </p>
+          ) : (
+            <p className="hero muted">Idle</p>
+          )}
+          <p className="tile-sub">
+            <Segments
+              parts={[
+                lead ? (
+                  <>
+                    last request <Age at={lead.lastAt} /> ago
+                  </>
+                ) : (
+                  'nothing answered in the last 2 min'
+                ),
+                nextSession,
+              ]}
+            />
           </p>
-        ) : (
-          <p className="hero muted">Idle</p>
-        )}
-        <p className="tile-sub">
-          <Segments
-            parts={[
-              lead ? (
-                <>
-                  last request <Age at={lead.lastAt} /> ago
-                </>
-              ) : (
-                'nothing answered in the last 2 min'
-              ),
-              nextSession,
-            ]}
-          />
-        </p>
-        {alsoServing.length > 0 && (
-          <p className="tile-sub muted clip">
-            also serving{' '}
-            {alsoServing.map((s, i) => (
-              <span key={s.account}>
-                {i > 0 && ', '}
-                {swatch(s.account)} {s.email}
+          {alsoServing.length > 0 && (
+            <p className="tile-sub muted clip">
+              also serving{' '}
+              {alsoServing.map((s, i) => (
+                <span key={s.account}>
+                  {i > 0 && ', '}
+                  {swatch(s.account)} {s.email}
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+
+        <div className="tile" data-testid="tile-next-reset">
+          <h2>Next reset</h2>
+          {o.nextReset ? (
+            <>
+              <p className="hero num">
+                <Countdown at={o.nextReset.at} />
+              </p>
+              <p className="tile-sub">
+                <Segments
+                  parts={[
+                    <>
+                      {swatch(o.nextReset.account)} {o.nextReset.email}
+                    </>,
+                    <>
+                      {o.nextReset.label} at <Clock at={o.nextReset.at} />
+                    </>,
+                    o.nextReset.unblocks && 'unblocks then',
+                  ]}
+                />
+              </p>
+            </>
+          ) : (
+            <p className="tile-main muted">No window with a known reset</p>
+          )}
+          {o.nextUnblock && (
+            <p className="tile-foot">
+              {swatch(o.nextUnblock.account)} {o.nextUnblock.email} unblocks at <Clock at={o.nextUnblock.at} />{' '}
+              <span className="muted">
+                (<Countdown at={o.nextUnblock.at} />)
               </span>
-            ))}
-          </p>
-        )}
-      </div>
-
-      <div className="tile" data-testid="tile-next-reset">
-        <h2>Next reset</h2>
-        {o.nextReset ? (
-          <>
-            <p className="hero num">
-              <Countdown at={o.nextReset.at} />
             </p>
-            <p className="tile-sub">
-              <Segments
-                parts={[
-                  <>
-                    {swatch(o.nextReset.account)} {o.nextReset.email}
-                  </>,
-                  <>
-                    {o.nextReset.label} at <Clock at={o.nextReset.at} />
-                  </>,
-                  o.nextReset.unblocks && 'unblocks then',
-                ]}
-              />
-            </p>
-          </>
-        ) : (
-          <p className="tile-main muted">No window with a known reset</p>
-        )}
-        {o.nextUnblock && (
-          <p className="tile-foot">
-            {swatch(o.nextUnblock.account)} {o.nextUnblock.email} unblocks at <Clock at={o.nextUnblock.at} />{' '}
-            <span className="muted">
-              (<Countdown at={o.nextUnblock.at} />)
-            </span>
-          </p>
-        )}
+          )}
+        </div>
       </div>
+      <div className="overview-col">
+        <div className="tile claims" data-testid="tile-claimable">
+          <h2>Claimable resets</h2>
+          <p className="hero num">{o.claimableCount}</p>
+          {o.claimable.length === 0 ? (
+            <p className="tile-sub muted">None right now. Weekly session resets are checked when an account hits its limit.</p>
+          ) : (
+            o.claimable.map((g) => (
+              <div key={g.account} className="claim-group">
+                <h3 className="claim-account clip">
+                  {swatch(g.account)} {g.email}
+                </h3>
+                <ul className="claimable">
+                  {g.resets.map((r) => (
+                    <li key={r.program}>
+                      <span className="claim-name">
+                        {r.name}
+                        {r.detail && <span className="muted nowrap"> ({r.detail})</span>}
+                      </span>
+                      <ClaimButton name={r.name} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </div>
 
-      <div className="tile" data-testid="tile-claimable">
-        <h2>Claimable resets</h2>
-        <p className="hero num">{o.claimableCount}</p>
-        {o.claimable.length === 0 ? (
-          <p className="tile-sub muted">None right now. Weekly session resets are checked when an account hits its limit.</p>
-        ) : (
-          o.claimable.map((g) => (
-            <div key={g.account} className="claim-group">
-              <h3 className="claim-account clip">
-                {swatch(g.account)} {g.email}
-              </h3>
-              <ul className="claimable">
-                {g.resets.map((r) => (
-                  <li key={r.program}>
-                    <span className="claim-name">
-                      {r.name}
-                      {r.detail && <span className="muted nowrap"> ({r.detail})</span>}
-                    </span>
-                    <ClaimButton name={r.name} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div
-        className="tile rooms"
-        data-testid="tile-headroom"
-        role="group"
-        aria-label="Headroom"
-        title="Room left, counted in whole accounts. Each enabled account counts as 1.00 when all of its room is left. Session room is capped by each account's weekly room."
-      >
-        <Room label="Session room" h={o.headroom.session} />
-        <Room label="Weekly room" h={o.headroom.weekly} />
+        <div
+          className="tile rooms"
+          data-testid="tile-headroom"
+          role="group"
+          aria-label="Headroom"
+          title="Room left, counted in whole accounts. Each enabled account counts as 1.00 when all of its room is left. Session room is capped by each account's weekly room."
+        >
+          <Room label="Session room" h={o.headroom.session} />
+          <Room label="Weekly room" h={o.headroom.weekly} />
+        </div>
       </div>
     </section>
   );

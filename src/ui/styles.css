@@ -391,6 +391,9 @@ span.banner-line {
   grid-template-columns: minmax(300px, 1.5fr) minmax(200px, 1fr) minmax(240px, 1.2fr) minmax(260px, 1.2fr);
   gap: 12px;
 }
+.overview-col {
+  display: contents;
+}
 .tile {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -960,15 +963,53 @@ span.banner-line {
 }
 .history-tables {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
-.table-wrap {
-  overflow-x: auto;
+.history-table {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+.table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.table-head .columns {
+  display: none;
+}
+.table-fade {
+  position: relative;
+}
+.table-fade::before,
+.table-fade::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+.table-fade::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface), transparent);
+}
+.table-fade::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface), transparent);
+}
+.table-fade[data-start='true']::before,
+.table-fade[data-end='true']::after {
+  opacity: 1;
+}
+.table-wrap {
+  overflow-x: auto;
 }
 table.data {
   border-collapse: collapse;
@@ -1086,6 +1127,54 @@ table.errors td.message {
 @media (max-width: 1179px) {
   .cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1010px) {
+  .page {
+    gap: 12px;
+  }
+  .overview {
+    align-items: start;
+  }
+  .overview-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .tile {
+    padding: 10px 14px;
+    gap: 4px;
+  }
+  .hero {
+    --hero-size: 28px;
+  }
+  .tile.claims {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .tile.claims > * {
+    grid-column: 1 / -1;
+  }
+  .tile.claims > h2 {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .tile.claims > .hero {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .table-head .columns {
+    display: inline-flex;
+  }
+  table.data th,
+  table.data td {
+    padding-inline: 5px;
+  }
+  .history-table[data-group='usage'] .col-cache,
+  .history-table[data-group='cache'] .col-usage {
+    display: none;
   }
 }
 @media (max-width: 859px) {
