@@ -152,7 +152,8 @@ code {
 .btn:disabled {
   cursor: default;
 }
-.btn:disabled:not(.accent, .selected, .state, .strong) {
+.btn:disabled:not(.accent, .selected, .state, .strong),
+.page.cpa-down .btn.accent:disabled {
   background: transparent;
   border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent);
   color: var(--muted);
