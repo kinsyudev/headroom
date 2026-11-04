@@ -116,7 +116,7 @@ export function deriveAccount(
   const limits = mergeLimits(feeds.limits.last, a.headers, now);
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
-  const read = deriveRead(feeds, atWall, now);
+  const read = deriveRead(feeds, now);
   return {
     id: a.id,
     email: a.email,
@@ -138,13 +138,11 @@ export function deriveAccount(
       freshness('profile', feeds.profile, now),
     ],
     read,
-    claims: mine,
     can: {
       enable: a.disabled,
       disable: !a.disabled,
       makePrimary: a.disabled || !routing.outranksAll,
       clearCooldown: a.cooldowns.some((c) => c.retryAt > now) || (a.unavailable && (a.nextRetryAfter ?? Infinity) > now),
-      refreshQuota: read.refreshHeld === null,
     },
   };
 }
@@ -164,7 +162,7 @@ export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limi
   );
 }
 
-function deriveRead(feeds: AccountFeeds, atWall: boolean, now: Instant): ReadView {
+function deriveRead(feeds: AccountFeeds, now: Instant): ReadView {
   const g = feeds.gate;
   const backoff = g.backoffUntil !== null && g.backoffUntil > now ? g.backoffUntil : null;
   const manualUntil = g.manualAt === null ? null : ((g.manualAt + MANUAL_REFRESH_EVERY_MS) as Instant);
@@ -176,7 +174,7 @@ function deriveRead(feeds: AccountFeeds, atWall: boolean, now: Instant): ReadVie
         : manualUntil !== null && manualUntil > now
           ? { why: 'debounced', until: manualUntil }
           : null;
-  return { mode: atWall ? 'wall' : 'normal', nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, refreshHeld };
+  return { nextAt: feeds.limits.nextAt, reading: g.reading !== null, backoffUntil: backoff, refreshHeld };
 }
 
 interface Seen {
@@ -370,7 +368,7 @@ export function derivePlan(profile: Source<Profile>): PlanView | null {
   if (!p) return null;
   const max = /max_(\d+)x/.exec(p.rateLimitTier);
   const tier = max ? `Max ${max[1]}x` : /pro/.test(p.rateLimitTier) ? 'Pro' : p.rateLimitTier;
-  return { label: p.orgType === 'claude_team' ? `Team · ${tier}` : tier, orgName: p.orgName };
+  return { label: p.orgType === 'claude_team' ? `Team · ${tier}` : tier };
 }
 
 export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = {

@@ -4,7 +4,7 @@
  * these: after a mutation they call `refresh()` and answer once the new state is published.
  */
 import { z } from 'zod';
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import { emptySource, type CpaAccount, type Instant, type RoutingStrategy, type Source, type SourceError } from '../shared/domain';
 import type { Cpa } from './cpa';
 

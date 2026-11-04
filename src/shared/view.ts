@@ -6,7 +6,6 @@
 import type {
   AccountId,
   ClaimId,
-  ClaimRecord,
   CooldownReason,
   GrantId,
   Instant,
@@ -15,7 +14,6 @@ import type {
   OAuthFlow,
   Percent,
   ProgramId,
-  ReadMode,
   RoutingStrategy,
   Severity,
   SourceError,
@@ -80,19 +78,16 @@ export interface AccountView {
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
   readonly freshness: readonly FreshnessView[];
   readonly read: ReadView;
-  readonly claims: readonly ClaimRecord[];
   /** What the UI may enable. Handlers enforce their own rules; this only greys out buttons. */
   readonly can: {
     readonly enable: boolean;
     readonly disable: boolean;
     readonly makePrimary: boolean;
     readonly clearCooldown: boolean;
-    readonly refreshQuota: boolean;
   };
 }
 
 export interface ReadView {
-  readonly mode: ReadMode;
   readonly nextAt: Instant | null;
   readonly reading: boolean;
   readonly backoffUntil: Instant | null;
@@ -103,7 +98,6 @@ export interface ReadView {
 export interface PlanView {
   /** "Max 20x", "Team · Max 5x". */
   readonly label: string;
-  readonly orgName: string;
 }
 
 export interface RoutingView {

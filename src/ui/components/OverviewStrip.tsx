@@ -1,17 +1,117 @@
 /**
- * The at-a-glance row.
- *
- *  SERVING account1 (fill-first target)   also: account2 (affinity, 41s ago)
- *    · when nobody served in the last 2 min: "idle; next request → account1"
- *  Session headroom 1.3 / 3   Weekly headroom 1.7 / 3   (+1 unknown)
- *  Next reset: account3 session in <Countdown>     Next unblock: account3 at 15:20
- *  Claimable: account3 · cedar_ember "Launch grant" [Claim…]  (opens the same ClaimDialog as the card)
- *  Routing: [fill-first | round-robin]   ← useAction('routing.setStrategy'); confirm() before switching
- *  [+ Add account]                       ← see AddAccountDialog for the popup-blocker dance
- *  [↻ Refresh all]                       ← useAction('quota.refresh') with { account: 'all' }
+ * The at-a-glance row, first on the page: who is serving now (evidence) and where the next
+ * session lands (prediction), the next reset, claimable resets, and headroom.
  */
-import type { DeckView } from '../../shared/view';
+import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
+import type { DeckView, Headroom } from '../../shared/view';
+import { Age, Clock, Countdown } from './Countdown';
+import { Meter } from './LimitRow';
 
-export function OverviewStrip(props: { readonly deck: DeckView }) {
-  throw new Error('not implemented');
+const WHY: Readonly<Record<string, string>> = {
+  fill_first_target: 'fill-first target',
+  affinity: 'session affinity',
+  round_robin: 'round-robin',
+};
+
+export function OverviewStrip(props: {
+  readonly deck: DeckView;
+  readonly colors: ReadonlyMap<AccountId, string>;
+  readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
+}) {
+  const o = props.deck.overview;
+  const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
+  return (
+    <section className="overview" aria-label="Overview" data-testid="overview">
+      <div className="tile serving" data-testid="tile-serving">
+        <h2>Serving now</h2>
+        {o.serving.length === 0 ? (
+          <p className="tile-main muted">Idle · nothing answered in the last 2 min</p>
+        ) : (
+          o.serving.map((s) => (
+            <p key={s.account} className="tile-main">
+              {swatch(s.account)} <strong>{s.email}</strong>
+              <span className="muted">
+                {' '}
+                · {WHY[s.why]} · last request <Age at={s.lastAt} /> ago
+              </span>
+            </p>
+          ))
+        )}
+        <p className="tile-sub">
+          {o.target ? (
+            <>
+              Next new session → {swatch(o.target.account)} {o.target.email} <span className="muted">(prediction, {props.deck.strategy ?? 'routing unknown'})</span>
+            </>
+          ) : (
+            <span className="badge critical">No account can take traffic</span>
+          )}
+        </p>
+        <p className="tile-foot muted">Evidence: {o.servingEvidence === 'keeper' ? "keeper's request log" : 'CPA response headers (keeper unavailable)'}</p>
+      </div>
+
+      <div className="tile" data-testid="tile-next-reset">
+        <h2>Next reset</h2>
+        {o.nextReset ? (
+          <>
+            <p className="hero num">
+              <Countdown at={o.nextReset.at} />
+            </p>
+            <p className="tile-sub">
+              {swatch(o.nextReset.account)} {o.nextReset.email} · {o.nextReset.label} at <Clock at={o.nextReset.at} />
+            </p>
+          </>
+        ) : (
+          <p className="tile-main muted">No window with a known reset</p>
+        )}
+        {o.nextUnblock && (
+          <p className="tile-foot">
+            {swatch(o.nextUnblock.account)} {o.nextUnblock.email} unblocks at <Clock at={o.nextUnblock.at} />{' '}
+            <span className="muted">
+              (<Countdown at={o.nextUnblock.at} />)
+            </span>
+          </p>
+        )}
+      </div>
+
+      <div className="tile" data-testid="tile-claimable">
+        <h2>Claimable resets</h2>
+        <p className="hero num">{o.claimable.length}</p>
+        {o.claimable.length === 0 ? (
+          <p className="tile-sub muted">None right now. Weekly session resets are checked when an account hits its limit.</p>
+        ) : (
+          <ul className="claimable">
+            {o.claimable.map((c) => (
+              <li key={`${c.account}:${c.program}`}>
+                {swatch(c.account)} {c.email} · {c.label}{' '}
+                <button type="button" className="btn primary small" onClick={() => props.onClaim(c.account, c.program, c.grant)} data-testid={`overview-claim-${c.program}`}>
+                  Claim…
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="tile" data-testid="tile-headroom">
+        <h2>Headroom</h2>
+        <HeadroomRow label="Session" h={o.headroom.session} />
+        <HeadroomRow label="Weekly" h={o.headroom.weekly} />
+        <p className="tile-foot muted">In accounts' worth across enabled accounts. Session is capped by each account's weekly room.</p>
+      </div>
+    </section>
+  );
+}
+
+function HeadroomRow(props: { readonly label: string; readonly h: Headroom }) {
+  const known = props.h.of - props.h.unknown;
+  return (
+    <div className="headroom">
+      <span className="limit-label">{props.label}</span>
+      <Meter percent={known > 0 ? (props.h.value / props.h.of) * 100 : null} severity="normal" label={`${props.label} headroom`} />
+      <span className="headroom-value">
+        <strong className="num">{props.h.value.toFixed(2)}</strong> <span className="muted">of {props.h.of}</span>
+        {props.h.unknown > 0 && <span className="muted"> · {props.h.unknown} unknown</span>}
+      </span>
+    </div>
+  );
 }

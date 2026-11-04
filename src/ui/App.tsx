@@ -1,27 +1,57 @@
 /**
- * Page layout. It's the only component that sees Snapshot. It derives the DeckView and hands slices down.
- *
- *   <Banners />                  link down, CPA unreachable, claim in doubt, SSE lost
- *   <OverviewStrip />            serving · headroom · next reset · claimable · strategy toggle · add account
- *   <section grid>               <AccountCard /> × N
- *   <HistoryPanel />             fetches its own data (useHistory); not part of the snapshot
- *   <AddAccountDialog />         when a flow is waiting or just finished
+ * Page layout, and the only component that sees the Snapshot. It derives the DeckView once per
+ * clock tick and hands slices down. Accounts keep one categorical color each, by email order.
  */
-import { useSnapshot } from './api';
-import { useDeck } from './deck';
+import { useState } from 'react';
+import type { AccountId, GrantId, ProgramId } from '../shared/domain';
+import { RefreshContext, useSnapshotPoll, type Connection } from './api';
 import { AccountCard } from './components/AccountCard';
-import { AddAccountDialog } from './components/AddAccountDialog';
 import { Banners } from './components/Banners';
+import { ClaimDialog } from './components/ClaimDialog';
+import { Header } from './components/Header';
 import { HistoryPanel } from './components/HistoryPanel';
 import { OverviewStrip } from './components/OverviewStrip';
+import { useDeck } from './deck';
+
+interface ClaimTarget {
+  readonly account: AccountId;
+  readonly program: ProgramId;
+  readonly grant: GrantId | null;
+}
 
 export function App() {
-  // TODO:
-  // const { snapshot, connection } = useSnapshot();
-  // const deck = useDeck(snapshot);
-  // if (!deck) return <Splash connection={connection} />;
-  // const emails = new Map(deck.accounts.map(a => [a.id, a.email]))   // HistoryPanel labels series by email
-  // render the layout above
-  void [useSnapshot, useDeck, AccountCard, AddAccountDialog, Banners, HistoryPanel, OverviewStrip];
-  throw new Error('not implemented');
+  const { snapshot, connection, refresh } = useSnapshotPoll();
+  const deck = useDeck(snapshot);
+  const [claim, setClaim] = useState<ClaimTarget | null>(null);
+  if (!deck) return <Splash connection={connection} />;
+
+  const colors = new Map(deck.accounts.map((a, i) => [a.id, `var(--series-${(i % 8) + 1})`]));
+  const claimAccount = claim ? deck.accounts.find((a) => a.id === claim.account) : undefined;
+
+  return (
+    <RefreshContext.Provider value={refresh}>
+      <div className="page">
+        <Header deck={deck} connection={connection} />
+        <Banners banners={deck.banners} connection={connection} />
+        <OverviewStrip deck={deck} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
+        <section className="cards" aria-label="Accounts">
+          {deck.accounts.length === 0 && <p className="muted">No Claude accounts in CPA yet.</p>}
+          {deck.accounts.map((a) => (
+            <AccountCard key={a.id} account={a} color={colors.get(a.id)!} onClaim={(program, grant) => setClaim({ account: a.id, program, grant })} />
+          ))}
+        </section>
+        <HistoryPanel accounts={deck.accounts.map((a) => ({ id: a.id, email: a.email, color: colors.get(a.id)! }))} />
+      </div>
+      {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}
+    </RefreshContext.Provider>
+  );
+}
+
+function Splash(props: { readonly connection: Connection }) {
+  return (
+    <div className="splash">
+      <h1>cpa-deck</h1>
+      <p className="muted">{props.connection === 'lost' ? 'Cannot reach the deck server. Retrying every 2 s.' : 'Connecting…'}</p>
+    </div>
+  );
 }

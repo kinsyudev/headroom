@@ -11,7 +11,7 @@
  *   normalizes the offset; the text is never compared directly.
  */
 import { Database } from 'bun:sqlite';
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import { emptySource, parseInstant, type AccountId, type Instant, type ServingSeen, type Source } from '../shared/domain';
 import { SERVING_WINDOW_MS } from '../shared/derive';
 import { RANGE_MS, type ErrorRow, type HistoryRange, type HistoryView, type TokenTotals } from '../shared/history';

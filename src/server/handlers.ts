@@ -3,7 +3,8 @@
  * Every CPA mutation answers only after `observer.refresh()` has published CPA's new state, so
  * the UI keeps no optimistic copy. Handlers never write observations directly.
  */
-import { DeckError, type ActionInput, type ActionKind, type ActionOutput } from '../shared/actions';
+import type { ActionInput, ActionKind, ActionOutput } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import { planMakePrimary } from '../shared/derive';
 import type { AccountId, CpaAccount } from '../shared/domain';
 import type { Claims } from './claims';

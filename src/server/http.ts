@@ -10,7 +10,8 @@
  * The UI is bundled in memory at startup and served through the same guard as the API.
  */
 import { ZodError } from 'zod';
-import { ACTIONS, DECK_ERROR_STATUS, DeckError, type ActionInput, type ActionKind } from '../shared/actions';
+import { ACTIONS, type ActionInput, type ActionKind } from '../shared/actions';
+import { DECK_ERROR_STATUS, DeckError } from '../shared/errors';
 import type { Snapshot } from '../shared/domain';
 import { HISTORY_RANGES, type HistoryRange, type HistoryView } from '../shared/history';
 import type { Handler, HandlerCtx, Handlers } from './handlers';

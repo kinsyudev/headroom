@@ -11,7 +11,7 @@
  * A claim that landed before a crash shows up in the next read as unavailable or fewer resets
  * left, so step 3 refuses a repeat. One that never landed stays claimable, which is correct.
  */
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import { cedarState, explainOffer, juniperState, usableGrant } from '../shared/derive';
 import type { AccountId, ClaimId, ClaimRecord, ClaimState, GrantId, ProgramId, SourceError } from '../shared/domain';
 import type { Anthropic, Clock } from './anthropic';

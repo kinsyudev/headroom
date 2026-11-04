@@ -42,8 +42,8 @@ describe('hard constraints', () => {
     expect(where(/new Database\(/)).toEqual(['server/keeper.ts']);
   });
 
-  test('fetch( only in cpa.ts, which holds the key', () => {
-    expect(where(/\bfetch\(/)).toEqual(['server/cpa.ts']);
+  test('fetch( only in cpa.ts (holds the key) and ui/api.ts (same-origin)', () => {
+    expect(where(/\bfetch\(/)).toEqual(['server/cpa.ts', 'ui/api.ts']);
   });
 
   test('the management key is revealed only inside cpa.ts', () => {

@@ -7,7 +7,7 @@
  * read to now, once per 60 s per account, and never during backoff. The budget itself (10 s gap,
  * backoff) is enforced in anthropic.ts, where requests leave.
  */
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import {
   isAtWall,
   MANUAL_REFRESH_EVERY_MS,

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DeckError } from '../src/shared/actions';
+import { DeckError } from '../src/shared/errors';
 import { createAnthropic, realClock } from '../src/server/anthropic';
 import { createClaims } from '../src/server/claims';
 import { Secret } from '../src/server/config';

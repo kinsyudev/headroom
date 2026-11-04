@@ -3,7 +3,7 @@
  * the key stays server-side and the flow still completes if the deck tab closes. CPA's callback
  * forwarder serves one flow at a time, so starting a new flow cancels the waiting one.
  */
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import type { AccountId, FlowId, Instant, OAuthFlow } from '../shared/domain';
 import type { Cpa } from './cpa';
 import type { Observer } from './observer';

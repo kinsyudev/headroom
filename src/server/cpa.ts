@@ -12,7 +12,7 @@
  * file `name` CPA needs for PATCH never leave this module.
  */
 import { z } from 'zod';
-import { DeckError } from '../shared/actions';
+import { DeckError } from '../shared/errors';
 import { KEY_REJECT_LATCH_MS } from '../shared/derive';
 import {
   COOLDOWN_REASONS,

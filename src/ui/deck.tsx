@@ -1,28 +1,33 @@
 /**
- * The clock and the derived deck.
- *
- * One 1 Hz clock for the whole app (ClockProvider), not one interval per countdown.
- * useDeck() runs deriveDeck(snapshot, now) once per tick at the App level and passes AccountView
- * and OverviewView down as props. Components below App don't call useDeck or touch Snapshot.
+ * One 1 Hz clock for the whole page, aligned to the second so every countdown ticks together,
+ * and the derived deck: deriveDeck(snapshot, now) once per tick at the App level.
  */
-import type { ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { deriveDeck } from '../shared/derive';
 import type { Instant, Snapshot } from '../shared/domain';
 import type { DeckView } from '../shared/view';
 
-export function ClockProvider(props: { children: ReactNode }): ReactNode {
-  // TODO: context with Date.now() as Instant, updated every 1000 ms aligned to the second boundary
-  //       so every countdown on screen ticks together.
-  throw new Error('not implemented');
+const ClockContext = createContext<Instant>(Date.now() as Instant);
+
+export function ClockProvider(props: { readonly children: ReactNode }) {
+  const [now, setNow] = useState(() => Date.now() as Instant);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setNow(Date.now() as Instant);
+      timer = setTimeout(tick, 1_005 - (Date.now() % 1_000));
+    };
+    timer = setTimeout(tick, 1_005 - (Date.now() % 1_000));
+    return () => clearTimeout(timer);
+  }, []);
+  return <ClockContext.Provider value={now}>{props.children}</ClockContext.Provider>;
 }
 
 export function useNow(): Instant {
-  throw new Error('not implemented');
+  return useContext(ClockContext);
 }
 
-/** null until the first snapshot arrives. */
 export function useDeck(snapshot: Snapshot | null): DeckView | null {
-  // TODO: const now = useNow(); return useMemo(() => snapshot && deriveDeck(snapshot, now), [snapshot, now])
-  void deriveDeck;
-  throw new Error('not implemented');
+  const now = useNow();
+  return useMemo(() => (snapshot ? deriveDeck(snapshot, now) : null), [snapshot, now]);
 }
