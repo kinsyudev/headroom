@@ -32,7 +32,6 @@ export function AccountCard(props: { readonly account: AccountView; readonly col
           <h3 className="email">{a.email}</h3>
           <div className="sub">
             {a.plan?.label ?? 'plan unknown'} · priority <span className="num" data-testid="priority">{r.priority}</span>
-            {r.isTarget && <span className="muted"> · new sessions land here</span>}
           </div>
         </div>
         <RoutingBadge routing={r} />

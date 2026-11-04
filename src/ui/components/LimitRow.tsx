@@ -2,8 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
-import { age, money, percent } from '../format';
-import { Clock, Countdown } from './Countdown';
+import { age, clockTime, duration, money, percent } from '../format';
 
 const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--accent)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
@@ -27,6 +26,21 @@ export function Meter(props: { readonly percent: number | null; readonly severit
   );
 }
 
+function resetText(l: LimitView, now: number): { readonly first: string; readonly second: string; readonly title: string } | null {
+  if (l.resetsAt === null) return null;
+  const at = clockTime(l.resetsAt, now);
+  switch (l.phase) {
+    case 'open': {
+      const left = duration(l.resetsAt - now);
+      return { first: left, second: at, title: `resets ${at} · in ${left}` };
+    }
+    case 'lapsed':
+      return { first: `${at} ✓`, second: 'awaiting data', title: `reset ${at} ✓ · awaiting fresh data` };
+    case 'idle':
+      return null;
+  }
+}
+
 export function LimitRow(props: { readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
@@ -36,6 +50,7 @@ export function LimitRow(props: { readonly limit: LimitView }) {
   ]
     .filter(Boolean)
     .join(' · ');
+  const reset = resetText(l, now);
   return (
     <div className={`limit phase-${l.phase}`} data-testid={`limit-${l.key}`} title={readings}>
       <span className="limit-label">
@@ -46,27 +61,17 @@ export function LimitRow(props: { readonly limit: LimitView }) {
       <span className="limit-value num" data-testid="percent">
         {l.phase === 'open' ? percent(l.percent) : l.phase === 'idle' ? 'idle' : '—'}
       </span>
-      <span className="limit-reset">
-        {l.phase === 'open' && l.resetsAt !== null && (
+      <span className="limit-reset" title={reset?.title}>
+        {reset && (
           <>
-            <span className="nowrap">
-              resets <Clock at={l.resetsAt} />
-              {'\u00A0·'}
+            <span className="nowrap limit-in num">
+              {reset.first}
+              <span className="limit-sep">{'\u00A0·'}</span>
             </span>{' '}
-            <span className="nowrap limit-in">
-              in <Countdown at={l.resetsAt} />
-            </span>
+            <span className="nowrap limit-at num">{reset.second}</span>
           </>
         )}
-        {l.phase === 'lapsed' && l.resetsAt !== null && (
-          <>
-            <span className="nowrap">
-              reset <Clock at={l.resetsAt} /> ✓{'\u00A0·'}
-            </span>{' '}
-            <span className="nowrap">awaiting fresh data</span>
-          </>
-        )}
-        {l.phase === 'idle' && <span>no session window running</span>}
+        {l.phase === 'idle' && 'no window running'}
       </span>
     </div>
   );
@@ -93,8 +98,13 @@ export function SpendRow(props: { readonly spend: SpendView | null; readonly atW
           <Meter percent={p.percent} severity={p.severity} label="Extra usage spent" />
           <span className="limit-value num">{percent(p.percent)}</span>
           <span className="limit-reset num">
-            {money(p.used)}
-            {p.limit ? ` / ${money(p.limit)}` : ''}
+            <span className="nowrap">{money(p.used)}</span>
+            {p.limit && (
+              <>
+                {' '}
+                <span className="nowrap">/ {money(p.limit)}</span>
+              </>
+            )}
           </span>
           {notable && <span className="spend-note">{overage(live)}</span>}
         </>

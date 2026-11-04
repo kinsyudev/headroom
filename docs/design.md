@@ -126,7 +126,7 @@ There is nothing else. No SQLite of our own.
 ### 6. Derivations to add (from candidate 3)
 
 - **Window lifecycle.** Each limit row is `open`, `idle`, or `lapsed`.
-  - `lapsed` means `resetsAt` has passed and no newer data has arrived. Show "reset at 14:20 ✓, awaiting fresh data", never the old percent.
+  - `lapsed` means `resetsAt` has passed and no newer data has arrived. Show "14:20 ✓ · awaiting data", with "reset 14:20 ✓ · awaiting fresh data" on hover, never the old percent.
   - `idle` means the session limit is absent from `limits[]`, so no session window is running. Fixture 1 shows this.
 - **Serving now comes from keeper.** Every 5 s, `keeper.ts` reads the most recent `usage_events` (newest 500 rows by `id`) grouped by `auth_index`, giving last-seen time and request count in the last 2 min. An account is serving if it was last seen under 120 s ago. Fill-first's predicted target is shown alongside and labeled as a prediction. CPA's `recent_requests` is the fallback when keeper is unavailable.
 - **Merging header and poll data.** Both sources map to the same rows (`5h` to session, `7d` to weekly_all). The newer observation is drawn, and the other is shown as a faint tick with its age.
