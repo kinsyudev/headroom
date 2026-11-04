@@ -5,12 +5,29 @@ import { claimResultText } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
+  const rows = props.account.offers.map((o) => (
+    <OfferRow key={o.program} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
+  ));
+  const quiet = props.account.quietOffers;
+  if (quiet !== null) {
+    return (
+      <details className="offers-quiet" aria-label="Claude resets">
+        <summary>
+          <span className="offers-title">Claude resets</span>
+          {quiet.map((phrase) => (
+            <span key={phrase} className="offers-phrase">
+              {phrase}
+            </span>
+          ))}
+        </summary>
+        <div className="offers-rows">{rows}</div>
+      </details>
+    );
+  }
   return (
     <section className="offers" aria-label="Claude resets">
       <h4>Claude resets</h4>
-      {props.account.offers.map((o) => (
-        <OfferRow key={o.program} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
-      ))}
+      {rows}
     </section>
   );
 }

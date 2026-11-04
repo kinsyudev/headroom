@@ -31,7 +31,7 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
     </button>
   );
   return (
-    <span className="action">
+    <span className="action stepper-action">
       <span className="stepper" role="group" aria-label="Priority" aria-busy={set.pending} data-state={set.status.phase}>
         <span className="stepper-label">Priority</span>
         <span className="stepper-box">
@@ -42,6 +42,11 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
           {button('priority-up', '+', stepTo.up, `Raise priority to ${stepTo.up}`, 'Already at the highest priority')}
         </span>
       </span>
+      {saved && (
+        <span className="feedback ok" role="status">
+          ✓ saved
+        </span>
+      )}
       {set.status.phase === 'error' && (
         <span className="feedback error" role="alert" title={set.status.code}>
           ✕ {set.status.message}

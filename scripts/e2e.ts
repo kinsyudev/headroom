@@ -105,6 +105,7 @@ try {
   const c1 = card('account1@example.com');
   await step('raise account1 priority by 10', () => c1.getByTestId('priority-up').click(), 1, async () => {
     await c1.getByTestId('priority').filter({ hasText: '60' }).waitFor();
+    await c1.locator('.feedback.ok', { hasText: 'saved' }).waitFor();
   });
   const c3 = card('account3@example.com');
   await step('clear account3 cooldown', () => c3.getByTestId('clear-cooldown').click(), 1, async () => {

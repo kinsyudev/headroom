@@ -9,6 +9,7 @@ import {
   juniperState,
   mergeLimits,
   planMakePrimary,
+  quietOffers,
 } from '../src/shared/derive';
 import {
   emptyFeeds,
@@ -263,6 +264,48 @@ describe('offers and claimability', () => {
       { account: ACC3, email: 'account3@example.com', program: 'juniper_tide', grant: null, label: 'Weekly session reset' },
       { account: ACC3, email: 'account3@example.com', program: 'cedar_ember', grant: 'grant_example_1' as GrantId, label: 'Reset grant · Session reset' },
     ]);
+  });
+
+  describe('the quiet line', () => {
+    const noGrants = usage('anthropic-usage-at-wall-1.json', 'wall');
+    const quiet = (feeds = feedsFrom(noGrants, T0), atWall = true, claims: ClaimRecord[] = []) => quietOffers(deriveOffers(ACC3, feeds, atWall, claims, T0));
+    const usedThisWeek = { ...noGrants, juniper: { ...j({}), available: false, nextAvailableAt: at('2026-11-11T09:00:00Z') } };
+    const enrolledNowhere = () => {
+      const f = feedsFrom(noGrants, T0);
+      return { ...f, juniper: { ...f.juniper, last: { value: null, at: T0 } }, cedar: { ...f.cedar, last: { value: null, at: T0 } } };
+    };
+
+    test('held and ineligible offers collapse to a few phrases that say why', () => {
+      expect(quiet(feedsFrom(noGrants, T0), false)).toEqual(['none to claim', 'weekly reset offered at limit', 'no grants']);
+      expect(quiet(enrolledNowhere())).toEqual(['none to claim', 'weekly reset not enrolled', 'reset grants not enrolled']);
+    });
+
+    test('a reason without a short form falls back to its plain-words explanation', () => {
+      const controlArm = { ...noGrants, juniper: j({ arm: 'control' }) };
+      expect(quiet(feedsFrom(controlArm, T0))).toEqual(['none to claim', 'in the experiment, but in the arm that is not offered resets', 'no grants']);
+    });
+
+    test.each([
+      ['a claimable offer', feedsFrom(synthetic, T0), []],
+      ['a waiting offer', feedsFrom(usedThisWeek, T0), []],
+      ['a claim in flight', feedsFrom(noGrants, T0), [claim({ kind: 'sending' })]],
+      ['an offer never read', emptyFeeds(), []],
+    ] as const)('stays the full block for %s', (_label, feeds, claims) => {
+      expect(quiet(feeds, true, [...claims])).toBeNull();
+    });
+
+    test('stays the full block when a read is failing', () => {
+      const failing = { ...feedsFrom(noGrants, T0), cedar: { ...emptySource<CedarEmber | null>(), error: { value: { kind: 'rate_limited' as const, retryAt: plus(T0, MIN) }, at: T0 } } };
+      expect(quiet(failing)).toBeNull();
+    });
+
+    test('reaches the card, and a claimable card keeps its full block', () => {
+      const d = deriveDeck(snapshot({ feeds: { [ACC1]: feedsFrom(noGrants, T0), [ACC3]: feedsFrom(synthetic, T0) } }), T0);
+      const card = (id: typeof ACC1) => d.accounts.find((a) => a.id === id)!;
+      expect(card(ACC1).quietOffers?.[0]).toBe('none to claim');
+      expect(card(ACC3).quietOffers).toBeNull();
+      expect(card(ACC2).quietOffers).toBeNull();
+    });
   });
 });
 

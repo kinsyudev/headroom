@@ -69,6 +69,8 @@ export interface AccountView {
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
   readonly offers: readonly OfferView[];
+  /** Phrases for one line standing in for the offers when none is claimable, waiting, in flight or unreadable; null when any is. */
+  readonly quietOffers: readonly string[] | null;
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
   readonly freshness: readonly FreshnessView[];
   readonly read: ReadView;

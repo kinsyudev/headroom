@@ -152,6 +152,7 @@ export function deriveAccount(
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
   const read = deriveRead(feeds, now);
+  const offers = deriveOffers(a.id, feeds, atWall, mine, now);
   return {
     id: a.id,
     email: a.email,
@@ -163,7 +164,8 @@ export function deriveAccount(
     atWall,
     limits,
     spend: deriveSpend(feeds.spend, a.headers),
-    offers: deriveOffers(a.id, feeds, atWall, mine, now),
+    offers,
+    quietOffers: quietOffers(offers),
     activity: a.activity,
     freshness: [
       ...(cpa.kind === 'down' ? [cpaStale(cpa, now)] : []),
@@ -548,6 +550,39 @@ export function deriveOffers(
       })),
     },
   ];
+}
+
+const PROGRAM_SHORT: Readonly<Record<ProgramId, string>> = {
+  juniper_tide: 'weekly reset',
+  cedar_ember: 'reset grants',
+};
+
+const QUIET_REASON: Readonly<Record<string, string>> = {
+  no_grant: 'no grants',
+  exhausted: 'grants used up',
+  not_usable_now: 'no grant usable now',
+};
+
+function quietOffer(o: OfferView): string | null {
+  const s = o.state;
+  switch (s.kind) {
+    case 'held':
+      return `${PROGRAM_SHORT[o.program]} offered at limit`;
+    case 'ineligible':
+      return QUIET_REASON[s.reason] ?? (s.explain.charAt(0).toLowerCase() + s.explain.slice(1)).replace(/\.$/, '');
+    case 'not_enrolled':
+      return `${PROGRAM_SHORT[o.program]} not enrolled`;
+    case 'claimable':
+    case 'waiting':
+    case 'in_flight':
+    case 'unknown':
+      return null;
+  }
+}
+
+export function quietOffers(offers: readonly OfferView[]): readonly string[] | null {
+  const parts = offers.map(quietOffer);
+  return parts.every((p) => p !== null) ? ['none to claim', ...parts] : null;
 }
 
 export function clearsText(clears: readonly string[]): string {
