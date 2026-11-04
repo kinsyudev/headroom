@@ -85,11 +85,10 @@ function OfferState(props: { readonly offer: OfferView }) {
     case 'not_enrolled':
       return <span className="muted">Not enrolled</span>;
     case 'in_flight':
-      return s.unknown ? (
-        <span className="badge warning">! Outcome unknown, checking</span>
-      ) : (
+      if (s.phase === 'unknown') return <span className="badge warning">! Outcome unknown, checking</span>;
+      return (
         <span>
-          <span className="spinner" aria-hidden /> Claiming…
+          <span className="spinner" aria-hidden /> {s.phase === 'sending' ? 'Claiming…' : `${s.result === 'reset' ? 'Claimed' : `Last claim: ${s.result}`}, waiting for a fresh read`}
         </span>
       );
     case 'unknown':

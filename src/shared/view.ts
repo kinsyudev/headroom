@@ -163,7 +163,11 @@ export type OfferState =
   | { readonly kind: 'waiting'; readonly until: Instant | null }
   | { readonly kind: 'ineligible'; readonly reason: string; readonly explain: string }
   | { readonly kind: 'not_enrolled' }
-  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly unknown: boolean }
+  /**
+   * A claim newer than the data: sending, its outcome unknown, or settled and waiting for a read
+   * that shows the result. `result` is the settled outcome.
+   */
+  | { readonly kind: 'in_flight'; readonly claim: ClaimId; readonly phase: 'sending' | 'unknown' | 'confirming'; readonly result: string | null }
   | { readonly kind: 'unknown'; readonly why: 'never_read' | 'failing' };
 
 export interface GrantView {

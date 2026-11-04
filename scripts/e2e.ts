@@ -152,8 +152,12 @@ try {
   );
   await page.screenshot({ path: join(SHOTS, 'e2e-3-claim-result.png') });
   await dialog.getByTestId('claim-close').click();
+  const settledOffer = await text(c3.getByTestId('offer-juniper_tide'));
+  assert(!settledOffer.includes('Claimable') && /Claimed|Next at/.test(settledOffer), `before the next read the used offer reads "${settledOffer}"`);
+  pass('a settled claim never shows the old offer as claimable');
   await until(async () => (await text(c3.getByTestId('offer-juniper_tide'))).includes('Next at'), 'the post-claim wall read shows the reset as used', 60_000);
-  pass('post-claim read shows the weekly reset as used');
+  await until(async () => (await text(page.getByTestId('tile-claimable').locator('.hero'))) === '0', 'overview drops the used resets');
+  pass('post-claim wall read shows the weekly reset as used and the overview drops it');
 
   const reads = () => stack.fake.calls.filter((c) => c.account === ACC1 && c.path.startsWith('/api/oauth/usage')).length;
   const before = reads();

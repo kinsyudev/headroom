@@ -56,6 +56,8 @@ interface AccountState {
   readonly firstAt: Instant;
   lastAttemptAt: Instant | null;
   requestedAt: Instant | null;
+  /** The next read must be `wall`, whatever isAtWall says: a claim's result shows only there. */
+  wallRequested: boolean;
   manualAt: Instant | null;
   profileAttemptAt: Instant | null;
   profileOkAt: Instant | null;
@@ -73,8 +75,8 @@ export interface Poller {
   kick(account: AccountId | 'all'): { account: AccountId; held: RefreshHeld | null }[];
   /** One `wall` read now, behind any read already queued for the account. For claims. */
   readWall(account: AccountId): Promise<Polled<UsageRead>>;
-  /** A read as soon as the budget allows, without the manual debounce. Used after a claim. */
-  readSoon(account: AccountId): void;
+  /** A `wall` read as soon as the budget allows, without the manual debounce. Used after a claim. */
+  readWallSoon(account: AccountId): void;
   profile(account: AccountId): Profile | null;
 }
 
@@ -99,6 +101,7 @@ export function createPoller(deps: {
         firstAt: (now + fresh++ * stagger) as Instant,
         lastAttemptAt: null,
         requestedAt: null,
+        wallRequested: false,
         manualAt: null,
         profileAttemptAt: null,
         profileOkAt: null,
@@ -155,7 +158,10 @@ export function createPoller(deps: {
         continue;
       }
       const atWall = isAtWall(a, st.feeds.limits.last, now);
-      if (now >= readDueAt({ ...st, backoffUntil }, atWall)) void enqueue(a.id, st, atWall ? 'wall' : 'normal');
+      if (now < readDueAt({ ...st, backoffUntil }, atWall)) continue;
+      const mode = st.wallRequested || atWall ? 'wall' : 'normal';
+      if (mode === 'wall') st.wallRequested = false;
+      void enqueue(a.id, st, mode);
     }
   }
 
@@ -216,9 +222,12 @@ export function createPoller(deps: {
       if (!st) throw new DeckError('unknown_account', `no reads scheduled for ${account}`);
       return enqueue(account, st, 'wall') as Promise<Polled<UsageRead>>;
     },
-    readSoon(account) {
+    readWallSoon(account) {
       const st = states.get(account);
-      if (st) st.requestedAt = deps.clock.now();
+      if (st) {
+        st.requestedAt = deps.clock.now();
+        st.wallRequested = true;
+      }
       tick();
     },
     profile(account) {

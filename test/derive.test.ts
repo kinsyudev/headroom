@@ -212,19 +212,20 @@ describe('offers and claimability', () => {
   });
 
   test('a sending claim holds its program in flight whatever the data says', () => {
-    expect(offers(undefined, true, [claim({ kind: 'sending' })]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, unknown: false });
+    expect(offers(undefined, true, [claim({ kind: 'sending' })]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'sending', result: null });
   });
 
   test('an unknown outcome stays in flight until a newer read of that program arrives, then the read decides', () => {
     const unknown = claim({ kind: 'unknown', at: plus(T0, MIN), why: 'timed out' });
-    expect(offers(feedsFrom(synthetic, T0), true, [unknown]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, unknown: true });
+    expect(offers(feedsFrom(synthetic, T0), true, [unknown]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'unknown', result: null });
     const consumed = { ...synthetic, juniper: { ...(synthetic.mode === 'wall' ? synthetic.juniper! : j({})), available: false, nextAvailableAt: at('2026-11-11T09:00:00Z') } };
     expect(offers(feedsFrom(consumed, plus(T0, 2 * MIN)), true, [unknown]).juniper_tide).toEqual({ kind: 'waiting', until: at('2026-11-11T09:00:00Z') });
   });
 
-  test('a settled claim does not hold the program', () => {
-    const settled = claim({ kind: 'settled', at: T0, outcome: { result: 'not_sent', why: 'x' }, followup: 'not_needed' });
-    expect(offers(undefined, true, [settled]).juniper_tide.kind).toBe('claimable');
+  test('a settled claim holds the program until a read newer than it arrives, so the old offer never invites a repeat', () => {
+    const settled = claim({ kind: 'settled', at: plus(T0, MIN), outcome: { result: 'reset', reason: null, resetsLeft: null, cleared: ['five_hour'], nextAvailableAt: null }, followup: 'done' });
+    expect(offers(feedsFrom(synthetic, T0), true, [settled]).juniper_tide).toEqual({ kind: 'in_flight', claim: 'c1' as ClaimId, phase: 'confirming', result: 'reset' });
+    expect(offers(feedsFrom(synthetic, plus(T0, 2 * MIN)), true, [settled]).juniper_tide.kind).toBe('claimable');
   });
 
   test('never read is unknown/never_read; an error with no data is unknown/failing', () => {

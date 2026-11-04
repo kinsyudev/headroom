@@ -409,15 +409,13 @@ function ineligible(reason: string): OfferState {
 }
 
 /**
- * A claim holds its program `in_flight` while it is sending, and while its outcome is unknown
- * until a read of that program newer than the claim arrives. That read is the ledger.
+ * A claim holds its program `in_flight` until a read of that program newer than the claim's end
+ * arrives. That read is the ledger: it shows whether the reset was consumed, and until it lands
+ * the older offer must not invite a repeat.
  */
 export function openClaim(claims: readonly ClaimRecord[], account: AccountId, program: ProgramId, dataAt: Instant | null): ClaimRecord | undefined {
   return claims.find(
-    (c) =>
-      c.account === account &&
-      c.program === program &&
-      (c.state.kind === 'sending' || (c.state.kind === 'unknown' && (dataAt === null || dataAt <= c.state.at))),
+    (c) => c.account === account && c.program === program && (c.state.kind === 'sending' || dataAt === null || dataAt <= c.state.at),
   );
 }
 
@@ -432,7 +430,12 @@ export function deriveOffers(
   const c = feeds.cedar;
   const jOpen = openClaim(claims, account, 'juniper_tide', j.last?.at ?? null);
   const cOpen = openClaim(claims, account, 'cedar_ember', c.last?.at ?? null);
-  const inFlight = (r: ClaimRecord): OfferState => ({ kind: 'in_flight', claim: r.id, unknown: r.state.kind === 'unknown' });
+  const inFlight = (r: ClaimRecord): OfferState => ({
+    kind: 'in_flight',
+    claim: r.id,
+    phase: r.state.kind === 'settled' ? 'confirming' : r.state.kind,
+    result: r.state.kind === 'settled' ? r.state.outcome.result : null,
+  });
   const unknown = (src: Source<unknown>): OfferState => ({ kind: 'unknown', why: src.error ? 'failing' : 'never_read' });
 
   const juniper: OfferState = jOpen
@@ -607,7 +610,7 @@ function deriveBanners(s: Snapshot, views: readonly AccountView[]): Banner[] {
   }
   for (const v of views) {
     for (const o of v.offers) {
-      if (o.state.kind === 'in_flight' && o.state.unknown) banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program });
+      if (o.state.kind === 'in_flight' && o.state.phase === 'unknown') banners.push({ kind: 'claim_unknown', claim: o.state.claim, email: v.email, program: o.program });
     }
   }
   if (s.serving.error) {

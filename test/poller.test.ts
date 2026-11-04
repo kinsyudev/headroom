@@ -173,4 +173,16 @@ describe('manual refresh', () => {
     await r.run(60_000);
     expect(reads(r.sent)).toHaveLength(3);
   });
+
+  test('after a claim, the next read is a wall read even for an account no longer at the wall', async () => {
+    const one = [cpaAccounts().find((a) => a.id === ACC1)!];
+    const r = rig({ accounts: one });
+    await r.run(40_000);
+    expect(reads(r.sent).map((s) => s.path)).toEqual(['/api/oauth/usage?cedar_ember=1']);
+    r.poller.readWallSoon(ACC1);
+    await r.run(15_000);
+    expect(reads(r.sent).map((s) => s.path)).toEqual(['/api/oauth/usage?cedar_ember=1', '/api/oauth/usage?at_wall=1&skip_spend=1']);
+    await r.run(5 * MIN + 15_000);
+    expect(reads(r.sent).at(-1)!.path).toBe('/api/oauth/usage?cedar_ember=1');
+  });
 });
