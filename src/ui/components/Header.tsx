@@ -9,7 +9,8 @@ import { useAction, type Connection } from '../api';
 import { usePaused } from '../deck';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
-import { FreshnessChips } from './Freshness';
+import { Status } from './Freshness';
+import { Segments } from './Segments';
 
 const STRATEGIES: readonly RoutingStrategy[] = ['fill-first', 'round-robin'];
 const FLOW_TTL_MS = 5 * 60_000;
@@ -53,7 +54,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         </ActionButton>
         <AddAccount deck={d} />
       </div>
-      <FreshnessChips feeds={d.global} testId="global-freshness" />
+      <Status status={d.status} />
     </header>
   );
 }
@@ -89,7 +90,8 @@ function AddAccount(props: { readonly deck: DeckView }) {
         <span className="flow" data-testid="oauth-flow" data-status={recent.status}>
           {recent.status === 'waiting' && (
             <>
-              <span className="spinner" aria-hidden /> Finish signing in in the other tab · expires in <Countdown at={recent.startedAt + FLOW_TTL_MS} />{' '}
+              <span className="spinner" aria-hidden />{' '}
+              <Segments parts={['Finish signing in in the other tab', <>expires in <Countdown at={recent.startedAt + FLOW_TTL_MS} /></>]} />{' '}
               {blockedUrl && (
                 <a href={blockedUrl} target="_blank" rel="noreferrer">
                   open sign-in

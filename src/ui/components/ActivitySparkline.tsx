@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { AccountView } from '../../shared/view';
 import { useNow } from '../deck';
 import { clockTime } from '../format';
+import { Segments } from './Segments';
 
 const W = 240;
 const H = 34;
@@ -36,22 +37,31 @@ export function ActivitySparkline(props: { readonly buckets: AccountView['activi
       </svg>
       <figcaption className="spark-caption">
         {h ? (
-          <>
-            <strong className="num">{h.success}</strong> ok
-            {h.failed > 0 && (
+          <Segments
+            parts={[
               <>
-                {' · '}
-                <strong className="num">{h.failed}</strong> failed
-              </>
-            )}{' '}
-            <span className="muted">
-              {clockTime(h.start, now)}–{clockTime(h.start + TEN_MIN, now)}
-            </span>
-          </>
+                <strong className="num">{h.success}</strong> ok
+              </>,
+              h.failed > 0 && (
+                <>
+                  <strong className="num">{h.failed}</strong> failed
+                </>
+              ),
+              <span className="muted">
+                {clockTime(h.start, now)}–{clockTime(h.start + TEN_MIN, now)}
+              </span>,
+            ]}
+          />
         ) : (
-          <>
-            <strong className="num">{total}</strong> requests in {Math.round((b.length * 10) / 60 * 10) / 10} h · per 10 min · from CPA
-          </>
+          <Segments
+            parts={[
+              <>
+                <strong className="num">{total}</strong> requests in {Math.round((b.length * 10) / 60 * 10) / 10} h
+              </>,
+              'per 10 min',
+              'from CPA',
+            ]}
+          />
         )}
       </figcaption>
     </figure>

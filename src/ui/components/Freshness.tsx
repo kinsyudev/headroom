@@ -1,12 +1,13 @@
-import { Fragment, type ReactNode } from 'react';
-import type { AccountView, FeedName, FreshnessView } from '../../shared/view';
+import type { ReactNode } from 'react';
+import type { AccountView, FeedName, FreshnessView, StatusView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, duration, sourceError } from '../format';
+import { Segments } from './Segments';
 
 const LABEL: Readonly<Record<FeedName, string>> = {
   cpa: 'CPA',
-  strategy: 'routing',
-  serving: 'keeper',
+  strategy: 'Routing',
+  serving: 'History',
   headers: 'headers',
   limits: 'limits',
   spend: 'spend',
@@ -16,6 +17,12 @@ const LABEL: Readonly<Record<FeedName, string>> = {
 };
 
 const CARD_LABEL: Readonly<Record<FeedName, string>> = { ...LABEL, cpa: 'CPA data' };
+
+const ROLE: Partial<Record<FeedName, string>> = {
+  cpa: 'accounts, cooldowns and priorities from CPA',
+  strategy: 'the routing strategy from CPA',
+  serving: 'the request log behind Serving now and History',
+};
 
 const HELD: Partial<Record<FeedName, { readonly short: string; readonly detail: string }>> = {
   juniper: { short: 'weekly reset checked only at limit', detail: 'read only while the account is at its limit' },
@@ -33,33 +40,41 @@ function feedDetail(f: FreshnessView, now: number): string {
     f.ageMs !== null ? `data ${age(f.ageMs)} old` : 'no data yet',
     f.error && f.errorAgeMs !== null ? `${sourceError(f.error)} ${age(f.errorAgeMs)} ago` : null,
     f.nextAt !== null && f.nextAt > now ? `next read ${clockTime(f.nextAt, now)}` : null,
+    ROLE[f.feed] ?? null,
   ]
     .filter(Boolean)
     .join(' · ');
 }
 
-export function FreshnessChips(props: { readonly feeds: readonly FreshnessView[]; readonly testId?: string }) {
-  return (
-    <ul className="chips" data-testid={props.testId}>
-      {props.feeds.map((f) => (
-        <Chip key={f.feed} f={f} />
-      ))}
-    </ul>
-  );
+function problemText(f: FreshnessView): string {
+  if (f.state === 'failing') return f.error?.kind === 'cpa_unreachable' ? sourceError(f.error) : `${LABEL[f.feed]} read failing`;
+  return f.ageMs === null ? `${LABEL[f.feed]} not read yet` : `${LABEL[f.feed]} not updated for ${age(f.ageMs)}`;
 }
 
-function Chip(props: { readonly f: FreshnessView }) {
+export function Status(props: { readonly status: StatusView }) {
   const now = useNow();
-  const f = props.f;
-  const parts = [f.ageMs === null ? '—' : age(f.ageMs)];
-  if (f.error && f.errorAgeMs !== null) parts.push(`${sourceError(f.error)} ${age(f.errorAgeMs)} ago`);
-  const retry = f.error?.kind === 'rate_limited' || f.error?.kind === 'read_cap' ? f.error.retryAt : f.state === 'failing' ? f.nextAt : null;
-  if (retry !== null && retry > now) parts.push(`retry ${clockTime(retry, now)}`);
+  const { sources, problems, newestAgeMs } = props.status;
+  const shown = [...new Map(problems.map((f) => [problemText(f), f] as const))];
   return (
-    <li className={`chip state-${f.state}`} title={feedDetail(f, now)} data-feed={f.feed}>
-      {ICON[f.state] && <span className="chip-icon" aria-hidden>{ICON[f.state]}</span>}
-      <span className="chip-label">{LABEL[f.feed]}</span> {parts.join(' · ')}
-    </li>
+    <div className="status num" data-testid="status" title={sources.map((f) => feedDetail(f, now)).join('\n')}>
+      {shown.length === 0 ? (
+        <span className="nowrap">
+          <span className="status-live">Live</span>
+          {newestAgeMs !== null && ` · updated ${age(newestAgeMs)} ago`}
+        </span>
+      ) : (
+        shown.map(([text, f]) => (
+          <span key={f.feed} className={`chip state-${f.state}`} title={feedDetail(f, now)} data-feed={f.feed}>
+            {ICON[f.state] && (
+              <span className="chip-icon" aria-hidden>
+                {ICON[f.state]}
+              </span>
+            )}
+            {text}
+          </span>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -94,15 +109,8 @@ export function ModeLine(props: { readonly account: AccountView }) {
     <div className="mode num" data-testid="freshness" title={[cadence, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
       {atWall ? <span className="badge warning">At limit</span> : <span className="badge neutral">Normal</span>}{' '}
       <div className="mode-text muted">
-        <div>
-          {clauses.map((c, i) => (
-            <Fragment key={i}>
-              {i > 0 && '\u00A0· '}
-              <span className="nowrap">{c}</span>
-            </Fragment>
-          ))}
-        </div>{' '}
-        {held.length > 0 && <div>{held.map(heldText).join(' · ')}</div>}
+        <Segments parts={clauses} />{' '}
+        {held.length > 0 && <Segments parts={held.map(heldText)} />}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useHistory } from '../api';
 import { useNow } from '../deck';
 import { clockTime, compact, reasonText } from '../format';
 import { Age, Clock } from './Countdown';
+import { Segments } from './Segments';
 import { StackedColumns } from './StackedColumns';
 
 type Metric = 'requests' | 'freshInput' | 'cacheRead' | 'output';
@@ -14,7 +15,7 @@ const METRICS: readonly { readonly key: Metric; readonly label: string; readonly
   {
     key: 'freshInput',
     label: 'Uncached input',
-    title: "Input tokens that were neither read from the cache nor written to it. keeper's input count already includes both for Claude, so they are subtracted",
+    title: "Input tokens that were neither read from the cache nor written to it. The request log's input count already includes both for Claude, so they are subtracted",
   },
   { key: 'cacheRead', label: 'Cache read', title: 'Cache read tokens' },
   { key: 'output', label: 'Output', title: 'Output tokens' },
@@ -77,19 +78,25 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
           {table ? 'Chart' : 'Table'}
         </button>
         <span className="muted keeper-age">
-          {history?.keeperLatestAt ? (
-            <>
-              keeper: last row <Age at={history.keeperLatestAt} /> ago
-            </>
-          ) : null}
-          {loading && ' · loading'}
+          <Segments
+            parts={[
+              history?.keeperLatestAt && (
+                <>
+                  latest request <Age at={history.keeperLatestAt} /> ago
+                </>
+              ),
+              loading && 'loading',
+            ]}
+          />
         </span>
       </div>
       {error && <p className="banner warning">History unavailable: {error}</p>}
       {folded && (
         <>
           <div className="legend">
-            <span className="muted">{RANGE_LABEL[range]} · per {folded.bucket} · local time</span>
+            <span className="muted">
+              <Segments parts={[RANGE_LABEL[range], `per ${folded.bucket}`, 'local time']} />
+            </span>
             {series.map((s) => (
               <span key={s.key} className="legend-item">
                 <span className="legend-swatch" style={{ background: s.color }} /> {s.label}

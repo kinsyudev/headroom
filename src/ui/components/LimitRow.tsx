@@ -3,6 +3,7 @@ import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, duration, money, percent, reasonText } from '../format';
+import { Segments } from './Segments';
 
 const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--muted)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
@@ -94,7 +95,7 @@ export function SpendRow(props: { readonly spend: SpendView | null; readonly atW
   if (!s) return null;
   const p = s.poll;
   const live = s.live;
-  const off = p ? `off${p.disabledReason ? ` · ${reasonText(p.disabledReason)}` : ''}` : props.atWall ? 'not read at limit' : 'not read yet';
+  const off = p ? ['off', p.disabledReason && reasonText(p.disabledReason)] : [props.atWall ? 'not read at limit' : 'not read yet'];
   const notable = live !== null && live.severity !== 'normal' && (p === null || p.enabled);
   const codes = [...new Set([p?.disabledReason, live?.reason].filter(Boolean))];
   const readings = [p && `poll ${age(now - p.at)} ago`, live && `${overage(live)}, live ${age(now - live.at)} ago`, codes.length > 0 && `reason code: ${codes.join(', ')}`]
@@ -107,19 +108,13 @@ export function SpendRow(props: { readonly spend: SpendView | null; readonly atW
         <>
           <Meter percent={p.percent} severity={p.severity} label="Extra usage spent" />
           <span className="limit-value num">{percent(p.percent)}</span>
-          <span className="limit-reset num">
-            <span className="nowrap">{money(p.used)}</span>
-            {p.limit && (
-              <>
-                {' '}
-                <span className="nowrap">/ {money(p.limit)}</span>
-              </>
-            )}
-          </span>
+          <span className="limit-reset num nowrap">{p.limit ? `${money(p.used)} / ${money(p.limit)}` : money(p.used)}</span>
           {notable && <span className="spend-note">{overage(live)}</span>}
         </>
       ) : (
-        <span className="spend-note">{notable ? `${off} · ${overage(live)}` : off}</span>
+        <span className="spend-note">
+          <Segments parts={[...off, notable && overage(live)]} />
+        </span>
       )}
     </div>
   );

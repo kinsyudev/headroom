@@ -47,6 +47,6 @@ function BannerText(props: { readonly banner: Banner }) {
         </>
       );
     case 'keeper_unavailable':
-      return <>keeper's database is unreadable ({b.message}). The Serving now tile falls back to CPA response headers, and history is unavailable.</>;
+      return <>The history database is unreadable ({b.message}). The Serving now tile falls back to CPA response headers, and the History panel is unavailable.</>;
   }
 }

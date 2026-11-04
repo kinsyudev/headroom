@@ -3,6 +3,7 @@ import type { AccountView, OfferView } from '../../shared/view';
 import { claimResultText } from '../format';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
+import { Segments } from './Segments';
 
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const rows = props.account.offers.map((o) => (
@@ -47,19 +48,23 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
         <ul className="grants">
           {o.grants.map((g) => (
             <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
-              “{g.label}” <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
-              {g.clears.length > 0 && (
-                <>
-                  {' · clears '}
-                  <span title={g.clears.join(', ')}>{g.clearsText}</span>
-                </>
-              )}
-              {g.endsAt !== null && (
-                <>
-                  {' · ends '}
-                  <Clock at={g.endsAt} />
-                </>
-              )}
+              <Segments
+                parts={[
+                  <>
+                    “{g.label}” <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
+                  </>,
+                  g.clears.length > 0 && (
+                    <>
+                      clears <span title={g.clears.join(', ')}>{g.clearsText}</span>
+                    </>
+                  ),
+                  g.endsAt !== null && (
+                    <>
+                      ends <Clock at={g.endsAt} />
+                    </>
+                  ),
+                ]}
+              />
             </li>
           ))}
         </ul>
@@ -75,14 +80,16 @@ function OfferState(props: { readonly offer: OfferView }) {
       return <span className="badge good">● Claimable</span>;
     case 'held':
       return (
-        <span>
-          Offered when at limit
-          {s.lastAt !== null && (
-            <span className="muted">
-              {' · '}last read {s.lastClaimable ? 'claimable' : 'not claimable'}, <Age at={s.lastAt} /> ago
-            </span>
-          )}
-        </span>
+        <Segments
+          parts={[
+            'Offered when at limit',
+            s.lastAt !== null && (
+              <span className="muted">
+                last read {s.lastClaimable ? 'claimable' : 'not claimable'}, <Age at={s.lastAt} /> ago
+              </span>
+            ),
+          ]}
+        />
       );
     case 'waiting':
       return s.until === null ? (
@@ -95,7 +102,7 @@ function OfferState(props: { readonly offer: OfferView }) {
     case 'ineligible':
       return (
         <span title={s.explain === s.reason ? s.explain : `${s.explain} (${s.reason})`}>
-          Not eligible <span className="muted">· {s.explain}</span>
+          <Segments parts={['Not eligible', <span className="muted">{s.explain}</span>]} />
         </span>
       );
     case 'not_enrolled':

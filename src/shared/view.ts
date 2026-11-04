@@ -22,8 +22,16 @@ export interface DeckView {
   readonly banners: readonly Banner[];
   readonly flows: readonly OAuthFlow[];
   readonly strategy: RoutingStrategy | null;
-  readonly global: readonly FreshnessView[];
+  readonly status: StatusView;
   readonly cpa: CpaView;
+}
+
+export interface StatusView {
+  readonly sources: readonly FreshnessView[];
+  /** The sources that are not fresh, worst first. None means the page is live. */
+  readonly problems: readonly FreshnessView[];
+  /** Age of the newest reading across the sources; null until one has answered. */
+  readonly newestAgeMs: number | null;
 }
 
 /** down: every action that goes through CPA is paused, and the CPA-sourced data on the page is as old as lastAt. */

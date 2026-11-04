@@ -3,6 +3,7 @@ import type { DeckView, Headroom } from '../../shared/view';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Meter } from './LimitRow';
+import { Segments } from './Segments';
 
 export function OverviewStrip(props: {
   readonly deck: DeckView;
@@ -13,20 +14,18 @@ export function OverviewStrip(props: {
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   const [lead, ...alsoServing] = o.serving;
   const nextSession = !o.target ? (
-    <>
-      · <span className="badge critical">No account can take traffic</span>
-    </>
+    <span className="badge critical">No account can take traffic</span>
   ) : lead?.takesNext ? (
-    <span className="nowrap">· also takes the next new session</span>
+    'also takes the next new session'
   ) : (
-    <>· next new session → {swatch(o.target.account)} {o.target.email}</>
+    <>next new session → {swatch(o.target.account)} {o.target.email}</>
   );
   return (
     <section className="overview" aria-label="Overview" data-testid="overview">
       <div
         className="tile serving"
         data-testid="tile-serving"
-        title={`Evidence: ${o.servingEvidence === 'keeper' ? "keeper's request log" : 'CPA response headers (keeper unavailable)'}`}
+        title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
       >
         <h2>Serving now</h2>
         {lead ? (
@@ -38,14 +37,18 @@ export function OverviewStrip(props: {
           <p className="hero muted">Idle</p>
         )}
         <p className="tile-sub">
-          {lead ? (
-            <>
-              last request <Age at={lead.lastAt} /> ago
-            </>
-          ) : (
-            'nothing answered in the last 2 min'
-          )}{' '}
-          {nextSession}
+          <Segments
+            parts={[
+              lead ? (
+                <>
+                  last request <Age at={lead.lastAt} /> ago
+                </>
+              ) : (
+                'nothing answered in the last 2 min'
+              ),
+              nextSession,
+            ]}
+          />
         </p>
         {alsoServing.length > 0 && (
           <p className="tile-sub muted clip">
@@ -68,13 +71,17 @@ export function OverviewStrip(props: {
               <Countdown at={o.nextReset.at} />
             </p>
             <p className="tile-sub">
-              {swatch(o.nextReset.account)} {o.nextReset.email} · {o.nextReset.label} at <Clock at={o.nextReset.at} />
-              {o.nextReset.unblocks && (
-                <>
-                  {' '}
-                  <span className="nowrap">· unblocks then</span>
-                </>
-              )}
+              <Segments
+                parts={[
+                  <>
+                    {swatch(o.nextReset.account)} {o.nextReset.email}
+                  </>,
+                  <>
+                    {o.nextReset.label} at <Clock at={o.nextReset.at} />
+                  </>,
+                  o.nextReset.unblocks && 'unblocks then',
+                ]}
+              />
             </p>
           </>
         ) : (
@@ -138,8 +145,7 @@ function Room(props: { readonly label: string; readonly h: Headroom }) {
       <h2>{props.label}</h2>
       <p className="hero num">{value.toFixed(2)}</p>{' '}
       <p className="tile-sub">
-        of {of} {of === 1 ? 'account' : 'accounts'}
-        {unknown > 0 && <span className="muted"> · {unknown} unknown</span>}
+        <Segments parts={[`of ${of} ${of === 1 ? 'account' : 'accounts'}`, unknown > 0 && <span className="muted">{unknown} unknown</span>]} />
       </p>
       <Meter percent={of > unknown ? (value / of) * 100 : null} severity="normal" label={props.label} />
     </div>

@@ -40,6 +40,7 @@ import type {
   ReadView,
   RoutingView,
   SpendView,
+  StatusView,
   TroubleView,
 } from './view';
 
@@ -132,8 +133,20 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
     banners: deriveBanners(s, views, cpa),
     flows: s.flows,
     strategy: s.strategy.last?.value ?? null,
-    global: [freshness('cpa', s.cpa, now), freshness('strategy', s.strategy, now), freshness('serving', s.serving, now)],
+    status: deriveStatus([freshness('cpa', s.cpa, now), freshness('strategy', s.strategy, now), freshness('serving', s.serving, now)]),
     cpa,
+  };
+}
+
+const PROBLEM_ORDER: readonly FreshnessView['state'][] = ['failing', 'stale', 'never', 'aging'];
+
+function deriveStatus(sources: readonly FreshnessView[]): StatusView {
+  const rank = (f: FreshnessView) => PROBLEM_ORDER.indexOf(f.state);
+  const ages = sources.flatMap((f) => (f.ageMs === null ? [] : [f.ageMs]));
+  return {
+    sources,
+    problems: sources.filter((f) => rank(f) >= 0).sort((x, y) => rank(x) - rank(y)),
+    newestAgeMs: ages.length === 0 ? null : Math.min(...ages),
   };
 }
 

@@ -2,6 +2,7 @@ import type { Instant } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { reasonText } from '../format';
 import { Clock, Countdown } from './Countdown';
+import { Segments } from './Segments';
 
 export function Trouble(props: { readonly account: AccountView }) {
   const { trouble, cooldowns, statusMessage } = props.account;
@@ -9,18 +10,19 @@ export function Trouble(props: { readonly account: AccountView }) {
   return (
     <div className="trouble">
       <p className="cooldown">
-        <strong>{trouble.cause}</strong>
-        {trouble.holds.length === 0 ? (
-          <span className="muted"> · CPA&apos;s last error, no cooldown running</span>
-        ) : (
-          trouble.holds.map((h) => (
-            <span key={h.what}>
-              {' '}
-              · {h.what}
-              <Until at={h.until} />
-            </span>
-          ))
-        )}
+        <Segments
+          parts={[
+            <strong>{trouble.cause}</strong>,
+            ...(trouble.holds.length === 0
+              ? [<span className="muted">CPA&apos;s last error, no cooldown running</span>]
+              : trouble.holds.map((h) => (
+                  <>
+                    {h.what}
+                    <Until at={h.until} />
+                  </>
+                ))),
+          ]}
+        />
       </p>
       {(cooldowns.length > 0 || statusMessage !== null) && (
         <details>

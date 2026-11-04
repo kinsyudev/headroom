@@ -26,6 +26,8 @@ import {
   type JuniperTide,
   type Limit,
   type Sample,
+  type Snapshot,
+  type Source,
   type SourceError,
 } from '../src/shared/domain';
 import type { OfferState } from '../src/shared/view';
@@ -548,6 +550,61 @@ describe('freshness', () => {
     const f = freshness(held ? 'juniper' : 'limits', { ...emptySource(), ...src } as never, T0, held);
     expect(f.state).toBe(state);
     if (state === 'failing') expect(f).toMatchObject({ ageMs: 4 * MIN, errorAgeMs: MIN, error: { kind: 'rate_limited' } });
+  });
+});
+
+describe('header status', () => {
+  const ago = <T>(src: Source<T>, ms: number): Source<T> => ({ ...src, last: { ...src.last!, at: plus(T0, -ms) } });
+  const status = (cpa: number, strategy: number, serving: number, change: (s: Snapshot) => Snapshot = (s) => s) => {
+    const s = snapshot({ serving: [] });
+    return deriveDeck(change({ ...s, cpa: ago(s.cpa, cpa), strategy: ago(s.strategy, strategy), serving: ago(s.serving, serving) }), T0).status;
+  };
+  const problems = (s: ReturnType<typeof status>) => s.problems.map((f) => [f.feed, f.state]);
+
+  test('with every source fresh nothing is a problem and the newest reading sets the age', () => {
+    const s = status(3_000, 53_000, 8_000);
+    expect(s.problems).toEqual([]);
+    expect(s.newestAgeMs).toBe(3_000);
+    expect(s.sources.map((f) => f.feed)).toEqual(['cpa', 'strategy', 'serving']);
+  });
+
+  test.each([
+    ['history 40 s old is aging', [3_000, 53_000, 40_000], [['serving', 'aging']]],
+    ['history 6 min old is stale', [3_000, 53_000, 6 * MIN], [['serving', 'stale']]],
+    ['routing 100 s old is aging', [3_000, 100_000, 3_000], [['strategy', 'aging']]],
+    ['CPA 20 s old is aging', [20_000, 53_000, 3_000], [['cpa', 'aging']]],
+  ] as const)('%s', (_label, [cpa, strategy, serving], expected) => {
+    expect(problems(status(cpa, strategy, serving))).toEqual(expected as never);
+  });
+
+  test('problems come worst first: failing, stale, never read, then aging', () => {
+    const s = status(20_000, 6 * MIN, 3_000, (x) => ({ ...x, serving: { ...x.serving, error: { value: { kind: 'unavailable', message: 'unreadable' }, at: T0 } } }));
+    expect(problems(s)).toEqual([
+      ['serving', 'failing'],
+      ['strategy', 'stale'],
+      ['cpa', 'aging'],
+    ]);
+    const never = status(20_000, 3_000, 3_000, (x) => ({ ...x, strategy: emptySource() }));
+    expect(problems(never)).toEqual([
+      ['strategy', 'never'],
+      ['cpa', 'aging'],
+    ]);
+  });
+
+  test('a CPA that stopped answering is a failing problem that keeps the error, and the newest reading is still the freshest source', () => {
+    const s = status(17_000, 53_000, 3_000, (x) => ({ ...x, cpa: { ...x.cpa, error: { value: { kind: 'cpa_unreachable' }, at: T0 } } }));
+    expect(s.problems[0]).toMatchObject({ feed: 'cpa', state: 'failing', ageMs: 17_000, error: { kind: 'cpa_unreachable' } });
+    expect(s.newestAgeMs).toBe(3_000);
+  });
+
+  test('before any source has answered there is no newest reading', () => {
+    const empty = deriveDeck({ ...snapshot({}), cpa: emptySource(), strategy: emptySource(), serving: emptySource() }, T0).status;
+    expect(empty.newestAgeMs).toBeNull();
+    expect(problems(empty)).toEqual([
+      ['cpa', 'never'],
+      ['strategy', 'never'],
+      ['serving', 'never'],
+    ]);
   });
 });
 
