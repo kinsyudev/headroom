@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { AccountId } from '../../../shared/domain';
 import type { AnalyticsView, Part, UsageStats, WeekGrid } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { bucketText, changeText, compact, count, hourText, modelName, share, weekdayName } from '../../format';
+import { bucketText, changeText, compact, count, hourText, modelName, shortName, share, weekdayName } from '../../format';
 import { Age } from '../Countdown';
 import { Blocks, type Block } from '../charts/Blocks';
 import { Delta } from '../charts/Delta';
@@ -80,7 +80,7 @@ export function Headline(props: { readonly view: AnalyticsView; readonly week: W
           {topAccount && (
             <p className="kpi-line">
               <span className="swatch small" style={{ background: props.colors.get(topAccount.key) }} aria-hidden />
-              <strong>{props.emailOf(topAccount.key).split('@')[0]}</strong>
+              <strong>{shortName(props.emailOf(topAccount.key))}</strong>
               <span className="muted">{share(topAccount.share?.requests ?? null)} of requests</span>
             </p>
           )}

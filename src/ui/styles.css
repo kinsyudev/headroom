@@ -1339,7 +1339,7 @@ a.cell-pace:hover {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 32px;
+  width: 44px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms;
@@ -1350,11 +1350,27 @@ a.cell-pace:hover {
 }
 .table-fade::after {
   right: 0;
-  background: linear-gradient(to left, var(--surface), transparent);
+  background: linear-gradient(to left, var(--surface) 25%, transparent);
 }
 .table-fade[data-start='true']::before,
 .table-fade[data-end='true']::after {
   opacity: 1;
+}
+.table-fade.sticky-first::before {
+  display: none;
+}
+.table-fade.sticky-first table.data {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-fade.sticky-first :is(th, td):first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+.table-fade.sticky-first[data-start='true'] :is(th, td):first-child {
+  box-shadow: 1px 0 0 var(--axis);
 }
 .table-wrap {
   overflow-x: auto;
@@ -1388,7 +1404,21 @@ table.data th.wrap {
 table.errors td.message {
   white-space: normal;
   width: 60%;
+  min-width: 18ch;
   overflow-wrap: anywhere;
+}
+.fail-part + .fail-part {
+  margin-left: 8px;
+}
+@media (max-width: 900px) {
+  table.data .fail-split {
+    display: none;
+  }
+}
+@media (min-width: 901px) {
+  table.data .fail-merged {
+    display: none;
+  }
 }
 
 .modal-backdrop {

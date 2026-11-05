@@ -1,6 +1,6 @@
 import type { AccountId } from '../../../shared/domain';
 import { USAGE_RANGES, type AccountView, type UsageRange } from '../../../shared/view';
-import { modelName } from '../../format';
+import { modelName, shortName } from '../../format';
 import { Switch } from '../charts/Switch';
 
 const ALL = 'all';
@@ -38,7 +38,7 @@ export function Toolbar(props: {
               title: a.email,
               label: (
                 <>
-                  <span className="swatch small" style={{ background: props.colors.get(a.id) }} aria-hidden /> {a.email.split('@')[0]}
+                  <span className="swatch small" style={{ background: props.colors.get(a.id) }} aria-hidden /> {shortName(a.email)}
                 </>
               ),
             })),

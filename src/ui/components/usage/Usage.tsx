@@ -75,7 +75,7 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
       <Speed view={e} />
       <FailuresPanel view={e} dim={dim} />
       <ByModelTable view={e} colors={props.colors} />
-      <ErrorsTable view={e} />
+      <ErrorsTable view={e} colors={props.colors} />
     </div>
   );
 }

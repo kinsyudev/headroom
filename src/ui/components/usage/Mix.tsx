@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AccountId, Effort } from '../../../shared/domain';
 import type { AnalyticsView, Part } from '../../../shared/view';
-import { compact, count, modelName, share } from '../../format';
+import { compact, count, modelName, shortName, share } from '../../format';
 import { BarList, type BarRow } from '../charts/BarList';
 import { ChartCard } from '../charts/ChartCard';
 import { Switch } from '../charts/Switch';
@@ -96,7 +96,7 @@ export function Mix(props: {
           <h3>Accounts</h3>
           <BarList
             label="Share by account"
-            rows={rows(v.byAccount, measure, (id) => (emails.get(id) ?? id).split('@')[0]!, (id) => props.colors.get(id) ?? NOMINAL, true)}
+            rows={rows(v.byAccount, measure, (id) => shortName(emails.get(id) ?? id), (id) => props.colors.get(id) ?? NOMINAL, true)}
             selected={props.account}
             onSelect={toggle(props.account, props.onAccount)}
           />

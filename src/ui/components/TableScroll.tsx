@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export function TableScroll(props: { readonly label: string; readonly children: ReactNode }) {
+/** stickyFirst pins the first column while the rest scrolls under it, so a clipped row still says whose it is. */
+export function TableScroll(props: { readonly label: string; readonly stickyFirst?: boolean; readonly children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState({ start: false, end: false });
 
@@ -25,7 +26,7 @@ export function TableScroll(props: { readonly label: string; readonly children: 
 
   const scrolls = edge.start || edge.end;
   return (
-    <div className="table-fade" data-start={edge.start} data-end={edge.end}>
+    <div className={props.stickyFirst ? 'table-fade sticky-first' : 'table-fade'} data-start={edge.start} data-end={edge.end}>
       <div ref={ref} className="table-wrap" {...(scrolls ? { role: 'region', tabIndex: 0, 'aria-label': props.label } : {})}>
         {props.children}
       </div>
