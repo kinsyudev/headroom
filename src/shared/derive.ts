@@ -361,6 +361,7 @@ export function deriveRouting(
       priority: a.priority,
       step: PRIORITY_STEP,
       stepTo: stepTo(a.priority),
+      firstTo: planMakePrimary(accounts, a.id).priority,
       role,
       isTarget,
       primary: strategy !== 'round-robin' && atTop.length === 1 && atTop[0] === a,
@@ -843,11 +844,17 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets }];
   });
   const order = deriveServeOrder(accounts, strategy === 'round-robin');
+  const inLine = order.lines.filter((l) => l.kind === 'in_line');
+  const after = (id: AccountId): RunOutView['after'] => {
+    if (order.rotates || inLine[0]?.account !== id) return null;
+    const next = inLine[1];
+    return next ? { kind: 'next', account: next.account, email: next.email } : { kind: 'none' };
+  };
   const runningOut = accounts
     .flatMap((a) =>
       a.limits.flatMap((l): RunOutView[] => {
         const o = l.pace?.outlook;
-        return l.pace && o?.kind === 'hits' ? [{ account: a.id, email: a.email, limit: { key: l.key, label: l.label }, at: o.at, resetsAt: l.pace.endsAt }] : [];
+        return l.pace && o?.kind === 'hits' ? [{ account: a.id, email: a.email, limit: { key: l.key, label: l.label }, at: o.at, resetsAt: l.pace.endsAt, after: after(a.id) }] : [];
       }),
     )
     .sort((x, y) => x.at - y.at);

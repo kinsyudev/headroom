@@ -63,13 +63,17 @@ export interface OverviewView {
   readonly runningOut: readonly RunOutView[];
 }
 
-/** An open quota window on course to run out at `at`, before it resets at `resetsAt`, if the average burn since it opened holds. */
+/**
+ * An open quota window on course to run out at `at`, before it resets at `resetsAt`, if the average burn since it opened holds.
+ * after: where new sessions go once it does, said only when the account is fill-first's first in line: the next in line, or none left.
+ */
 export interface RunOutView {
   readonly account: AccountId;
   readonly email: string;
   readonly limit: { readonly key: string; readonly label: string };
   readonly at: Instant;
   readonly resetsAt: Instant;
+  readonly after: { readonly kind: 'next'; readonly account: AccountId; readonly email: string } | { readonly kind: 'none' } | null;
 }
 
 /** One account's claimable resets, named as the card and the claim dialog name them. detail: what is left of the grant. */
@@ -154,6 +158,8 @@ export interface RoutingView {
   readonly step: number;
   /** The priority a step down or up sets; null where the step would change nothing. */
   readonly stepTo: { readonly down: number | null; readonly up: number | null };
+  /** The priority Serve first sets, ten above every other account's; null when this account already outranks them all. */
+  readonly firstTo: number | null;
   readonly role:
     | { readonly kind: 'serving'; readonly why: ServingWhy }
     | { readonly kind: 'standby' }

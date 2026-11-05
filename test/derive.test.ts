@@ -124,6 +124,20 @@ describe('routing and serving', () => {
     expect(d.accounts.filter((a) => a.routing.primary).map((a) => a.id)).toEqual([...primary]);
     expect(d.accounts.filter((a) => a.can.makePrimary).map((a) => a.id)).toEqual([...makePrimary]);
   });
+
+  test('Serve first names the priority it would set: ten above the highest other account, none where the account already outranks them all', () => {
+    const firstTo = (accounts: readonly CpaAccount[]) => deck({ accounts }).accounts.map((a) => [a.id, a.routing.firstTo]);
+    expect(firstTo(cpaAccounts())).toEqual([
+      [ACC1, 60],
+      [ACC2, 60],
+      [ACC3, 60],
+    ]);
+    expect(firstTo(cpaAccounts().map((a): CpaAccount => (a.id === ACC1 ? { ...a, priority: 70 } : a)))).toEqual([
+      [ACC1, null],
+      [ACC2, 80],
+      [ACC3, 80],
+    ]);
+  });
 });
 
 describe('clearing a cooldown', () => {
@@ -711,16 +725,41 @@ describe('windows on course to run out', () => {
     deriveDeck(snapshot({ accounts, feeds: feeds(byAccount), serving: opts.serving ? [{ account: opts.serving, lastAt: plus(T0, -10_000), recent: 3 }] : [] }), T0).overview;
   const burning = { [ACC1]: [limit('session', 50, 3 * HOUR), limit('weekly_all', 10, 3.5 * 24 * HOUR)], [ACC2]: [limit('weekly_all', 60, 3.5 * 24 * HOUR)] };
 
-  test('every window whose pace says it runs out before its reset, soonest first, with when it runs out and when it resets', () => {
+  test('every window whose pace says it runs out before its reset, soonest first, with when it runs out, when it resets, and where new sessions go after', () => {
     expect(overview(burning, { serving: ACC1 }).runningOut).toEqual([
-      { account: ACC1, email: 'account1@example.com', limit: { key: 'session', label: 'Session' }, at: plus(T0, 2 * HOUR), resetsAt: plus(T0, 3 * HOUR) },
-      { account: ACC2, email: 'account2@example.com', limit: { key: 'weekly_all', label: 'Weekly' }, at: plus(T0, (7 * 5) / 6 * 24 * HOUR - 3.5 * 24 * HOUR), resetsAt: plus(T0, 3.5 * 24 * HOUR) },
+      {
+        account: ACC1,
+        email: 'account1@example.com',
+        limit: { key: 'session', label: 'Session' },
+        at: plus(T0, 2 * HOUR),
+        resetsAt: plus(T0, 3 * HOUR),
+        after: { kind: 'next', account: ACC2, email: 'account2@example.com' },
+      },
+      {
+        account: ACC2,
+        email: 'account2@example.com',
+        limit: { key: 'weekly_all', label: 'Weekly' },
+        at: plus(T0, (7 * 5) / 6 * 24 * HOUR - 3.5 * 24 * HOUR),
+        resetsAt: plus(T0, 3.5 * 24 * HOUR),
+        after: null,
+      },
     ] as never);
   });
 
   test('a window on course to last to its reset is not listed, whichever account serves', () => {
     const o = overview({ [ACC1]: [limit('session', 10, 3 * HOUR)], [ACC2]: burning[ACC2]! }, { serving: ACC1 });
     expect(o.runningOut.map((r) => r.account)).toEqual([ACC2]);
+  });
+
+  test('the first in line running out with no account behind it leaves new sessions nowhere to go', () => {
+    const alone = accounts.map((a): CpaAccount => (a.id === ACC2 ? { ...a, disabled: true } : a));
+    const o = deriveDeck(snapshot({ accounts: alone, feeds: feeds({ [ACC1]: burning[ACC1]! }), serving: [] }), T0).overview;
+    expect(o.runningOut.map((r) => r.after)).toEqual([{ kind: 'none' }]);
+  });
+
+  test('round-robin has no line for a run-out to hand over, so it names no next account', () => {
+    const o = deriveDeck(snapshot({ accounts, feeds: feeds(burning), serving: [], strategy: 'round-robin' }), T0).overview;
+    expect(o.runningOut.map((r) => r.after)).toEqual([null, null]);
   });
 });
 
