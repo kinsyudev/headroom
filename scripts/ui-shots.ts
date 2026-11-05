@@ -16,7 +16,7 @@ const out = resolve(args.find((a, i) => !a.startsWith('--') && !args[i - 1]?.sta
 const port = Number(flag('--port') ?? 18_339);
 const extraCss = flag('--css') ? readFileSync(resolve(flag('--css')!), 'utf8') : undefined;
 const TILE = 1000;
-const MAX_TILES = 3;
+const MAX_TILES = 5;
 
 mkdirSync(out, { recursive: true });
 const shots: { file: string; what: string }[] = [];
@@ -41,8 +41,8 @@ async function until(cond: () => Promise<boolean>, what: string, timeoutMs: numb
   return true;
 }
 
-async function open(width: number, height: number): Promise<Page> {
-  const page = await context.newPage();
+async function open(width: number, height: number, ctx: BrowserContext = context): Promise<Page> {
+  const page = await ctx.newPage();
   await page.setViewportSize({ width, height });
   page.on('pageerror', (e) => pageErrors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && pageErrors.push(m.text()));
@@ -85,6 +85,32 @@ try {
   await until(async () => (await desk.getByTestId('claim-juniper_tide').count()) === 1, 'account3 shows a claimable reset', 60_000);
   await desk.waitForTimeout(1_000);
   await tiles(desk, 'desktop', 'Whole page at 1480px wide, scrolled top to bottom');
+
+  await shot('brand', 'The page header at 1480px wide, captured at 2x pixel density so the name and mark are crisp', async (path) => {
+    const sharp = await browser.newContext({ deviceScaleFactor: 2 });
+    const page = await open(1480, TILE, sharp);
+    await page.screenshot({ path, clip: { x: 0, y: 0, width: 1480, height: 140 } });
+    await sharp.close();
+  });
+
+  const views = async (page: Page, name: string, what: string) => {
+    if ((await page.getByTestId('nav-analytics').count()) > 0) {
+      await page.getByTestId('nav-analytics').first().click();
+      await page.waitForTimeout(1_500);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await tiles(page, name, `${what}, after opening the analytics view from its navigation`);
+    } else if ((await page.getByTestId('analytics').count()) > 0) {
+      await page.getByTestId('analytics').first().scrollIntoViewIfNeeded();
+      await page.waitForTimeout(800);
+      await shot(name, `${what}: the analytics section on the page`, (path) => page.getByTestId('analytics').first().screenshot({ path }));
+    }
+  };
+  const analyticsDesk = await open(1480, TILE);
+  await views(analyticsDesk, 'analytics', 'Analytics at 1480px wide');
+  await analyticsDesk.close();
+  const analyticsHalf = await open(760, TILE);
+  await views(analyticsHalf, 'analytics-half', 'Analytics in a half-width 760px window');
+  await analyticsHalf.close();
 
   const laptop = await open(1280, 800);
   await shot('laptop-fold', 'What a 1280x800 laptop window shows on open, before any scrolling', (path) => laptop.screenshot({ path }));
