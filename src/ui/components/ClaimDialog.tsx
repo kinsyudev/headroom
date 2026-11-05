@@ -3,7 +3,7 @@ import type { ClaimRecord, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { useAction } from '../api';
 import { usePaused } from '../deck';
-import { claimText } from '../format';
+import { claimText, shortName } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 
 export function ClaimDialog(props: {
@@ -21,7 +21,7 @@ export function ClaimDialog(props: {
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
   const stillClaimable = offer.state.kind === 'claimable';
-  const confirmLabel = `Claim ${offer.what.toLowerCase()} on ${a.email}`;
+  const confirmLabel = `Claim ${offer.phrase} on ${shortName(a.email)}`;
 
   useEffect(() => {
     const opener = document.activeElement;

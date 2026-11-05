@@ -202,8 +202,13 @@ try {
     (await text(c3.getByTestId('claim-juniper_tide'))) === 'Claim weekly…' && (await text(c3.getByTestId('claim-cedar_ember'))) === 'Claim bonus…',
     'each Claim button names its reset',
   );
-  await c3.getByTestId('claim-juniper_tide').click();
   const dialog = page.getByTestId('claim-dialog');
+  await c3.getByTestId('claim-cedar_ember').click();
+  await dialog.waitFor();
+  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim bonus session reset on account3', 'from the bonus row the confirm button names the bonus reset');
+  await dialog.getByTestId('claim-close').click();
+  await dialog.waitFor({ state: 'detached' });
+  await c3.getByTestId('claim-juniper_tide').click();
   await dialog.waitFor();
   const facts = await text(dialog);
   for (const s of ['account3@example.com', 'Team · Max 5x', 'Session reset · weekly', 'Clears the session (5h) limit now', 'This cannot be undone']) {
@@ -211,7 +216,7 @@ try {
   }
   assert(!facts.includes('juniper_tide'), 'claim dialog shows no raw program code');
   assert((await dialog.locator('#claim-name').getAttribute('title')) === 'juniper_tide', 'claim dialog keeps the program code in the name title');
-  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim session reset on account3@example.com', 'confirm button names what the reset clears and the account');
+  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim weekly session reset on account3', 'confirm button names the reset the operator clicked, what it clears and the account');
   await page.screenshot({ path: join(SHOTS, 'e2e-2-claim-dialog.png') });
   pass('claim dialog names account, program and effect');
   await step(

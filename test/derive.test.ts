@@ -425,6 +425,15 @@ describe('offers and claimability', () => {
       expect(names(withGrants([{ ...grant, clears: [...clears] }]))).toEqual({ juniper_tide: ['Session reset', 'Session reset · weekly'], cedar_ember: [...bonus] });
     });
 
+    test.each([
+      ['a session bonus', ['five_hour'], 'bonus session reset'],
+      ['a bonus clearing both', ['five_hour', 'seven_day'], 'bonus session and weekly reset'],
+      ['a bonus naming nothing', [], 'bonus reset'],
+    ] as const)('the confirm button says %s program first, beside the weekly one, and never says the program twice', (_label, clears, bonus) => {
+      const phrases = Object.fromEntries(offersOf(withGrants([{ ...grant, clears: [...clears] }])).map((o) => [o.program, o.phrase]));
+      expect(phrases).toEqual({ juniper_tide: 'weekly session reset', cedar_ember: bonus });
+    });
+
     test('several grants say what is left of each in their own list, so the name leaves the count out', () => {
       const second = { ...grant, id: 'grant_example_2' as GrantId, label: 'Second', resetsLeft: 1 };
       expect(names(withGrants([grant, second])).cedar_ember).toEqual(['Session reset', 'Session reset · bonus']);

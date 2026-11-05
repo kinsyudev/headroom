@@ -329,6 +329,8 @@ export interface OfferView {
    * grant ("Session reset · weekly", "Session reset · bonus, 2 of 3 left").
    */
   readonly name: string;
+  /** The reset in a sentence, program first, as the confirm button says it: "weekly session reset", or "bonus reset" when it names no limit. */
+  readonly phrase: string;
   /** The name on its Claim button ("weekly"). */
   readonly short: string;
   readonly effect: string;

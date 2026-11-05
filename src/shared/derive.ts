@@ -662,11 +662,11 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
 }
 
 /** A reset named by the limits it clears, then by its program: "Session reset · weekly". One that names nothing goes by its program alone. */
-function resetNames(clears: readonly string[], short: string): Pick<OfferView, 'what' | 'name'> {
+function resetNames(clears: readonly string[], short: string): Pick<OfferView, 'what' | 'name' | 'phrase'> {
   const limits = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase()).join(' and ');
   const named = `${limits || short} reset`;
   const what = named.charAt(0).toUpperCase() + named.slice(1);
-  return { what, name: limits ? `${what} · ${short}` : what };
+  return { what, name: limits ? `${what} · ${short}` : what, phrase: limits ? `${short} ${named}` : named };
 }
 
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
@@ -727,6 +727,7 @@ export function deriveOffers(
       program: 'cedar_ember',
       what: bonus.what,
       name: lone ? `${bonus.name}, ${lone.resetsLeft} of ${lone.resetsTotal} left` : bonus.name,
+      phrase: bonus.phrase,
       short: 'bonus',
       effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
       selfResets: selfResets(cedarClears, limits),
