@@ -88,13 +88,19 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
           />
         </p>
         {runsOut && (
-          <p className="stat-sub stat-runs-out" data-testid="serving-runs-out">
+          <p className="stat-sub" data-testid="serving-runs-out">
             <Segments
               parts={[
-                <a className="jump warn" href={usageLink(paceAnchor(runsOut.window.account, runsOut.window.limit.key))} title="See this window's pace in Usage">
-                  <span aria-hidden>! </span>
-                  {runsOut.window.limit.label} runs out ~<Clock at={runsOut.window.at} />, {duration(runsOut.window.resetsAt - runsOut.window.at)} before reset
-                </a>,
+                <>
+                  <span className="warn-icon" aria-hidden>
+                    !
+                  </span>{' '}
+                  {who(runsOut.window.account, runsOut.window.email)}{' '}
+                  <a className="jump warn" href={usageLink(paceAnchor(runsOut.window.account, runsOut.window.limit.key))} title="See this window's pace in Usage">
+                    {runsOut.window.limit.label.toLowerCase()} runs out ~<Clock at={runsOut.window.at} />
+                  </a>
+                </>,
+                <span className="num">{duration(runsOut.window.resetsAt - runsOut.window.at)} before reset</span>,
                 runsOut.next ? <>{who(runsOut.next.account, runsOut.next.email)} next</> : 'no other account in line',
               ]}
             />

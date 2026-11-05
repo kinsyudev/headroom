@@ -846,9 +846,9 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
       }),
     )
     .sort((x, y) => x.at - y.at);
-  const lead = serving[0];
-  const leadOut = lead && runningOut.find((r) => r.account === lead.account);
-  const next = order.lines.find((l) => l.kind === 'in_line' && l.account !== lead?.account);
+  const busy = new Set([...serving.map((s) => s.account), ...(target ? [target.id] : [])]);
+  const busyOut = runningOut.find((r) => busy.has(r.account));
+  const next = busyOut && order.lines.find((l) => l.kind === 'in_line' && l.account !== busyOut.account);
   return {
     serving,
     target: target ? { account: target.id, email: target.email } : null,
@@ -858,7 +858,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     claimable,
     claimableCount: claimable.reduce((n, g) => n + g.resets.length, 0),
     runningOut,
-    servingRunsOut: leadOut ? { window: leadOut, next: next ? { account: next.account, email: next.email } : null } : null,
+    servingRunsOut: busyOut ? { window: busyOut, next: next ? { account: next.account, email: next.email } : null } : null,
   };
 }
 

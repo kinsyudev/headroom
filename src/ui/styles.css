@@ -586,6 +586,10 @@ a.cell-pace {
 a.cell-pace:hover {
   text-decoration: underline;
 }
+.warn-icon {
+  color: var(--warning);
+  font-weight: 700;
+}
 .hero {
   --hero-size: 30px;
   font-size: var(--hero-size);

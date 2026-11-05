@@ -59,7 +59,10 @@ export interface OverviewView {
   readonly claimableCount: number;
   /** Every open window whose pace says it runs out before it resets, soonest first. */
   readonly runningOut: readonly RunOutView[];
-  /** The soonest of them on the account serving now, with the account next in line once it does; null when nothing serving runs out. */
+  /**
+   * The soonest of them on an account serving now or taking the next session, with the account next in line after it;
+   * null when none of those runs out.
+   */
   readonly servingRunsOut: { readonly window: RunOutView; readonly next: { readonly account: AccountId; readonly email: string } | null } | null;
 }
 

@@ -80,6 +80,9 @@ try {
     /^Serve order Session left Weekly left 1 account1 88% 73%\s*2 account2 100% 99%\s*– account3 blocked until \d\d:\d\d$/.test(await text(page.getByTestId('tile-headroom'))),
     'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
   );
+  const runsOut = await text(page.getByTestId('serving-runs-out'));
+  assert(/^! account1 session runs out ~\d\d:\d\d (\d+h )?\d+m before reset account2 next$/.test(runsOut), `the serving tile warns account1's session runs out before its reset, with account2 next: "${runsOut}"`);
+  assert((await text(page.getByTestId('nav-analytics').locator('.tab-badge'))) === '1 runs out', 'the Usage tab says how many windows run out');
   assert(
     (await page.locator('.ledger-head > span').allTextContents()).join('|') === 'Account|Session left|Weekly left|Weekly · Fable left|Extra usage|Requests',
     'each quota column says once, in its header, that it counts what is left',
@@ -199,6 +202,17 @@ try {
   assert((await page.locator('.tooltip-title').innerText()).includes('in progress'), 'tooltip on the latest bar says the hour is in progress');
   await page.getByTestId('history').screenshot({ path: join(SHOTS, 'e2e-4-history-hover.png') });
   pass('history chart answers hover on the in-progress hour');
+
+  await card('account1@example.com').getByTestId('pace-note').click();
+  const paceRow = page.locator(`[id="pace-${ACC1}-session"]`);
+  await paceRow.waitFor();
+  assert(page.url().endsWith(`#usage/pace-${ACC1}-session`), "the run-out note links to its window's row in Usage");
+  assert(
+    (await paceRow.evaluate((el) => el.classList.contains('targeted') && el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().bottom <= window.innerHeight)) &&
+      (await text(paceRow)).includes('Runs out in'),
+    "the run-out note opens Usage scrolled to account1's session pace row, marked, and saying it runs out",
+  );
+  pass('the run-out note on a card opens its quota pace row in Usage');
 
   await page.getByTestId('nav-analytics').click();
   await page.getByTestId('week-strip').waitFor();

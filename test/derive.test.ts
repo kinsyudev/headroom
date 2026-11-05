@@ -713,14 +713,20 @@ describe('windows on course to run out', () => {
     expect(overview(burning, { serving: ACC1, disabled: [ACC2, ACC3] }).servingRunsOut?.next).toBeNull();
   });
 
-  test('another account running out is listed, but says nothing about the one serving', () => {
+  test('an account that neither serves nor takes the next session running out is listed, but says nothing in the serving tile', () => {
     const o = overview({ [ACC1]: [limit('session', 10, 3 * HOUR)], [ACC2]: burning[ACC2]! }, { serving: ACC1 });
     expect(o.runningOut.map((r) => r.account)).toEqual([ACC2]);
     expect(o.servingRunsOut).toBeNull();
   });
 
-  test('nothing serving, nothing to warn about in the serving tile', () => {
-    expect(overview(burning).servingRunsOut).toBeNull();
+  test('the account taking the next session counts though another serves by affinity, and that one is next', () => {
+    const o = overview({ [ACC1]: burning[ACC1]!, [ACC2]: [limit('weekly_all', 10, 3.5 * 24 * HOUR)] }, { serving: ACC2 });
+    expect(o.target?.account).toBe(ACC1);
+    expect(o.servingRunsOut).toMatchObject({ window: { account: ACC1, limit: { key: 'session' } }, next: { account: ACC2 } });
+  });
+
+  test('with nothing serving, the account taking the next session still warns', () => {
+    expect(overview(burning).servingRunsOut?.window).toMatchObject({ account: ACC1, limit: { key: 'session' } });
   });
 });
 
