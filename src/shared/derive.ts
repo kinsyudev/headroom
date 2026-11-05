@@ -168,7 +168,13 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
     cpa,
     limitColumns: limitColumns(views),
     extraUsageColumn: views.some((a) => a.spend?.poll?.state === 'budget'),
+    checked: checkedSpan(views),
   };
+}
+
+function checkedSpan(views: readonly AccountView[]): DeckView['checked'] {
+  const ats = views.flatMap((a) => (a.read.lastAt === null ? [] : [a.read.lastAt]));
+  return ats.length === 0 ? null : { newestAt: Math.max(...ats) as Instant, oldestAt: Math.min(...ats) as Instant };
 }
 
 const sameMoment = (x: Instant | null, y: Instant | null) => x !== null && y !== null && Math.abs(x - y) <= SAME_MOMENT_MS;
@@ -230,7 +236,7 @@ export function deriveAccount(
   const limits = mergeLimits(feeds.limits.last, a.headers, now);
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
-  const read = deriveRead(feeds, now, cpa);
+  const read = deriveRead(feeds, now, cpa, atWall);
   const offers = deriveOffers(a.id, feeds, atWall, mine, now, limits);
   return {
     id: a.id,
@@ -274,8 +280,10 @@ export function isAtWall(a: CpaAccount | undefined, limits: Sample<readonly Limi
   );
 }
 
-function deriveRead(feeds: AccountFeeds, now: Instant, cpa: CpaView): ReadView {
+function deriveRead(feeds: AccountFeeds, now: Instant, cpa: CpaView, atWall: boolean): ReadView {
   const g = feeds.gate;
+  const lastAt = freshestRead(feeds);
+  const lateAfter = (atWall ? WALL_READ_EVERY_MS : NORMAL_READ_EVERY_MS) + MINUTE_MS;
   const backoff = g.backoffUntil !== null && g.backoffUntil > now ? g.backoffUntil : null;
   const cap = g.capUntil !== null && g.capUntil > now ? g.capUntil : null;
   const manualUntil = g.manualAt === null ? null : ((g.manualAt + MANUAL_REFRESH_EVERY_MS) as Instant);
@@ -289,7 +297,7 @@ function deriveRead(feeds: AccountFeeds, now: Instant, cpa: CpaView): ReadView {
           : manualUntil !== null && manualUntil > now
             ? { why: 'debounced', until: manualUntil }
             : null;
-  return { lastAt: freshestRead(feeds), nextAt: feeds.limits.nextAt, reading: g.reading !== null, paused: cpa.kind === 'down', backoffUntil: backoff, capUntil: cap, refreshHeld };
+  return { lastAt, overdue: lastAt !== null && now - lastAt > lateAfter, nextAt: feeds.limits.nextAt, reading: g.reading !== null, paused: cpa.kind === 'down', backoffUntil: backoff, capUntil: cap, refreshHeld };
 }
 
 function freshestRead(feeds: AccountFeeds): Instant | null {

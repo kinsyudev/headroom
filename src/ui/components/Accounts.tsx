@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
-import type { AccountView, ClaimableView, ClaimVerdict, LimitColumn, RoutingView, ServingWhy } from '../../shared/view';
-import { leftLabel, PACE_TICK_HELP, reasonTitle } from '../format';
+import type { AccountView, ClaimableView, ClaimVerdict, DeckView, LimitColumn, RoutingView, ServingWhy } from '../../shared/view';
+import { useNow } from '../deck';
+import { agesAgo, leftLabel, PACE_TICK_HELP, reasonTitle } from '../format';
 import { ActionButton } from './ActionButton';
 import { activitySpan, ActivityCell } from './ActivitySparkline';
 import { ModeLine } from './Freshness';
@@ -14,6 +15,7 @@ import { UpkeepMenu } from './UpkeepMenu';
 
 const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off, including a zero budget, requests stop at the plan limits.';
 const REQUESTS_HELP = 'Requests CPA routed to the account, one bar per 10 minutes. The count beside them covers the same bars.';
+const CHECKED_HELP = 'The newest and oldest Anthropic usage check across the accounts. Each account is checked every 5 min, every 3 min at its limit. A row says its own age when its check is late.';
 const NEW_SESSIONS_HELP = 'New sessions go here: first in the serve order under fill-first.';
 const ACTIVE_HELP: Readonly<Record<ServingWhy, string>> = {
   fill_first_target: 'Answered a request in the last 2 min, and first in the serve order.',
@@ -34,31 +36,39 @@ export function Accounts(props: {
   readonly accounts: readonly AccountView[];
   readonly columns: readonly LimitColumn[];
   readonly extraUsage: boolean;
+  readonly checked: DeckView['checked'];
   readonly claimable: readonly ClaimableView[];
   readonly slots: ReadonlyMap<AccountId, Slot>;
   readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
 }) {
+  const now = useNow();
   const style = { '--limit-cols': Math.max(1, props.columns.length) } as CSSProperties;
   const longest = props.accounts.reduce<AccountView['activity']>((x, a) => (a.activity.length > x.length ? a.activity : x), []);
+  const checked = props.checked;
   return (
     <section className={props.extraUsage ? 'panel accounts has-spend' : 'panel accounts'} aria-label="Accounts" style={style}>
-      <div className="ledger-head" aria-hidden>
-        <span>Account</span>
+      <div className="ledger-head">
+        <span aria-hidden>Account</span>
+        <p className="ledger-checked num" data-testid="checked" title={CHECKED_HELP}>
+          {checked === null ? 'Quota not checked yet' : `Quota checked ${agesAgo(now - checked.newestAt, now - checked.oldestAt)}`}
+        </p>
         {props.columns.length === 0 ? (
-          <span>Room left</span>
+          <span aria-hidden>Room left</span>
         ) : (
           props.columns.map((c) => (
-            <span key={c.key} className={c.gloss ? 'help' : undefined} title={[c.gloss && `${c.label}: ${c.gloss}`, PACE_TICK_HELP].filter(Boolean).join('\n')}>
+            <span key={c.key} className={c.gloss ? 'help' : undefined} title={[c.gloss && `${c.label}: ${c.gloss}`, PACE_TICK_HELP].filter(Boolean).join('\n')} aria-hidden>
               {leftLabel(c.label)}
             </span>
           ))
         )}
         {props.extraUsage && (
-          <span className="help" title={EXTRA_USAGE_HELP}>
+          <span className="help" title={EXTRA_USAGE_HELP} aria-hidden>
             Extra usage
           </span>
         )}
-        <span title={REQUESTS_HELP}>{longest.length === 0 ? 'Requests' : `Requests · last ${activitySpan(longest)}`}</span>
+        <span title={REQUESTS_HELP} aria-hidden>
+          {longest.length === 0 ? 'Requests' : `Requests · last ${activitySpan(longest)}`}
+        </span>
       </div>
       {props.accounts.length === 0 && <p className="acct-none muted">No Claude accounts in CPA yet.</p>}
       {props.accounts.map((a) => (
@@ -161,10 +171,9 @@ function AccountRow(props: {
           </ActionButton>
         </div>
         <span className="foot-spacer" aria-hidden />
-        <div className="foot-group upkeep">
-          <ModeLine account={a} />
+        <ModeLine account={a}>
           <UpkeepMenu account={a} />
-        </div>
+        </ModeLine>
       </footer>
     </article>
   );

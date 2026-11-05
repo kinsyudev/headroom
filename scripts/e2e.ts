@@ -150,6 +150,12 @@ try {
   assert((await pct('account3@example.com', 'session')) === '0%', 'account3 session at the wall has nothing left');
   assert((await text(card('account3@example.com').getByTestId('role'))).startsWith('■ Blocked'), 'account3 blocked');
   assert(((await card('account2@example.com').getByTestId('freshness').getAttribute('title')) ?? '').includes('weekly reset: held'), 'freshness tooltip names the held weekly reset read');
+  const checkedLine = await text(page.getByTestId('checked'));
+  const rowStamps = await Promise.all(['account1', 'account2', 'account3'].map(async (n) => text(card(`${n}@example.com`).getByTestId('freshness'))));
+  assert(
+    /^Quota checked (\d+ to )?\d+[sm] ago$|^Quota checked \d+[sm] to \d+[sm] ago$/.test(checkedLine) && rowStamps.every((t) => !t.includes('checked')),
+    `the account table header says once when quota was checked, and no row on time repeats it: "${checkedLine}" / ${rowStamps.join(' | ')}`,
+  );
   const marker = (scope: Locator) => scope.locator('.swatch').first().getAttribute('data-shape');
   const shapes = await Promise.all(['account1', 'account2', 'account3'].map((n) => marker(card(`${n}@example.com`))));
   assert(new Set(shapes).size === 3 && shapes.every(Boolean), `each account card marks the account with a shape of its own beside its colour: ${shapes.join(', ')}`);

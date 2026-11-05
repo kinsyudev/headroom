@@ -1018,6 +1018,27 @@ describe('card status line', () => {
     expect(view({}, ACC2).read.lastAt).toBeNull();
   });
 
+  test("the table's one checked line spans the newest and oldest check, leaves out accounts not checked yet, and is null before any check", () => {
+    const feeds = {
+      [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), plus(T0, -3_000)),
+      [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), plus(T0, -43_000)),
+    };
+    expect(deriveDeck(snapshot({ feeds }), T0).checked).toEqual({ newestAt: plus(T0, -3_000), oldestAt: plus(T0, -43_000) });
+    expect(deriveDeck(snapshot({ feeds: {} }), T0).checked).toBeNull();
+  });
+
+  test('a row says its own check age only once the check is over a minute late for its cadence: 6 min normally, 4 min at the limit', () => {
+    const normal = (ago: number) => view({ [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), plus(T0, -ago)) }, ACC1);
+    expect(normal(2 * MIN).read.overdue).toBe(false);
+    expect(normal(6 * MIN).read.overdue).toBe(false);
+    expect(normal(6 * MIN + 1_000).read.overdue).toBe(true);
+    const wall = (ago: number) => view({ [ACC3]: feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), plus(T0, -ago)) }, ACC3);
+    expect(wall(4 * MIN).atWall).toBe(true);
+    expect(wall(4 * MIN).read.overdue).toBe(false);
+    expect(wall(4 * MIN + 1_000).read.overdue).toBe(true);
+    expect(view({}, ACC2).read.overdue).toBe(false);
+  });
+
   test('a failed read does not move the last successful read', () => {
     const t = plus(T0, -8 * MIN);
     const failing = { ...feedsFrom(usage('anthropic-usage-2.json', 'normal'), t), limits: { ...sampleAt([], t), error: { value: { kind: 'upstream' as const, status: 503, message: '' }, at: plus(T0, -MIN) } } };

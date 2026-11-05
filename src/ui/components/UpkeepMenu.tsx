@@ -143,7 +143,7 @@ export function UpkeepMenu(props: { readonly account: AccountView }) {
         aria-expanded={open !== null}
         aria-controls={open !== null ? id : undefined}
         aria-label={`More actions for ${a.email}`}
-        title={paused === null ? 'Check now, refresh token, disable' : `${paused}: check now, refresh token, disable`}
+        title={paused === null ? undefined : `${paused}: check now, refresh token, disable`}
         data-testid="more-actions"
         data-paused={paused !== null || undefined}
         onClick={() => (open === null ? setOpen('first') : setOpen(null))}

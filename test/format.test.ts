@@ -2,7 +2,18 @@ import { describe, expect, test } from 'bun:test';
 import { INELIGIBLE_EXPLAIN } from '../src/shared/derive';
 import type { AccountId, ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
 import type { RunOutView } from '../src/shared/view';
-import { bucketText, changeText, claimText, compact, count, foldedPaceSays, hourText, modelName, money, reasonText, reasonTitle, runOutText, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+import { agesAgo, bucketText, changeText, claimText, compact, count, foldedPaceSays, hourText, modelName, money, reasonText, reasonTitle, runOutText, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+
+describe('when the accounts were checked', () => {
+  test.each([
+    [3_000, 43_000, '3 to 43s ago'],
+    [40_000, 6 * 60_000, '40s to 6m ago'],
+    [2 * 60_000, 4 * 60_000, '2 to 4m ago'],
+    [5_000, 5_400, '5s ago'],
+  ])('%i and %i ms ago read "%s"', (newest, oldest, says) => {
+    expect(agesAgo(newest, oldest)).toBe(says);
+  });
+});
 
 describe('a window running out', () => {
   const now = new Date(2026, 10, 5, 12, 0).getTime();

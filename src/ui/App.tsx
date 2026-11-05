@@ -42,6 +42,7 @@ export function App() {
                 accounts={deck.accounts}
                 columns={deck.limitColumns}
                 extraUsage={deck.extraUsageColumn}
+                checked={deck.checked}
                 claimable={deck.overview.claimable}
                 slots={slots}
                 onClaim={(account, program, grant) => setClaim({ account, program, grant })}

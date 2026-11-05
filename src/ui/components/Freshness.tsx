@@ -78,11 +78,13 @@ export function Status(props: { readonly status: StatusView }) {
 
 const PROBLEMS = ['failing', 'stale', 'aging'] as const;
 
-export function ModeLine(props: { readonly account: AccountView }) {
+/** The row's upkeep group: what its checks need said, then its More menu. A check on time is left to the table's one checked line. */
+export function ModeLine(props: { readonly account: AccountView; readonly children: ReactNode }) {
   const now = useNow();
   const { atWall, read, freshness, routing, quietOffers } = props.account;
 
-  const clauses: ReactNode[] = [read.lastAt === null ? 'not checked yet' : `checked ${age(now - read.lastAt)} ago`];
+  const checked = read.lastAt === null ? 'not checked yet' : `checked ${age(now - read.lastAt)} ago`;
+  const clauses: ReactNode[] = read.lastAt === null || read.overdue ? [checked] : [];
   for (const state of PROBLEMS) {
     const feeds = freshness.filter((f) => f.state === state);
     if (feeds.length === 0) continue;
@@ -101,11 +103,14 @@ export function ModeLine(props: { readonly account: AccountView }) {
   const cadence = atWall ? 'At limit: limits and claimable resets are checked every 3 min' : 'Normal: usage is checked every 5 min';
   const resets = quietOffers === null ? [] : [`Resets you can claim: ${quietOffers.join(' · ')}`];
   return (
-    <div className="mode num" data-testid="freshness" title={[cadence, ...resets, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
+    <div className="foot-group upkeep mode num" data-testid="freshness" title={[`Quota ${checked}`, cadence, ...resets, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
       {atWall && routing.role.kind !== 'blocked' && <span className="badge warning">At limit</span>}
-      <div className="mode-text">
-        <Segments parts={clauses} />
-      </div>
+      {clauses.length > 0 && (
+        <div className="mode-text">
+          <Segments parts={clauses} />
+        </div>
+      )}
+      {props.children}
     </div>
   );
 }

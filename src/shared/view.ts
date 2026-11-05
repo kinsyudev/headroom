@@ -32,6 +32,8 @@ export interface DeckView {
   readonly limitColumns: readonly LimitColumn[];
   /** Extra usage takes a column only while some account has it on with room to spend; otherwise each account's plan line says it in words. */
   readonly extraUsageColumn: boolean;
+  /** The newest and oldest last check across the accounts checked so far, for the table's one checked line; null before any check. */
+  readonly checked: { readonly newestAt: Instant; readonly oldestAt: Instant } | null;
 }
 
 export interface LimitColumn {
@@ -155,6 +157,8 @@ export interface AccountView {
 export interface ReadView {
   /** The freshest successful Anthropic usage read: limits, spend, grants or weekly reset. */
   readonly lastAt: Instant | null;
+  /** lastAt is over a minute past the account's check cadence, so its row says how old it is instead of leaving it to the table's checked line. */
+  readonly overdue: boolean;
   readonly nextAt: Instant | null;
   readonly reading: boolean;
   /** CPA is not answering, and Anthropic reads go through it. */

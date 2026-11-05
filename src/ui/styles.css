@@ -731,6 +731,18 @@ a.cell-pace:hover {
   cursor: default;
   white-space: nowrap;
 }
+.ledger-head > :first-child,
+.ledger-checked {
+  grid-area: 1 / 1;
+}
+.ledger-checked {
+  justify-self: end;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .help {
   cursor: help;
   text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent);
@@ -1635,6 +1647,9 @@ table.data th.wrap {
 
 @media (max-width: 1250px) {
   .ledger-head {
+    display: block;
+  }
+  .ledger-head > span {
     display: none;
   }
   .acct {

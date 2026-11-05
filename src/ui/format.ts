@@ -42,6 +42,14 @@ export function age(ms: number): string {
   return `${Math.floor(s / 86_400)}d`;
 }
 
+/** Two ages as one span, saying the unit once where both share it: "3 to 43s ago", "40s to 6m ago", or "5s ago" when they read the same. */
+export function agesAgo(newestMs: number, oldestMs: number): string {
+  const [newest, oldest] = [age(newestMs), age(oldestMs)];
+  if (newest === oldest) return `${newest} ago`;
+  const unit = /\D+$/;
+  return newest.match(unit)?.[0] === oldest.match(unit)?.[0] ? `${newest.replace(unit, '')} to ${oldest} ago` : `${newest} to ${oldest} ago`;
+}
+
 export function clockTime(at: number, now: number): string {
   const d = new Date(at);
   const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
