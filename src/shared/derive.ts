@@ -404,8 +404,11 @@ const percentLeftOrNull = (used: Percent | null): PercentLeft | null => (used ==
 /** Over half left is room to spare: the meter recedes so the windows running low are the ones that stand out. */
 const AMPLE_LEFT = 50;
 
+const LOW_LEFT = 25;
+
 export function meterTone(severity: Severity, left: PercentLeft | null): MeterTone {
-  return severity === 'normal' && left !== null && left > AMPLE_LEFT ? 'ample' : severity;
+  if (severity !== 'normal' || left === null) return severity;
+  return left > AMPLE_LEFT ? 'ample' : left <= LOW_LEFT ? 'low' : severity;
 }
 
 export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: HeaderQuota | null, now: Instant): LimitView[] {
@@ -485,9 +488,11 @@ function pace(kind: string, used: Percent, resetsAt: Instant, now: Instant): Lim
   const hitsAt = used > 0 ? startsAt + (100 * gone) / used : Infinity;
   return {
     startsAt,
+    endsAt: resetsAt,
     elapsed,
     used,
     ratio: elapsed < 1 ? null : used / elapsed,
+    projected: elapsed < 1 ? null : (100 * used) / elapsed,
     outlook:
       used >= 100
         ? { kind: 'at_limit' }

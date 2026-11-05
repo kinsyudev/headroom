@@ -178,8 +178,11 @@ export interface TroubleView {
 /** idle: the session limit is absent from limits[], so no session window is running. */
 export type WindowPhase = 'open' | 'idle' | 'lapsed';
 
-/** How loudly a meter is drawn: its severity, except that a normal reading with most of its room left is 'ample' and recedes. */
-export type MeterTone = Severity | 'ample';
+/**
+ * How loudly a meter is drawn: its severity, except that a normal reading with most of its room left is 'ample' and
+ * recedes, and one with a quarter or less left is 'low', drawn as the warning is.
+ */
+export type MeterTone = Severity | 'ample' | 'low';
 
 export interface LimitView {
   readonly key: string;
@@ -204,11 +207,15 @@ export interface LimitView {
 export interface LimitPace {
   /** When the window opened: its reset less its length. */
   readonly startsAt: Instant;
+  /** When the window resets. */
+  readonly endsAt: Instant;
   /** The share of the window's time already gone, 0 to 100. */
   readonly elapsed: number;
   readonly used: Percent;
   /** used ÷ elapsed. 1 is even pace; above 1 the window runs out before it resets. Null while under 1% of the window is gone. */
   readonly ratio: number | null;
+  /** Where the window would stand at its reset if the burn so far held: used ÷ elapsed × 100. Above 100 it runs out first. Null where ratio is. */
+  readonly projected: number | null;
   readonly outlook: PaceOutlook;
 }
 
@@ -341,8 +348,30 @@ export interface AnalyticsView {
   readonly byAccountModel: readonly { readonly account: AccountId; readonly model: string; readonly stats: UsageStats }[];
   /** One row per open quota window per account in the lens. */
   readonly pace: readonly PaceView[];
+  /** The last seven days against the seven before, whatever the range. Account and model narrow it like everything else. */
+  readonly weeks: WeekOverWeek;
   /** error_events inside the span that match the lens, newest first. */
   readonly errors: readonly ErrorEventView[];
+}
+
+/**
+ * Seven days against the seven before them, in whole hours that end at the top of asOf's hour, so both sides hold the
+ * same number of complete hours and the hour still filling is left out. before is null while the history does not
+ * reach back to the start of the earlier week, because a short week would read as a drop.
+ */
+export interface WeekOverWeek {
+  readonly hours: number;
+  readonly now: { readonly start: Instant; readonly end: Instant; readonly figures: WeekFigures };
+  readonly before: { readonly start: Instant; readonly end: Instant; readonly figures: WeekFigures } | null;
+  /** Fourteen blocks of 24 h, oldest first: the seven before, then the seven now. Empty blocks stay in, so the sparkline keeps its width. */
+  readonly blocks: readonly { readonly start: Instant; readonly end: Instant; readonly stats: UsageStats }[];
+}
+
+/** byModel and byAccount hold only the series with requests, most requests first. */
+export interface WeekFigures {
+  readonly stats: UsageStats;
+  readonly byModel: readonly Part<string>[];
+  readonly byAccount: readonly Part<AccountId>[];
 }
 
 /**
@@ -406,6 +435,12 @@ export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export interface WeekGrid {
   /** rows[weekday][hour], always 7 by 24. */
   readonly rows: readonly (readonly WeekCell[])[];
+  /** Requests on an average Monday, Tuesday and so on: each slot's mean per occurrence, summed over the day. */
+  readonly perDay: readonly number[];
+  /** Requests in an average hour of the day, over every weekday. */
+  readonly perHour: readonly number[];
+  /** The heaviest weekday and the heaviest three hours in a row, wrapping past midnight; null when the span has no requests. */
+  readonly peak: { readonly weekday: Weekday; readonly hours: { readonly from: number; readonly to: number } } | null;
 }
 
 export interface WeekCell {

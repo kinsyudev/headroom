@@ -225,7 +225,9 @@ describe('window lifecycle', () => {
       ['most of it left', 12, 'normal', 'ample'],
       ['one point over half left', 49, 'normal', 'ample'],
       ['exactly half left', 50, 'normal', 'normal'],
-      ['under half left', 80, 'normal', 'normal'],
+      ['a little over a quarter left', 74, 'normal', 'normal'],
+      ['exactly a quarter left is low', 75, 'normal', 'low'],
+      ['under a quarter left', 92, 'normal', 'low'],
       ['a warning keeps its tone however much is left', 12, 'warning', 'warning'],
       ['a window at its limit', 100, 'critical', 'critical'],
     ] as const)('%s: %p%% used at %s severity is %s', (_label, used, severity, tone) => {
@@ -993,7 +995,13 @@ describe('pace toward a quota window, from its latest reading alone', () => {
     ['the weekly window opened 7 days before its reset', limit('weekly_all', 20, 3.5 * 24 * HOUR), { startsAt: plus(NOW, -3.5 * 24 * HOUR), elapsed: 50, ratio: 0.4 }],
     ['a scoped weekly window is 7 days too, and 60% at half time hits at 5/6 of it', limit('weekly_scoped', 60, 3.5 * 24 * HOUR), { elapsed: 50, outlook: { kind: 'hits', at: plus(NOW, -3.5 * 24 * HOUR + (7 * 24 * HOUR * 5) / 6) } }],
   ] as const)('%s', (_what, l, want) => {
-    expect(paceOf(l)).toMatchObject({ startsAt: plus(l.resetsAt!, -(l.kind === 'session' ? 5 * HOUR : 7 * 24 * HOUR)), used: l.percent, ...want });
+    expect(paceOf(l)).toMatchObject({ startsAt: plus(l.resetsAt!, -(l.kind === 'session' ? 5 * HOUR : 7 * 24 * HOUR)), endsAt: l.resetsAt, used: l.percent, ...want });
+  });
+
+  test('projected is where the window would stand at its reset if the burn so far held', () => {
+    expect(paceOf(limit('session', 50, 3 * HOUR))!.projected).toBeCloseTo(125);
+    expect(paceOf(limit('session', 20, 3 * HOUR))!.projected).toBeCloseTo(50);
+    expect(paceOf(limit('session', 1, 5 * HOUR - 2 * MIN))!.projected).toBeNull();
   });
 
   test('no pace for a lapsed window, an idle session, an unknown kind, or a window with no reset', () => {

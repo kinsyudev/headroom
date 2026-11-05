@@ -161,6 +161,98 @@ describe('weekday by hour', () => {
     expect(month.rows[0]![9]!.occurrences).toBe(4);
     expect(month.rows[1]![9]!.occurrences).toBe(5);
   });
+
+  test('the average day and hour, and the heaviest three hours in a row, which may wrap past midnight', () => {
+    const lateMonday = ['2026-11-02T22:00:00Z', '2026-11-02T23:00:00Z', '2026-11-03T00:00:00Z'].map((iso) => cell(iso, ACC1, ok(10)));
+    const week = view(lateMonday, { range: '7d' }).week;
+    expect(week.perDay).toEqual([10, 20, 0, 0, 0, 0, 0]);
+    expect(week.perHour[23]).toBeCloseTo(10 / 6);
+    expect(week.perHour[0]).toBeCloseTo(10 / 7);
+    expect(week.perHour[1]).toBeCloseTo(10 / 7);
+    expect(week.perHour[12]).toBe(0);
+    expect(week.peak).toEqual({ weekday: 1, hours: { from: 23, to: 2 } });
+  });
+
+  test('a slot that occurs twice in the span is a mean per occurrence, not a sum', () => {
+    const week = view([cell('2026-11-02T13:00:00Z', ACC1, ok(8))], { range: '30d' }).week;
+    expect(week.rows[0]![14]!.occurrences).toBe(4);
+    expect(week.perDay[0]).toBe(2);
+    expect(week.peak?.weekday).toBe(0);
+  });
+
+  test('no requests, no peak', () => {
+    expect(view([], { range: '7d' }).week.peak).toBeNull();
+  });
+});
+
+describe('the last seven days against the seven before', () => {
+  const FROM_NOW = (ms: number) => new Date(NOW + ms).toISOString();
+  const day = 24 * HOUR;
+  const history = [
+    cell(FROM_NOW(-14 * day), ACC1, ok(1)),
+    cell(FROM_NOW(-10 * day), ACC1, ok(20)),
+    cell(FROM_NOW(-8 * day - HOUR), ACC3, ok(5), 'claude-sonnet-5-5'),
+    cell(FROM_NOW(-7 * day), ACC1, ok(30)),
+    cell(FROM_NOW(-3 * day), ACC3, ok(10), 'claude-sonnet-5-5'),
+    cell(FROM_NOW(-HOUR), ACC1, tally({ outcomes: { ok: 40 }, output: 800 })),
+    cell(FROM_NOW(0), ACC1, ok(1_000)),
+  ];
+
+  test('both sides are 168 complete hours ending at the top of the hour, and the hour still filling is left out', () => {
+    const w = view(history).weeks;
+    expect(w.hours).toBe(168);
+    expect(w.now.end).toBe(NOW);
+    expect(w.now.start).toBe((NOW - 7 * day) as Instant);
+    expect(w.before!.start).toBe((NOW - 14 * day) as Instant);
+    expect(w.before!.end).toBe(w.now.start);
+    expect(w.now.figures.stats.requests).toBe(30 + 10 + 40);
+    expect(w.before!.figures.stats.requests).toBe(1 + 20 + 5);
+  });
+
+  test('top models and accounts are ranked by requests with their share, and hold only series that had traffic', () => {
+    const w = view(history).weeks;
+    expect(w.now.figures.byModel.map((p) => [p.key, p.stats.requests])).toEqual([
+      ['claude-opus-5-5', 70],
+      ['claude-sonnet-5-5', 10],
+    ]);
+    expect(w.now.figures.byAccount.map((p) => p.key)).toEqual([ACC1, ACC3]);
+    expect(w.now.figures.byAccount[0]!.share!.requests).toBeCloseTo(70 / 80);
+    expect(w.before!.figures.byAccount.map((p) => p.key)).toEqual([ACC1, ACC3]);
+  });
+
+  test('fourteen day blocks, oldest first, hold the same requests as the two sides', () => {
+    const w = view(history).weeks;
+    expect(w.blocks).toHaveLength(14);
+    expect(w.blocks[0]!.start).toBe(w.before!.start);
+    expect(w.blocks.every((b, i) => b.end - b.start === day && (i === 0 || b.start === w.blocks[i - 1]!.end))).toBe(true);
+    expect(w.blocks.at(-1)!.end).toBe(NOW);
+    const sum = (from: number, to: number) => w.blocks.slice(from, to).reduce((n, b) => n + b.stats.requests, 0);
+    expect(sum(0, 7)).toBe(w.before!.figures.stats.requests);
+    expect(sum(7, 14)).toBe(w.now.figures.stats.requests);
+    expect(w.blocks.at(-1)!.stats.tokens.output).toBe(800);
+  });
+
+  test('the range does not move it, and an account or model lens narrows it', () => {
+    expect(view(history, { range: '24h' }).weeks.now.figures.stats.requests).toBe(80);
+    expect(view(history, { range: '30d' }).weeks.now.figures.stats.requests).toBe(80);
+    const one = view(history, { range: '24h', account: ACC3 }).weeks;
+    expect(one.now.figures.stats.requests).toBe(10);
+    expect(one.before!.figures.stats.requests).toBe(5);
+    expect(view(history, { range: '24h', model: 'claude-sonnet-5-5' }).weeks.now.figures.stats.requests).toBe(10);
+  });
+
+  test('without history reaching back to the start of the earlier week, or while catching up, there is nothing to compare against', () => {
+    expect(view(history.slice(3)).weeks.before).toBeNull();
+    expect(view(history, { range: '24h' }, { catchingUp: true }).weeks.before).toBeNull();
+    expect(view(history.slice(3)).weeks.now.figures.stats.requests).toBe(80);
+  });
+
+  test('an empty history is empty on both sides and the blocks keep their width', () => {
+    const w = view([]).weeks;
+    expect(w.now.figures.stats.requests).toBe(0);
+    expect(w.now.figures.byModel).toEqual([]);
+    expect(w.blocks).toHaveLength(14);
+  });
 });
 
 describe('errors', () => {
