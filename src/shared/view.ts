@@ -35,6 +35,7 @@ export interface DeckView {
 export interface LimitColumn {
   readonly key: string;
   readonly label: string;
+  readonly gloss: string | null;
 }
 
 export interface StatusView {
@@ -203,6 +204,8 @@ export type MeterTone = Severity;
 export interface LimitView {
   readonly key: string;
   readonly label: string;
+  /** What the label leaves unsaid: a scoped weekly window counts only its model's requests ("Fable models only"). */
+  readonly gloss: string | null;
   readonly phase: WindowPhase;
   /** Used. What the wall and trouble are judged on; the page draws `left`. */
   readonly percent: Percent | null;

@@ -166,9 +166,8 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
 }
 
 function limitColumns(views: readonly AccountView[]): LimitColumn[] {
-  const columns = new Map(views.flatMap((a) => a.limits.map((l) => [l.key, l.label] as const)));
-  return [...columns]
-    .map(([key, label]) => ({ key, label }))
+  const columns = new Map(views.flatMap((a) => a.limits.map((l) => [l.key, { key: l.key, label: l.label, gloss: l.gloss }] as const)));
+  return [...columns.values()]
     .sort((x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key));
 }
 
@@ -459,6 +458,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
     return {
       key: rowKey(draw.kind, draw.scopeModel),
       label: limitLabel(draw.kind, draw.scopeModel),
+      gloss: draw.kind === 'weekly_scoped' && draw.scopeModel !== null ? `${draw.scopeModel} models only` : null,
       phase: lapsed ? 'lapsed' : 'open',
       percent: lapsed ? null : draw.percent,
       left,
@@ -475,6 +475,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
     views.push({
       key: rowKey('session', null),
       label: limitLabel('session', null),
+      gloss: null,
       phase: 'idle',
       percent: null,
       left: 100 as PercentLeft,

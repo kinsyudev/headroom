@@ -657,7 +657,16 @@ describe('the accounts table columns', () => {
     const f = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
     const opus: Limit = { kind: 'weekly_scoped', scopeModel: 'Opus', percent: 40 as never, severity: 'normal', resetsAt: plus(T0, 60 * MIN), isActive: false };
     const withOpus = { ...f, limits: { ...f.limits, last: { value: [...f.limits.last!.value, opus], at: T0 } } };
-    expect(columns({ [ACC1]: withOpus, [ACC2]: f })).toContainEqual({ key: 'weekly_scoped:Opus', label: 'Weekly · Opus' });
+    expect(columns({ [ACC1]: withOpus, [ACC2]: f })).toContainEqual({ key: 'weekly_scoped:Opus', label: 'Weekly · Opus', gloss: 'Opus models only' });
+  });
+
+  test('only a scoped window carries a gloss, because its label alone does not say it counts one model', () => {
+    const f = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
+    expect(columns({ [ACC1]: f }).map((c) => [c.key, c.gloss])).toEqual([
+      ['session', null],
+      ['weekly_all', null],
+      ['weekly_scoped:Fable', 'Fable models only'],
+    ]);
   });
 
   test('no account read yet and no traffic: no columns', () => {

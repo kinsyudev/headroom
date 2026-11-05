@@ -16,9 +16,9 @@ import { Status } from './Freshness';
 import { Segments } from './Segments';
 
 const STRATEGIES: readonly RoutingStrategy[] = ['fill-first', 'round-robin'];
-const STRATEGY_HELP: Readonly<Record<RoutingStrategy, string>> = {
-  'fill-first': 'fill-first: send new sessions to the highest-priority account until it is limited',
-  'round-robin': 'round-robin: spread new sessions across available accounts',
+const STRATEGY: Readonly<Record<RoutingStrategy, { readonly gloss: string; readonly help: string }>> = {
+  'fill-first': { gloss: 'one account until full', help: 'fill-first: use one account until it is full. New sessions go to the highest-priority account until it is limited' },
+  'round-robin': { gloss: 'rotate accounts', help: 'round-robin: rotate. New sessions take turns across the available accounts' },
 };
 const FLOW_TTL_MS = 5 * 60_000;
 
@@ -60,13 +60,14 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
               input={{ strategy: s }}
               disabled={d.strategy === s}
               variant={d.strategy === s ? 'selected' : 'quiet'}
-              title={STRATEGY_HELP[s]}
+              title={STRATEGY[s].help}
               done="switched"
               testId={`strategy-${s}`}
             >
               {s}
             </ActionButton>
           ))}
+          {d.strategy && <span className="segmented-gloss">{STRATEGY[d.strategy].gloss}</span>}
         </div>
         <ActionButton
           kind="quota.refresh"

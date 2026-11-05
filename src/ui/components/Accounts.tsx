@@ -34,7 +34,15 @@ export function Accounts(props: {
     <section className="panel accounts" aria-label="Accounts" style={style}>
       <div className="ledger-head" aria-hidden>
         <span>Account</span>
-        {props.columns.length === 0 ? <span>Room left</span> : props.columns.map((c) => <span key={c.key}>{leftLabel(c.label)}</span>)}
+        {props.columns.length === 0 ? (
+          <span>Room left</span>
+        ) : (
+          props.columns.map((c) => (
+            <span key={c.key} title={c.gloss ? `${c.label}: ${c.gloss}` : undefined}>
+              {leftLabel(c.label)}
+            </span>
+          ))
+        )}
         <span title={EXTRA_USAGE_HELP}>Extra usage</span>
         <span title={REQUESTS_HELP}>Requests</span>
       </div>

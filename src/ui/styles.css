@@ -429,6 +429,12 @@ code {
   font-size: 12px;
   margin-right: 2px;
 }
+.segmented-gloss {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
 
 .badge {
   display: inline-flex;
@@ -703,6 +709,11 @@ a.cell-pace:hover {
 }
 .ledger-head > * {
   cursor: default;
+}
+.ledger-head > [title] {
+  cursor: help;
+  text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent);
+  text-underline-offset: 4px;
 }
 .acct-none {
   margin: 0;
@@ -1017,9 +1028,8 @@ a.cell-pace:hover {
 .offer-list {
   grid-column: 2 / -1;
   display: grid;
-  grid-template-columns: minmax(0, max-content) auto;
-  justify-content: start;
-  gap: 2px 24px;
+  grid-template-columns: subgrid;
+  row-gap: 2px;
 }
 .offer {
   grid-column: 1 / -1;
@@ -1028,10 +1038,16 @@ a.cell-pace:hover {
   align-items: center;
   min-height: 32px;
 }
+.offer > :last-child {
+  justify-self: end;
+}
 .offer-text,
 .offer-state {
   color: var(--ink-2);
   min-width: 0;
+}
+.offer-state {
+  text-align: end;
 }
 .offer-text strong {
   color: var(--ink);

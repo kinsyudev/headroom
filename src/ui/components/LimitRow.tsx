@@ -53,6 +53,7 @@ export function LimitCell(props: { readonly account: AccountId; readonly limit: 
   const pace = l.pace;
   const runsOut = pace?.outlook.kind === 'hits' ? pace.outlook : null;
   const title = [
+    l.gloss && `${l.label}: ${l.gloss}`,
     note?.title,
     pace && paceTitle(pace, now),
     l.limiting && 'the limit holding this account back right now',
