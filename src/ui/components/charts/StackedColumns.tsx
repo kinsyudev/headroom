@@ -20,7 +20,7 @@ const PAD = { top: 14, right: 8, bottom: 26, left: 48 };
 const GAP = 2;
 const NOW_LABEL_CLEARANCE = 40;
 
-/** A fixed vertical scale, for a chart whose total is the whole (a share that adds to 100%). */
+/** A fixed vertical scale from zero, for a chart whose values are shares and not counts. */
 export interface Domain {
   readonly max: number;
   readonly ticks: readonly number[];
@@ -52,8 +52,6 @@ export const StackedColumns = memo(function StackedColumns(props: {
   readonly dim?: boolean;
   readonly height?: number;
   readonly domain?: Domain;
-  /** Names the top of a fixed scale, such as the 100% a share can reach: drawn as a brighter hairline with its label. */
-  readonly ceiling?: string;
   readonly hideTotal?: boolean;
   readonly previous?: Previous | undefined;
 }) {
@@ -86,7 +84,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
         </defs>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={PAD.left} x2={PAD.left + plotW} y1={y(t)} y2={y(t)} className={t === 0 ? 'axis' : props.ceiling && t === yMax ? 'ceiling' : 'grid'} />
+            <line x1={PAD.left} x2={PAD.left + plotW} y1={y(t)} y2={y(t)} className={t === 0 ? 'axis' : 'grid'} />
             <text x={PAD.left - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tick">
               {props.format(t)}
             </text>
@@ -142,11 +140,6 @@ export const StackedColumns = memo(function StackedColumns(props: {
             </g>
           );
         })}
-        {props.ceiling && (
-          <text x={PAD.left + plotW} y={y(yMax) - 4} textAnchor="end" className="tick ceiling-label">
-            {props.ceiling}
-          </text>
-        )}
       </svg>
       {hover !== null && props.buckets[hover] && (
         <ChartTip

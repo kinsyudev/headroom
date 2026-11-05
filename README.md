@@ -105,7 +105,7 @@ The mark is an arch with a dot under it, a doorway with room above the head. The
 
 The palette is deep blue-black surfaces and one ice-blue hue in six steps (`--ice-1` to `--ice-6`). The same ramp draws every magnitude: the meters, the heatmap, the effort bars and the sparklines, so a lighter mark is always more. Account colors are violet, teal and azure, then two spares, checked in dark mode against the card surface (`#0e131a`) with the dataviz palette validator. Green, amber and red mean good, warning and critical and nothing else. `test/palette.test.ts` holds the contrast floors: 4.5:1 for every text token on all four surfaces, 3:1 for every mark, and a 15 floor between neighbouring account colors and between any account color and a status color.
 
-The motif is the ceiling and the space under it: a hairline across the top of the page, the line over the active tab, the cap on the cache hit bar, the 100% line on the Cache chart, and the tick on the meters.
+The motif is the ceiling and the space under it: a hairline across the top of the page, the line over the active tab, the cap on the cache hit bar, and the tick on the meters.
 
 ## What you can do
 

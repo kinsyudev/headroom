@@ -50,7 +50,10 @@ function rows<K extends string>(parts: readonly Part<K>[], measure: Measure, nam
     });
 }
 
-/** What you use: models, reasoning effort and accounts as shares. Picking a model or an account narrows every chart below the toolbar. */
+/**
+ * What you use: how much Claude writes for each request and each session, then models, reasoning effort and accounts as shares.
+ * Picking a model or an account narrows every chart below the toolbar.
+ */
 export function Mix(props: {
   readonly view: AnalyticsView;
   readonly colors: ReadonlyMap<AccountId, string>;
@@ -70,6 +73,16 @@ export function Mix(props: {
       actions={<Switch label="Measure" options={MEASURES} value={measure} onChange={setMeasure} />}
       testId="mix"
     >
+      <div className="figures">
+        <div>
+          <p className="figure">{v.total.outputPerRequest === null ? '—' : count(v.total.outputPerRequest)}</p>
+          <p className="figure-label">output tokens per request</p>
+        </div>
+        <div>
+          <p className="figure">{v.total.outputPerSession === null ? '—' : compact(v.total.outputPerSession)}</p>
+          <p className="figure-label">output tokens per session</p>
+        </div>
+      </div>
       <div className="mix">
         <div className="mix-col">
           <h3>Models</h3>

@@ -60,7 +60,7 @@ body::before {
   pointer-events: none;
   z-index: -1;
 }
-/* The ceiling: one hairline across the top of the page, the same line the active tab, the meters and the cache chart draw. */
+/* The ceiling: one hairline across the top of the page, the same line the active tab and the meters draw. */
 body::after {
   content: '';
   position: fixed;
@@ -1919,13 +1919,6 @@ table.errors td.message {
 }
 
 /* Chart parts. */
-.chart .ceiling {
-  stroke: var(--ice-4);
-  stroke-width: 1;
-}
-.ceiling-label {
-  fill: var(--ice-5);
-}
 .chart .crosshair {
   stroke: var(--muted);
   stroke-width: 1;
@@ -2005,9 +1998,6 @@ table.errors td.message {
 }
 .figures p {
   margin: 0;
-}
-.figures.stacked > :first-child {
-  flex-basis: 100%;
 }
 .figure {
   font-size: 24px;
