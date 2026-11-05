@@ -362,9 +362,10 @@ try {
   assert((await text(speed)).includes('9 in 10 finish within'), 'the Finish toggle turns the Speed panel to the whole answer, with its 9 in 10 line');
   const failuresLegend = await text(page.getByTestId('failures').getByRole('list', { name: 'Legend' }));
   assert(
-    ['rate-limited', 'server error', 'cancelled'].every((s) => failuresLegend.includes(s)) && !/\b(429|499|5xx)\b/.test(failuresLegend),
-    'the failures legend leads with plain words and keeps the status codes out of it',
+    ['rate-limited', 'server error'].every((s) => failuresLegend.includes(s)) && !failuresLegend.includes('cancelled') && !/\b(429|499|5xx)\b/.test(failuresLegend),
+    'the failures legend leads with plain words, names the two faults it draws and keeps the status codes out of it',
   );
+  assert(/cancelled, not drawn/.test(await text(page.getByTestId('failures').locator('.figures'))), 'cancelled requests stay counted in the failures figures, marked as not drawn, because they are not a fault');
   const failureBars = page.getByTestId('failures').locator('.chart rect[tabindex="0"]');
   let coded = false;
   for (let i = 0; i < (await failureBars.count()) && !coded; i++) {
@@ -388,14 +389,13 @@ try {
   );
   assert(await byModel.locator('.table-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'at half width the account and model table fits with no clipped column');
   await page.setViewportSize({ width: 1480, height: 1000 });
-  const errorWhen = await text(page.getByTestId('errors').locator('tbody tr').first().locator('td').first());
-  assert(/^[A-Z][a-z]{2} \d{1,2} \d\d:\d\d$/.test(errorWhen), `the error log dates its times like the chart axes: "${errorWhen}"`);
-  assert(!(await text(page.getByTestId('errors').locator('tbody tr').first())).includes('@'), 'the error log names accounts by their short names');
-  const errorHeads = await page.getByTestId('errors').locator('thead th').allTextContents();
-  for (const [i, head] of errorHeads.entries()) {
-    const cells = await page.getByTestId('errors').locator(`tbody tr td:nth-child(${i + 1})`).allTextContents();
-    assert(cells.some((c) => c.trim() !== '—'), `the recent errors table shows ${head} only when something fills it`);
-  }
+  const errorLog = page.getByTestId('failures').getByTestId('errors');
+  assert(/^\d+ of \d+ failures? (is|are) in CPA's log$/.test(await text(errorLog.locator('.fail-log-coverage'))), 'the log says how many of the failures it holds');
+  const logLines = await errorLog.locator('.fail-lines li').allTextContents();
+  assert(logLines.length > 0 && logLines.every((l) => /^\S+\s+\d{3}\s.+\saccount\d\s+last\s(\d\d:\d\d|[A-Z][a-z]{2} \d\d:\d\d|[A-Z][a-z]{2} \d{1,2} \d\d:\d\d)/.test(l.trim())), `each log line reads status, message, account and the time of the last one: ${logLines.join(' | ')}`);
+  assert(logLines.every((l) => !l.includes('@') && !l.includes('—')), 'the log names accounts by their short names and shows no empty placeholder');
+  assert(logLines.some((l) => /×\d+/.test(l)), 'identical errors on one account are one line with a count');
+  assert((await page.getByTestId('analytics').getByText('Recent errors and rate limits', { exact: true }).count()) === 0, 'the error log is a section of Failures and no longer a panel of its own');
   await page.getByTestId('analytics').screenshot({ path: join(SHOTS, 'e2e-4b-usage.png') });
   await page.getByTestId('nav-monitor').click();
   await card('account1@example.com').waitFor();

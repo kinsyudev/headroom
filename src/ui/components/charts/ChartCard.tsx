@@ -53,6 +53,8 @@ export function ChartCard(props: {
   readonly actions?: ReactNode;
   readonly legend?: ReactNode;
   readonly table?: TableData;
+  /** Under the chart and under its table, so what belongs to the panel stays in view whichever face is open. */
+  readonly footer?: ReactNode;
   readonly className?: string;
   readonly testId?: string;
   readonly children: ReactNode;
@@ -74,6 +76,7 @@ export function ChartCard(props: {
       </div>
       {props.legend}
       {face === 'table' && props.table ? <DataTable data={props.table} label={`${props.title} as a table`} /> : props.children}
+      {props.footer}
     </section>
   );
 }

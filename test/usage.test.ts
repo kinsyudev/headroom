@@ -271,27 +271,88 @@ describe('weekday by hour', () => {
   });
 });
 
-describe('errors', () => {
-  const error = (id: number, iso: string, account: AccountId | null, model = 'claude-opus-5-5'): ErrorEvent => ({
+describe('the error log', () => {
+  const error = (id: number, iso: string, account: AccountId | null, over: Partial<ErrorEvent> = {}): ErrorEvent => ({
     id,
     at: at(iso),
     account,
-    model,
+    model: 'claude-opus-5-5',
     status: 429,
     outcome: 'rate_limited',
     quotaReason: 'credential_quota',
     recoverAt: null,
     message: 'rate limited',
+    ...over,
   });
-  const errors = [error(4, '2026-11-04T12:30:00Z', ACC3), error(3, '2026-11-04T12:00:00Z', 'ffffffffffffffff' as AccountId), error(2, '2026-11-04T11:00:00Z', ACC1, 'claude-sonnet-5-5'), error(1, '2026-11-01T09:00:00Z', ACC1)];
+  const lines = (errors: readonly ErrorEvent[], lens: AnalyticsLens = { range: '7d' }) => view([], lens, { errors }).errorLog.groups.map((g) => [g.email, g.count, g.lastAt]);
 
-  test('inside the span, for known accounts, matching the lens, newest first, with the email', () => {
-    expect(view([], { range: '24h' }, { errors }).errors.map((e) => [e.id, e.email])).toEqual([
-      [4, 'account3@example.com'],
-      [2, 'account1@example.com'],
+  test('keeps what is inside the span, for known accounts, matching the lens, newest first, with the email', () => {
+    const errors = [
+      error(4, '2026-11-04T12:30:00Z', ACC3),
+      error(3, '2026-11-04T12:00:00Z', 'ffffffffffffffff' as AccountId),
+      error(2, '2026-11-04T11:00:00Z', ACC1, { model: 'claude-sonnet-5-5' }),
+      error(1, '2026-11-01T09:00:00Z', ACC1),
+    ];
+    expect(lines(errors, { range: '24h' })).toEqual([
+      ['account3@example.com', 1, at('2026-11-04T12:30:00Z')],
+      ['account1@example.com', 1, at('2026-11-04T11:00:00Z')],
     ]);
-    expect(view([], { range: '7d' }, { errors }).errors.map((e) => e.id)).toEqual([4, 2, 1]);
-    expect(view([], { range: '7d', model: 'claude-sonnet-5-5' }, { errors }).errors.map((e) => e.id)).toEqual([2]);
+    expect(lines(errors, { range: '7d', model: 'claude-sonnet-5-5' })).toEqual([['account1@example.com', 1, at('2026-11-04T11:00:00Z')]]);
+  });
+
+  test('consecutive identical errors on one account are one line with a count and the time of the newest', () => {
+    const errors = [
+      error(5, '2026-11-04T12:50:00Z', ACC2, { status: 500, outcome: 'server_error', quotaReason: null, message: 'Internal server error' }),
+      error(4, '2026-11-04T12:40:00Z', ACC2, { status: 500, outcome: 'server_error', quotaReason: null, message: 'Internal server error' }),
+      error(3, '2026-11-04T12:10:00Z', ACC2, { status: 500, outcome: 'server_error', quotaReason: null, message: 'Internal server error' }),
+    ];
+    expect(lines(errors)).toEqual([['account2@example.com', 3, at('2026-11-04T12:50:00Z')]]);
+  });
+
+  test('another account in between does not split a run, and a different error on the same account does', () => {
+    const boom = { status: 500, outcome: 'server_error' as const, quotaReason: null, message: 'Internal server error' };
+    const errors = [
+      error(5, '2026-11-04T12:50:00Z', ACC2, boom),
+      error(4, '2026-11-04T12:40:00Z', ACC1, boom),
+      error(3, '2026-11-04T12:30:00Z', ACC2, boom),
+      error(2, '2026-11-04T12:20:00Z', ACC2, { status: 529, outcome: 'server_error', quotaReason: null, message: 'Overloaded' }),
+      error(1, '2026-11-04T12:10:00Z', ACC2, boom),
+    ];
+    expect(lines(errors)).toEqual([
+      ['account2@example.com', 2, at('2026-11-04T12:50:00Z')],
+      ['account1@example.com', 1, at('2026-11-04T12:40:00Z')],
+      ['account2@example.com', 1, at('2026-11-04T12:20:00Z')],
+      ['account2@example.com', 1, at('2026-11-04T12:10:00Z')],
+    ]);
+  });
+
+  test('a line takes its recovery time from the newest error in it', () => {
+    const errors = [error(2, '2026-11-04T12:30:00Z', ACC3, { recoverAt: at('2026-11-04T18:00:00Z') }), error(1, '2026-11-04T12:00:00Z', ACC3, { recoverAt: at('2026-11-04T17:00:00Z') })];
+    expect(view([], { range: '7d' }, { errors }).errorLog.groups[0]!.recoverAt).toBe(at('2026-11-04T18:00:00Z'));
+  });
+
+  describe('coverage: how many of the failures CPA logged', () => {
+    const failing = (outcomes: Partial<Record<Outcome, number>>) => [cell('2026-11-04T12:00:00Z', ACC1, tally({ outcomes: { ok: 40, ...outcomes } }))];
+    const log = (cells: readonly UsageCell[], errors: readonly ErrorEvent[]) => view(cells, { range: '7d' }, { errors }).errorLog;
+
+    test('counts the faults, and leaves out cancelled requests, which are not faults', () => {
+      const errors = [error(2, '2026-11-04T12:30:00Z', ACC1), error(1, '2026-11-04T12:20:00Z', ACC1)];
+      expect(log(failing({ rate_limited: 3, server_error: 5, client_closed: 12 }), errors)).toMatchObject({ faults: 8, covered: 2 });
+    });
+
+    test('a cancelled request in the log is not a covered fault', () => {
+      const errors = [error(2, '2026-11-04T12:30:00Z', ACC1, { status: 499, outcome: 'client_closed' }), error(1, '2026-11-04T12:20:00Z', ACC1)];
+      expect(log(failing({ rate_limited: 3 }), errors)).toMatchObject({ faults: 3, covered: 1 });
+    });
+
+    test('never covers more than failed, even when the log holds more', () => {
+      const errors = [3, 2, 1].map((id) => error(id, `2026-11-04T12:${10 + id}:00Z`, ACC1));
+      expect(log(failing({ rate_limited: 2 }), errors)).toMatchObject({ faults: 2, covered: 2 });
+    });
+
+    test('with nothing failed and nothing logged, both are zero', () => {
+      expect(log(failing({}), [])).toMatchObject({ faults: 0, covered: 0, groups: [] });
+    });
   });
 });
 

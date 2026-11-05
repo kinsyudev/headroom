@@ -8,7 +8,7 @@ import { Headline } from './Headline';
 import { Mix } from './Mix';
 import { OverTime } from './OverTime';
 import { PacePanel } from './PacePanel';
-import { ByModelTable, ErrorsTable, FailuresPanel } from './Reliability';
+import { ByModelTable, FailuresPanel } from './Reliability';
 import type { Slot } from '../Swatch';
 import { Speed } from './Speed';
 import { Toolbar } from './Toolbar';
@@ -74,9 +74,8 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
       </div>
       <Mix view={e} slots={props.slots} account={account} model={model} onAccount={setAccount} onModel={setModel} />
       <Speed view={e} />
-      <FailuresPanel view={e} dim={dim} />
+      <FailuresPanel view={e} slots={props.slots} dim={dim} />
       <ByModelTable view={e} slots={props.slots} />
-      <ErrorsTable view={e} slots={props.slots} />
     </div>
   );
 }

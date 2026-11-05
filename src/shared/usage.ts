@@ -3,7 +3,8 @@ import type {
   AccountView,
   AnalyticsLens,
   AnalyticsView,
-  ErrorEventView,
+  ErrorGroupView,
+  ErrorLogView,
   Grain,
   PaceAccountView,
   PaceOutlook,
@@ -200,10 +201,39 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
     byAccountModel: [...byAccountModel.values()]
       .map((x) => ({ account: x.account, model: x.model, stats: x.acc.stats() }))
       .sort((x, y) => y.stats.requests - x.stats.requests || (emails.get(x.account) ?? '').localeCompare(emails.get(y.account) ?? '') || x.model.localeCompare(y.model)),
-    errors: cube.errors
-      .filter((e) => e.at !== null && e.at >= spanStart && e.at < spanEnd && e.account !== null && accountIndex.has(e.account) && (lens.model === null || e.model === lens.model))
-      .map((e): ErrorEventView => ({ ...e, email: emails.get(e.account!) ?? null })),
+    errorLog: errorLog(
+      cube.errors.filter((e): e is LoggedError => e.at !== null && e.at >= spanStart && e.at < spanEnd && e.account !== null && accountIndex.has(e.account) && (lens.model === null || e.model === lens.model)),
+      emails,
+      totalStats,
+    ),
   };
+}
+
+type LoggedError = ErrorEvent & { readonly at: Instant; readonly account: AccountId };
+type Draft<T> = { -readonly [K in keyof T]: T[K] };
+
+/**
+ * Runs of identical errors on one account become one group, so five 500s in a row read as one line with a count. Another account's
+ * error in between does not split a run, and a different error on the same account does. Events come newest first, so a group's
+ * time and recovery are its first event's. covered says how many of the faults the log explains, and a cancelled request in it is
+ * not one, because it is not a fault.
+ */
+function errorLog(events: readonly LoggedError[], emails: ReadonlyMap<AccountId, string>, total: UsageStats): ErrorLogView {
+  const groups: Draft<ErrorGroupView>[] = [];
+  const open = new Map<AccountId, Draft<ErrorGroupView>>();
+  for (const e of events) {
+    const run = open.get(e.account);
+    if (run && run.status === e.status && run.quotaReason === e.quotaReason && run.message === e.message) {
+      run.count++;
+      continue;
+    }
+    const group = { account: e.account, email: emails.get(e.account) ?? null, status: e.status, outcome: e.outcome, quotaReason: e.quotaReason, message: e.message, count: 1, lastAt: e.at, recoverAt: e.recoverAt };
+    groups.push(group);
+    open.set(e.account, group);
+  }
+  const faults = total.requests - total.outcomes.ok - total.outcomes.client_closed;
+  const logged = events.filter((e) => e.outcome !== 'client_closed').length;
+  return { groups, covered: Math.min(faults, logged), faults };
 }
 
 /**

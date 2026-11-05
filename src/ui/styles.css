@@ -1491,12 +1491,6 @@ table.data .num {
 table.data th.wrap {
   white-space: normal;
 }
-table.errors td.message {
-  white-space: normal;
-  width: 60%;
-  min-width: 18ch;
-  overflow-wrap: anywhere;
-}
 .fail-part + .fail-part {
   margin-left: 8px;
 }
@@ -1830,7 +1824,8 @@ table.errors td.message {
 .kpi + .kpi {
   border-left: 1px solid var(--grid);
 }
-.kpi h3 {
+.kpi h3,
+.fail-log h3 {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -2235,6 +2230,37 @@ table.errors td.message {
   margin-top: 2px;
   font-size: 13px;
   color: var(--ink-2);
+}
+.fail-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--grid);
+}
+.fail-log-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+}
+.fail-log-coverage {
+  margin: 0;
+  font-size: 13px;
+}
+.fail-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.fail-lines li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.fail-lines li:last-child {
+  border-bottom: 0;
 }
 .callout {
   margin: 0;

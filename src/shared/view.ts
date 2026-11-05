@@ -395,8 +395,8 @@ export interface AnalyticsView {
   readonly byAccountModel: readonly { readonly account: AccountId; readonly model: string; readonly stats: UsageStats }[];
   /** Each account in the lens that has an open quota window, in deck order. */
   readonly pace: readonly PaceAccountView[];
-  /** error_events inside the span that match the lens, newest first. */
-  readonly errors: readonly ErrorEventView[];
+  /** error_events inside the span that match the lens, newest first, grouped. */
+  readonly errorLog: ErrorLogView;
 }
 
 /**
@@ -516,15 +516,25 @@ export interface PaceAccountView {
   readonly steady: readonly PaceView[];
 }
 
-export interface ErrorEventView {
-  readonly id: number;
-  readonly at: Instant | null;
-  readonly account: AccountId | null;
+/** A run of identical errors on one account, read as one line. lastAt and recoverAt come from the newest error in the run. */
+export interface ErrorGroupView {
+  readonly account: AccountId;
   readonly email: string | null;
-  readonly model: string | null;
   readonly status: number | null;
   readonly outcome: Outcome | null;
   readonly quotaReason: string | null;
-  readonly recoverAt: Instant | null;
   readonly message: string;
+  readonly count: number;
+  readonly lastAt: Instant;
+  readonly recoverAt: Instant | null;
+}
+
+/**
+ * CPA's error log for the span, and how much of the failing it explains. faults: requests that failed on the way, which leaves out
+ * cancelled ones, because the client hung up. covered: how many of those faults the log holds an entry for, never more than faults.
+ */
+export interface ErrorLogView {
+  readonly groups: readonly ErrorGroupView[];
+  readonly covered: number;
+  readonly faults: number;
 }
