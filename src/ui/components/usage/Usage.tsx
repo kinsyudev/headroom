@@ -14,11 +14,11 @@ import { Toolbar } from './Toolbar';
 import { WeekPattern } from './WeekPattern';
 
 /**
- * Usage is what Claude did for you: the selected range against the span before it, the quota pace, and then the history to explore.
- * The toolbar leads, and the headline and every chart read what it picks, so one range holds the numbers together. It opens on the
- * week, the span the dim bars and the same-day-last-week marks compare best. Three lenses read one cube. `all` is the month with no
- * filters: it feeds the pace and the model list. `explore` follows the toolbar. `pattern` is the month with the toolbar's account and
- * model, because a weekly rhythm needs a month to show.
+ * Usage opens on the quota pace, which neither the range nor the filters change, and then the toolbar and what it scopes: the
+ * selected range against the span before it, and the history to explore. The headline and every chart below the toolbar read what it
+ * picks, so one range holds the numbers together. It opens on the week, the span the dim bars and the same-day-last-week ghosts
+ * compare best. Three lenses read one cube. `all` is the month with no filters: it feeds the pace and the model list. `explore`
+ * follows the toolbar. `pattern` is the month with the toolbar's account and model, because a weekly rhythm needs a month to show.
  */
 export function Usage(props: { readonly accounts: readonly AccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
   const [range, setRange] = useState<UsageRange>('7d');
@@ -53,6 +53,7 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
   return (
     <div className="usage" data-testid="analytics">
       {explore.error && <p className="banner warning">History could not be refreshed: {explore.error}. Showing the last reading.</p>}
+      <PacePanel pace={a.pace} colors={props.colors} />
       <Toolbar
         range={range}
         onRange={setRange}
@@ -65,7 +66,6 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
         models={a.dimensions.models}
       />
       <Headline view={e} week={pattern.view.week} colors={props.colors} emailOf={emailOf} />
-      <PacePanel pace={a.pace} colors={props.colors} />
       <OverTime view={e} colors={props.colors} dim={dim} />
       <div className="grid-2 pattern">
         <WeekPattern view={pattern.view} />
