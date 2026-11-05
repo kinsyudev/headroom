@@ -1,6 +1,7 @@
 import { Database, type Statement } from 'bun:sqlite';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { HORIZON_MS } from '../src/shared/usage';
 
 const SCHEMA = readFileSync(join(import.meta.dir, 'fixtures/keeper-schema.sql'), 'utf8');
 const ids = [1, 2, 3].map((n) => readFileSync(join(import.meta.dir, `fixtures/auth-index-${n}.txt`), 'utf8').trim());
@@ -14,8 +15,8 @@ const DAY = 86_400_000;
 export const FAKE_SEED = 0x2611_05;
 /** The feed inserts on wall-clock multiples of this. At instant t, every fake DB holds exactly the rows timestamped before floor(t / tick) · tick. */
 export const FEED_TICK_MS = 10_000;
-/** What createKeeperDb writes: Headroom's 31-day horizon plus a day. */
-export const FAKE_HISTORY_MS = 32 * DAY;
+/** What createKeeperDb writes: Headroom's horizon plus a day. */
+export const FAKE_HISTORY_MS = HORIZON_MS + DAY;
 
 export interface FakeOptions {
   readonly seed: number;
