@@ -222,18 +222,28 @@ try {
   const paceRows = page.getByTestId('pace').locator('.pace-row');
   assert((await paceRows.count()) >= 3, 'the quota pace lists a row per open window');
   assert(/Lasts to the reset|Runs out in|At its limit|Too early to say/.test(await text(paceRows.first())), 'every pace row ends in one of the four outlooks');
+  assert(
+    (await page.getByTestId('analytics').locator(':scope > *').evaluateAll((els) => els.slice(0, 3).map((el) => el.getAttribute('data-testid') ?? el.className))).join('|') === 'pace|toolbar|week-strip',
+    'Usage opens on the quota pace, then the Explore bar, then the range-driven week strip',
+  );
+  assert((await text(paceRows.filter({ hasText: 'Lasts to the reset' }).first())).includes('left at the reset'), 'a window that lasts says how much would be left at its reset, in the same left terms as its bar');
+  assert(
+    (await text(page.getByTestId('pace').locator('.pace-key'))).includes('The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.'),
+    'the pace footnote uses the shared tick wording',
+  );
   assert((await page.locator('[data-testid="week-pattern"] rect.cell').count()) === 7 * 24, 'the weekday-by-hour grid has a cell for each of the 168 slots');
   assert((await text(page.getByTestId('kpi-requests'))).includes('vs the 7 days before'), 'Usage opens on 7 days, and the requests tile compares them with the 7 days before');
   const legend = page.getByTestId('over-time').getByRole('list', { name: 'Legend' });
   const legendText = await text(legend);
   assert(
-    (await legend.locator('li').count()) === 4 && ['account1@example.com', 'account2@example.com', 'account3@example.com', 'Same day last week'].every((s) => legendText.includes(s)),
-    'the over-time legend names the three accounts and the same day last week',
+    (await legend.locator('li').count()) === 4 && ['account1', 'account2', 'account3', 'Same day last week'].every((s) => legendText.includes(s)) && !legendText.includes('@'),
+    'the over-time legend names the three accounts by their short names, with no email, and the same day last week',
   );
   assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the opening 7 days draw seven days, the last one still filling');
-  assert((await page.getByTestId('over-time').locator('.chart .prev-line').count()) === 7, 'each of the seven days carries its same-day-last-week mark');
+  assert((await page.getByTestId('over-time').locator('.chart .prev-bar').count()) === 7, 'each of the seven days carries its same-day-last-week ghost column');
   await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').nth(5).hover();
-  assert((await text(page.locator('.tooltip'))).includes('Same day last week'), 'hovering a day gives the figure for the same day last week');
+  const overTip = await text(page.locator('.tooltip'));
+  assert(overTip.includes('Same day last week') && overTip.includes('account1') && !overTip.includes('@'), 'hovering a day gives the figure for the same day last week and names accounts by their short names');
   await page.getByTestId('usage-range-30d').click();
   assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 30, 'the 30d range draws thirty days');
   assert((await legend.locator('li').count()) === 3, 'the same-day-last-week mark belongs to the 7d range, so 30d lists the three accounts');
@@ -243,20 +253,52 @@ try {
   await page.locator('.toolbar').getByRole('button', { name: 'account2' }).click();
   await until(async () => (await legend.locator('li').count()) === 2, 'choosing account2 narrows the chart to it and keeps the same day last week');
   const narrowed = await text(legend);
-  assert(narrowed.includes('account2@example.com') && narrowed.includes('Same day last week'), 'the one account left in the legend is account2, beside the same day last week');
+  assert(narrowed.includes('account2') && narrowed.includes('Same day last week'), 'the one account left in the legend is account2, beside the same day last week');
   await page.getByTestId('over-time').getByRole('button', { name: 'Table' }).click();
   assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
   const cache = await text(page.getByTestId('cache'));
-  assert(cache.includes('of input served from cache') && cache.includes('scale 0 to 10%') && !cache.includes('per request'), 'the cache panel leads with the cache-read share and names the 0 to 10% scale of the misses it draws');
+  assert(
+    cache.includes('Cache misses') && /\d%\s*of input missed the cache/.test(cache) && cache.includes('scale 0 to 10%') && !cache.includes('served from cache') && !cache.includes('per request'),
+    'the cache panel is titled for what it plots, leads with the miss share it draws, names the 0 to 10% scale, and leaves the hit rate to the tile',
+  );
   const mix = await text(page.getByTestId('mix'));
   assert(mix.includes('output tokens per request') && mix.includes('output tokens per session'), 'output per request and per session sit in What you use');
   const speed = page.getByTestId('speed');
   assert((await text(speed)).includes('How long until Claude starts answering') && (await page.getByTestId('speed').locator('.chart').count()) === 1, 'one Speed panel opens on the first token');
+  assert((await speed.locator('.chart svg path[stroke-dasharray]').count()) === 1, 'the 9 in 10 line is the one dashed line, so it is not mistaken for the median');
   await speed.getByRole('button', { name: 'Finish' }).click();
   assert((await text(speed)).includes('9 in 10 finish within'), 'the Finish toggle turns the Speed panel to the whole answer, with its 9 in 10 line');
+  const failuresLegend = await text(page.getByTestId('failures').getByRole('list', { name: 'Legend' }));
+  assert(
+    ['rate-limited', 'server error', 'cancelled'].every((s) => failuresLegend.includes(s)) && !/\b(429|499|5xx)\b/.test(failuresLegend),
+    'the failures legend leads with plain words and keeps the status codes out of it',
+  );
+  const failureBars = page.getByTestId('failures').locator('.chart rect[tabindex="0"]');
+  let coded = false;
+  for (let i = 0; i < (await failureBars.count()) && !coded; i++) {
+    await failureBars.nth(i).hover();
+    coded = /429 rate-limited|5xx server error|499 cancelled/.test(await text(page.locator('.tooltip')));
+  }
+  assert(coded, 'the failures tooltip keeps the status codes');
   const heads = await page.getByTestId('by-model').locator('thead th').allTextContents();
   assert(['Rate-limited', 'Cancelled', 'Server errors'].every((h) => heads.includes(h)) && !heads.some((h) => /^(429|499|5xx)$/.test(h)), 'the account and model table names its failure columns in words');
   assert(((await page.getByTestId('by-model').locator('thead th', { hasText: 'Rate-limited' }).getAttribute('title')) ?? '').includes('429'), 'the rate-limited header keeps the 429 code in its tooltip');
+  const byModel = page.getByTestId('by-model');
+  const outputs = await byModel.locator('tbody tr td:nth-child(4)').allTextContents();
+  assert(outputs.length > 0 && outputs.every((o) => /^(\d{1,3}|\d{1,3}\.\d[KMB])$/.test(o.trim())), `every compact number in the table keeps one decimal above a thousand: ${outputs.join(' ')}`);
+  assert((await byModel.locator('tbody tr td:first-child').allTextContents()).every((c) => !c.includes('@')), 'the account and model table names accounts by their short names');
+  await page.setViewportSize({ width: 760, height: 1000 });
+  assert(await byModel.locator('thead th', { hasText: 'Failed' }).isVisible(), 'below 900px the three failure columns become one Failed column');
+  assert(!(await byModel.locator('thead th', { hasText: 'Rate-limited' }).isVisible()), 'below 900px the separate failure columns are gone');
+  assert(
+    /^\d+ rate-limited, \d+ server errors, \d+ cancelled$/.test((await byModel.locator('tbody tr').first().locator('.fail-merged [role="img"]').getAttribute('title')) ?? ''),
+    'the Failed cell keeps the split in its tooltip',
+  );
+  assert(await byModel.locator('.table-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'at half width the account and model table fits with no clipped column');
+  await page.setViewportSize({ width: 1480, height: 1000 });
+  const errorWhen = await text(page.getByTestId('errors').locator('tbody tr').first().locator('td').first());
+  assert(/^[A-Z][a-z]{2} \d{1,2} \d\d:\d\d$/.test(errorWhen), `the error log dates its times like the chart axes: "${errorWhen}"`);
+  assert(!(await text(page.getByTestId('errors').locator('tbody tr').first())).includes('@'), 'the error log names accounts by their short names');
   const errorHeads = await page.getByTestId('errors').locator('thead th').allTextContents();
   for (const [i, head] of errorHeads.entries()) {
     const cells = await page.getByTestId('errors').locator(`tbody tr td:nth-child(${i + 1})`).allTextContents();
