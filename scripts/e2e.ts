@@ -109,7 +109,15 @@ try {
     /^! Runs out ~\d\d:\d\d · in (\d+h )?\d+m$/.test(runsOut) && runsOut.slice('! Runs out '.length) === (await text(runOut)).slice('! account1 session runs out '.length),
     `account1's session cell warns it runs out before its reset, in the strip's own words: "${runsOut}"`,
   );
-  assert((await text(page.getByTestId('nav-analytics'))) === 'Usage', 'the Usage tab carries no badge, since the strip says what runs out');
+  assert((await runOut.getAttribute('href')) === `#usage/pace-${ACC1}-session`, "the strip's runs-out line links to account1's session pace row in Usage");
+  const usageTab = page.getByTestId('nav-analytics');
+  const tabCount = usageTab.locator('.tab-count');
+  assert(
+    (await text(usageTab)) === 'Usage1 quota window runs out before its reset' &&
+      (await text(tabCount)) === '1' &&
+      ((await tabCount.getAttribute('title')) ?? '').startsWith('account1 session runs out ~'),
+    "while pace says one window runs out, the Usage tab carries a count of 1 whose tooltip names account1's session",
+  );
   const ledgerHeads = (await page.locator('.ledger-head > span').allTextContents()).join('|');
   assert(
     /^Account\|Session left\|Weekly left\|Requests · last (\d+h )?\d+m$/.test(ledgerHeads),

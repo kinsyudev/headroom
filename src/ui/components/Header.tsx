@@ -8,6 +8,7 @@ import type { DeckView } from '../../shared/view';
 import { useAction, type Connection } from '../api';
 import { Mark, Wordmark } from '../brand';
 import { usePaused } from '../deck';
+import { runOutText } from '../format';
 import { VIEWS, type ViewKey } from '../route';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
@@ -23,6 +24,7 @@ const FLOW_TTL_MS = 5 * 60_000;
 
 export function Header(props: { readonly deck: DeckView; readonly connection: Connection; readonly view: ViewKey }) {
   const d = props.deck;
+  const runningOut = d.overview.runningOut;
   const cpaDown = props.connection === 'live' && d.cpa.kind === 'down';
   const status = cpaDown ? 'cpa-down' : props.connection;
   return (
@@ -35,6 +37,14 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         {VIEWS.map((v) => (
           <a key={v.key} href={v.hash} className="view-tab" aria-current={v.key === props.view ? 'page' : undefined} data-testid={v.testId}>
             {v.label}
+            {v.key === 'usage' && runningOut.length > 0 && (
+              <>
+                <span className="tab-count num" title={runningOut.map((r) => runOutText(r, d.now)).join('\n')}>
+                  {runningOut.length}
+                </span>
+                <span className="sr-only">{runningOut.length === 1 ? ' quota window runs out before its reset' : ' quota windows run out before they reset'}</span>
+              </>
+            )}
           </a>
         ))}
       </nav>

@@ -255,6 +255,19 @@ code {
   color: var(--ink);
   background: var(--surface-2);
 }
+.tab-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding-inline: 5px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+}
 .view-tab[aria-current='page']::before {
   content: '';
   position: absolute;

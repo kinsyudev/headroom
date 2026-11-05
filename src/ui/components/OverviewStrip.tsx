@@ -1,18 +1,12 @@
 import { Fragment } from 'react';
 import type { AccountId, Instant } from '../../shared/domain';
-import type { DeckView, RunOutView, ServeLine } from '../../shared/view';
-import { clockTime, duration, leftLabel, percent, reasonTitle, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
+import type { DeckView, ServeLine } from '../../shared/view';
+import { leftLabel, percent, reasonTitle, runOutText, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
 import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor, VerdictLine } from './ResetOffers';
 import { Segments } from './Segments';
 import { Swatch, type Slot } from './Swatch';
-
-/** One window running out, said in full for the strip line's tooltip. */
-function runOutText(r: RunOutView, now: number): string {
-  const then = r.after === null ? '' : r.after.kind === 'next' ? ` New sessions then go to ${shortName(r.after.email)}.` : ' No account is left to take new sessions.';
-  return `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, now)}, ${duration(r.resetsAt - r.at)} before its ${clockTime(r.resetsAt, now)} reset.${then}`;
-}
 
 export function OverviewStrip(props: { readonly deck: DeckView; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const o = props.deck.overview;

@@ -1,6 +1,6 @@
 import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
-import type { ClaimVerdict, Grain } from '../shared/view';
+import type { ClaimVerdict, Grain, RunOutView } from '../shared/view';
 
 const CLAIM_RESULT: Readonly<Record<string, string>> = {
   already_used: 'already used this week',
@@ -52,6 +52,12 @@ export function clockTime(at: number, now: number): string {
 
 /** When a window runs out, in the one form the strip, the account row and the Usage pace row use: "~19:49 · in 3h 18m". */
 export const runOutWhen = (at: number, now: number): string => `~${clockTime(at, now)} · in ${duration(at - now)}`;
+
+/** One window running out, said in full for the tooltips of the strip line and the Usage tab count. */
+export function runOutText(r: RunOutView, now: number): string {
+  const then = r.after === null ? '' : r.after.kind === 'next' ? ` New sessions then go to ${shortName(r.after.email)}.` : ' No account is left to take new sessions.';
+  return `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, now)}, ${duration(r.resetsAt - r.at)} before its ${clockTime(r.resetsAt, now)} reset.${then}`;
+}
 
 const listed = (names: readonly string[]): string => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
 

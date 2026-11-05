@@ -1,7 +1,28 @@
 import { describe, expect, test } from 'bun:test';
 import { INELIGIBLE_EXPLAIN } from '../src/shared/derive';
-import type { ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
-import { bucketText, changeText, claimText, compact, count, foldedPaceSays, hourText, modelName, money, reasonText, reasonTitle, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+import type { AccountId, ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
+import type { RunOutView } from '../src/shared/view';
+import { bucketText, changeText, claimText, compact, count, foldedPaceSays, hourText, modelName, money, reasonText, reasonTitle, runOutText, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+
+describe('a window running out', () => {
+  const now = new Date(2026, 10, 5, 12, 0).getTime();
+  const r = (after: RunOutView['after']): RunOutView => ({
+    account: 'a1' as AccountId,
+    email: 'account1@example.com',
+    limit: { key: 'session', label: 'Session' },
+    at: (now + 2 * 3_600_000) as Instant,
+    resetsAt: (now + 3.5 * 3_600_000) as Instant,
+    after,
+  });
+
+  test.each([
+    ['the next in line takes over', { kind: 'next', account: 'a2' as AccountId, email: 'account2@example.com' } as const, ' New sessions then go to account2.'],
+    ['no account is left', { kind: 'none' } as const, ' No account is left to take new sessions.'],
+    ['the account is not first in line', null, ''],
+  ])('says when it runs out, how long before its reset, and, when %s, where new sessions go', (_label, after, then) => {
+    expect(runOutText(r(after), now)).toBe(`account1 session runs out ~14:00, 1h 30m before its 15:30 reset.${then}`);
+  });
+});
 
 describe('a folded quota pace line', () => {
   test.each([
