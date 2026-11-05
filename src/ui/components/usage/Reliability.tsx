@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { AccountId, Outcome } from '../../../shared/domain';
-import type { AnalyticsView } from '../../../shared/view';
+import type { AnalyticsView, ErrorEventView } from '../../../shared/view';
 import { useNow } from '../../deck';
 import { bucketText, compact, count, modelName, reasonText, seconds, share } from '../../format';
 import { Clock } from '../Countdown';
@@ -98,14 +98,14 @@ export function ByModelTable(props: { readonly view: AnalyticsView; readonly col
               <th className="num" title="Median time to finish">
                 Finish
               </th>
-              <th className="num" title="Requests answered with HTTP 429">
-                429
+              <th className="num" title="Requests answered with HTTP 429, too many requests">
+                Rate-limited
               </th>
-              <th className="num" title="Requests the client closed, HTTP 499">
-                499
+              <th className="num" title="Requests the client closed before the answer finished, HTTP 499">
+                Cancelled
               </th>
-              <th className="num" title="Server errors, HTTP 5xx">
-                5xx
+              <th className="num" title="Requests that failed on Anthropic's side, HTTP 5xx">
+                Server errors
               </th>
             </tr>
           </thead>
@@ -145,8 +145,29 @@ export function ByModelTable(props: { readonly view: AnalyticsView; readonly col
   );
 }
 
+const ERRORS_SHOWN = 6;
+
+/** A cell that is null has nothing to say. A column whose every shown cell is null is left out, so a log with no quota reasons has no such column. */
+interface ErrorColumn {
+  readonly head: string;
+  readonly className?: string;
+  readonly cell: (e: ErrorEventView) => ReactNode | null;
+  readonly title?: (e: ErrorEventView) => string | undefined;
+}
+
+const ERROR_COLUMNS: readonly ErrorColumn[] = [
+  { head: 'When', cell: (e) => (e.at === null ? null : <Clock at={e.at} />) },
+  { head: 'Account', cell: (e) => e.email ?? e.account },
+  { head: 'Status', className: 'num', cell: (e) => e.status },
+  { head: 'Quota reason', cell: (e) => (e.quotaReason === null ? null : reasonText(e.quotaReason)), title: (e) => e.quotaReason ?? undefined },
+  { head: 'Recovers', cell: (e) => (e.recoverAt === null ? null : <Clock at={e.recoverAt} />) },
+  { head: 'Message', className: 'message', cell: (e) => e.message || null, title: (e) => e.message },
+];
+
 export function ErrorsTable(props: { readonly view: AnalyticsView }) {
   const v = props.view;
+  const shown = v.errors.slice(0, ERRORS_SHOWN);
+  const columns = shown.length === 0 ? ERROR_COLUMNS : ERROR_COLUMNS.filter((c) => shown.some((e) => c.cell(e) !== null));
   return (
     <section className="card" aria-label="Recent errors and rate limits" data-testid="errors">
       <div className="card-head">
@@ -159,32 +180,28 @@ export function ErrorsTable(props: { readonly view: AnalyticsView }) {
         <table className="data errors">
           <thead>
             <tr>
-              <th>When</th>
-              <th>Account</th>
-              <th className="num">Status</th>
-              <th>Quota reason</th>
-              <th>Recovers</th>
-              <th>Message</th>
+              {columns.map((c) => (
+                <th key={c.head} className={c.className}>
+                  {c.head}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {v.errors.length === 0 && (
+            {shown.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={columns.length} className="muted">
                   No errors in this range.
                 </td>
               </tr>
             )}
-            {v.errors.slice(0, 6).map((e) => (
+            {shown.map((e) => (
               <tr key={e.id}>
-                <td>{e.at !== null ? <Clock at={e.at} /> : '—'}</td>
-                <td>{e.email ?? e.account ?? '—'}</td>
-                <td className="num">{e.status ?? '—'}</td>
-                <td title={e.quotaReason ?? undefined}>{e.quotaReason === null ? '—' : reasonText(e.quotaReason)}</td>
-                <td>{e.recoverAt !== null ? <Clock at={e.recoverAt} /> : '—'}</td>
-                <td className="message" title={e.message}>
-                  {e.message}
-                </td>
+                {columns.map((c) => (
+                  <td key={c.head} className={c.className} title={c.title?.(e)}>
+                    {c.cell(e) ?? '—'}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
