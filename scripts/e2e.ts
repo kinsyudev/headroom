@@ -133,6 +133,14 @@ try {
   );
   const capChip = await text(card('account3@example.com').getByTestId('spend'));
   assert(/^✕\s*Extra usage cap reached · resets (.+ )?\d\d:\d\d$/.test(capChip), `account3's plan line says its extra-usage cap is reached and when it resets: "${capChip}"`);
+  assert(
+    /^Even-pace mark: \d+% of the window gone$/.test((await card('account1@example.com').getByTestId('limit-session').locator('.meter-tick').getAttribute('title')) ?? ''),
+    "the tick on account1's session bar says on hover how much of the window is gone",
+  );
+  assert(
+    (await text(page.locator('.ledger-key'))) === 'The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.',
+    'one legend line under the account table explains the tick in the shared wording',
+  );
   const pct = async (email: string, key: string) => text(card(email).getByTestId(`limit-${key}`).getByTestId('percent'));
   assert((await pct('account1@example.com', 'session')) === '88%', 'account1 session 88% left from the poll');
   assert((await pct('account1@example.com', 'weekly_all')) === '73%', 'account1 weekly 73% left');

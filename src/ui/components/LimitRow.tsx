@@ -12,11 +12,12 @@ export function Meter(props: {
   readonly tone: MeterTone;
   readonly label: string;
   readonly steady?: number | null;
+  readonly tickTitle?: string | null;
 }) {
   return (
     <div className={`meter tone-${props.tone}`} role="meter" aria-label={props.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.left ?? undefined}>
       {props.left !== null && props.left > 0 && <div className="meter-fill" style={{ width: `${props.left}%` }} />}
-      {props.steady != null && <div className="meter-tick" style={{ left: `${props.steady}%` }} aria-hidden />}
+      {props.steady != null && <div className="meter-tick" style={{ left: `${props.steady}%` }} title={props.tickTitle ?? undefined} aria-hidden />}
     </div>
   );
 }
@@ -74,7 +75,13 @@ export function LimitCell(props: { readonly account: AccountId; readonly limit: 
         {percent(l.left)}
       </span>
       <span className="cell-note num">{note?.text}</span>
-      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} steady={pace === null ? null : 100 - pace.elapsed} />
+      <Meter
+        left={l.left}
+        tone={l.tone}
+        label={leftLabel(l.label)}
+        steady={pace === null ? null : 100 - pace.elapsed}
+        tickTitle={pace === null ? null : `Even-pace mark: ${Math.round(pace.elapsed)}% of the window gone`}
+      />
       {props.nested.map((n) => (
         <span key={n.limit.key} className={`cell-nested num tone-${n.limit.tone}`} data-testid={`limit-${n.limit.key}`} title={limitTitle(n.limit, now)}>
           {TONE_ICON[n.limit.tone] && <span aria-hidden>{TONE_ICON[n.limit.tone]} </span>}

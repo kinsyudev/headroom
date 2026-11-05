@@ -72,6 +72,11 @@ export function Accounts(props: {
           onClaim={(program, grant) => props.onClaim(a.id, program, grant)}
         />
       ))}
+      {props.accounts.some((a) => a.limits.some((l) => l.pace !== null)) && (
+        <p className="ledger-key">
+          <span className="meter-tick-key" aria-hidden /> {PACE_TICK_HELP}
+        </p>
+      )}
     </section>
   );
 }
