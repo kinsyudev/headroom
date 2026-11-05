@@ -10,12 +10,10 @@ export function Meter(props: {
   readonly left: PercentLeft | null;
   readonly tone: MeterTone;
   readonly label: string;
-  readonly tick?: { readonly left: PercentLeft; readonly title: string } | null;
 }) {
   return (
     <div className={`meter tone-${props.tone}`} role="meter" aria-label={props.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.left ?? undefined}>
       {props.left !== null && props.left > 0 && <div className="meter-fill" style={{ width: `${props.left}%` }} />}
-      {props.tick && <div className="meter-tick" style={{ left: `${props.tick.left}%` }} title={props.tick.title} />}
     </div>
   );
 }
@@ -33,14 +31,11 @@ export function LimitCell(props: { readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
   const note = resetNote(l, now);
-  const tick = l.other?.differs
-    ? { left: l.other.left, title: `Second reading: ${SOURCE[l.other.kind]} ${percent(l.other.left)} left, ${age(now - l.other.at)} ago. The bar shows the ${SOURCE[l.source.kind]} reading.` }
-    : null;
   const title = [
     note?.title,
     l.limiting && 'the limit holding this account back right now',
     `${SOURCE[l.source.kind]} ${age(now - l.source.at)} ago`,
-    l.other && `${SOURCE[l.other.kind]} ${percent(l.other.left)} left ${age(now - l.other.at)} ago`,
+    l.other && `Second reading: ${SOURCE[l.other.kind]} ${percent(l.other.left)} left, ${age(now - l.other.at)} ago`,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -51,7 +46,7 @@ export function LimitCell(props: { readonly limit: LimitView }) {
         {percent(l.left)}
       </span>
       <span className="cell-note num">{note?.text}</span>
-      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} tick={tick} />
+      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} />
     </div>
   );
 }
@@ -82,7 +77,7 @@ function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
   const p = s.poll;
   const live = s.live !== null && s.live.severity !== 'normal' ? liveFace(s.live, now) : null;
   if (p?.state === 'off') return { value: 'Off', note: p.disabledReason ? reasonText(p.disabledReason) : null, tone: 'quiet', says: 'off; requests stop at the plan limits' };
-  if (p?.state === 'no_budget') return { value: 'No budget', note: null, tone: 'quiet', says: 'on with a zero budget; requests stop at the plan limits' };
+  if (p?.state === 'no_budget') return { value: 'Off', note: null, tone: 'quiet', says: 'off, with a zero budget set; requests stop at the plan limits' };
   if (p?.state === 'budget') {
     const note = p.limit && p.remaining ? `${money(p.remaining)} of ${money(p.limit)} left` : `${money(p.used)} spent`;
     return { value: percent(p.left), note, tone: 'metered', says: live?.says ?? (p.limit ? 'room left under the cap' : 'on, with no cap set') };

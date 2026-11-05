@@ -183,8 +183,8 @@ export interface LimitView {
   /** Anthropic marks this window active and it is at warning or critical, so it is what holds the account back. */
   readonly limiting: boolean;
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
-  /** The reading that is not drawn. differs: it is 2 points or more from the drawn reading, enough to mark on the meter. */
-  readonly other: { readonly kind: 'poll' | 'headers'; readonly left: PercentLeft; readonly at: Instant; readonly differs: boolean } | null;
+  /** The reading that is not drawn. */
+  readonly other: { readonly kind: 'poll' | 'headers'; readonly left: PercentLeft; readonly at: Instant } | null;
 }
 
 /** off: extra usage is disabled. no_budget: enabled with a cap of zero. budget: a cap above zero, or none set. */

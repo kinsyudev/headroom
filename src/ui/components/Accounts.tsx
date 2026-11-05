@@ -19,7 +19,7 @@ const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld
   debounced: { short: 'once per minute', long: 'Once per minute per account' },
 };
 
-const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off or with no budget, requests stop at the plan limits.';
+const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off, including a zero budget, requests stop at the plan limits.';
 const REQUESTS_HELP = 'Requests CPA routed to the account, per 10 minutes';
 const PRIMARY_HELP = 'First in line; raise another account above it to change';
 

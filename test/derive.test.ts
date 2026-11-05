@@ -178,14 +178,14 @@ describe('window lifecycle', () => {
     expect(m[0]!.resetsAt).toBe(at('2026-11-04T17:00:00Z'));
   });
 
-  test('a poll older than the headers: headers drawn, poll kept as the faint tick', () => {
+  test('a poll older than the headers: headers drawn, poll kept as the other reading', () => {
     expect(rows(pollOf('anthropic-usage-2.json', plus(T0, -5 * MIN)), account(ACC1), T0).slice(0, 2)).toEqual([
       ['session', 'open', 83, 'headers', 'poll', 88],
       ['weekly_all', 'open', 73, 'headers', 'poll', 73],
     ]);
   });
 
-  test('a poll newer than the headers: poll drawn, headers kept as the faint tick', () => {
+  test('a poll newer than the headers: poll drawn, headers kept as the other reading', () => {
     expect(rows(pollOf('anthropic-usage-2.json', T0), account(ACC1), T0).slice(0, 2)).toEqual([
       ['session', 'open', 88, 'poll', 'headers', 83],
       ['weekly_all', 'open', 73, 'poll', 'headers', 73],
@@ -244,34 +244,15 @@ describe('window lifecycle', () => {
     expect(mergeLimits(null, account(ACC3).headers, T0)[0]).toMatchObject({ key: 'session', percent: 100, left: 0, severity: 'critical' });
   });
 
-  test('a poll without a session limit and older 5h headers stays idle and keeps the header value, with nothing drawn to differ from', () => {
+  test('a poll without a session limit and older 5h headers stays idle and keeps the header value as the other reading', () => {
     const m = mergeLimits(pollOf('anthropic-usage-1.json', T0), account(ACC1).headers, T0);
-    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, left: 100, other: { kind: 'headers', left: 83, differs: false } });
+    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, left: 100, other: { kind: 'headers', left: 83 } });
   });
 
-  describe('which readings differ enough to mark', () => {
-    const headerSession = (percent: number): CpaAccount['headers'] => {
-      const h = account(ACC1).headers!;
-      return { ...h, windows: h.windows.map((w) => (w.key === '5h' ? { ...w, percent: percent as never } : w)) };
-    };
-    const differs = (headerPercent: number) => mergeLimits(pollOf('anthropic-usage-2.json', T0), headerSession(headerPercent), T0)[0]!.other?.differs;
-
-    test.each([
-      [10, true],
-      [11, false],
-      [12, false],
-      [13, false],
-      [14, true],
-      [17, true],
-    ])('the poll draws 12% and the headers say %p%%: marked is %p', (headers, marked) => {
-      expect(differs(headers)).toBe(marked);
-    });
-
-    test('a lapsed row has no drawn percent, so its other reading is never marked', () => {
-      const older = { ...headerSession(40)!, observedAt: plus(T0, -MIN) };
-      const m = mergeLimits(pollOf('anthropic-usage-3.json', T0), { ...older, windows: [{ key: '5h', percent: 40 as never, resetsAt: at('2026-11-04T19:20:00Z'), status: 'allowed' }] }, AFTER_COOLDOWN);
-      expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', other: { left: 60, differs: false } });
-    });
+  test('a lapsed row still carries the other reading', () => {
+    const older = { ...account(ACC1).headers!, observedAt: plus(T0, -MIN), windows: [{ key: '5h', percent: 40 as never, resetsAt: at('2026-11-04T19:20:00Z'), status: 'allowed' as const }] };
+    const m = mergeLimits(pollOf('anthropic-usage-3.json', T0), older, AFTER_COOLDOWN);
+    expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', other: { kind: 'headers', left: 60 } });
   });
 
   describe('which window is limiting', () => {
