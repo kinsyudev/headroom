@@ -1123,17 +1123,19 @@ a.cell-pace:hover {
 }
 .offer-list {
   grid-column: 2 / -1;
-  display: grid;
-  grid-template-columns: auto auto auto minmax(0, 1fr);
-  column-gap: 16px;
-  row-gap: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 40px;
 }
 .offer {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 4px 16px;
   min-height: 32px;
+}
+.offer-text:empty {
+  display: none;
 }
 .offer-name {
   color: var(--ink);
