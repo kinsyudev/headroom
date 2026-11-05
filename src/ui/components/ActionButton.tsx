@@ -35,6 +35,7 @@ export function ActionButton<K extends ActionKind>(props: {
           aria-busy={a.pending}
           data-testid={props.testId}
           data-state={a.status.phase}
+          data-paused={paused !== null || undefined}
           onClick={async () => {
             const out = await a.run(props.input);
             if (out !== undefined) setDoneText(typeof props.done === 'function' ? props.done(out) : (props.done ?? 'Done'));

@@ -34,7 +34,15 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
   );
   return (
     <span className="action stepper-action">
-      <span className="stepper" role="group" aria-label="Priority" aria-busy={set.pending} data-state={set.status.phase} title={PRIORITY_HELP}>
+      <span
+        className="stepper"
+        role="group"
+        aria-label="Priority"
+        aria-busy={set.pending}
+        data-state={set.status.phase}
+        data-paused={paused !== null || undefined}
+        title={paused ?? PRIORITY_HELP}
+      >
         <span className="stepper-label">Priority</span>
         <span className="stepper-box">
           {button('priority-down', `−${step}`, stepTo.down, `Lower priority to ${stepTo.down}`, 'Already at the lowest priority')}

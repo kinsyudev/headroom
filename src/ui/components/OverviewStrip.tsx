@@ -1,7 +1,7 @@
-import type { AccountId } from '../../shared/domain';
+import { Fragment } from 'react';
+import type { AccountId, Instant } from '../../shared/domain';
 import type { DeckView, ServeLine } from '../../shared/view';
-import { duration, leftLabel, percent, reasonTitle } from '../format';
-import { paceAnchor, usageLink } from '../route';
+import { leftLabel, percent, reasonTitle } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
@@ -21,18 +21,28 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
       {swatch(id)} {email.split('@')[0]}
     </span>
   );
-  const [lead, ...alsoServing] = o.serving;
-  const nextSession = !o.target ? (
-    <span className="badge critical">No account can take traffic</span>
-  ) : (
-    !lead?.takesNext && (
+  const lead = o.serving[0];
+  const hero = (a: { readonly account: AccountId; readonly email: string } | null | undefined) =>
+    a ? (
+      <p className="hero hero-id" title={a.email}>
+        {swatch(a.account)}
+        <span className="hero-text">{a.email}</span>
+      </p>
+    ) : (
+      <p className="hero muted">Idle</p>
+    );
+  const when = (at: Instant) =>
+    down ? (
       <>
-        next new session on {who(o.target.account, o.target.email)}
+        at <Clock at={at} />
       </>
-    )
-  );
+    ) : (
+      <>
+        <Age at={at} /> ago
+      </>
+    );
+  const inLine = o.order.lines.filter((l) => l.kind === 'in_line');
   const claimAccounts = o.claimable;
-  const runsOut = o.servingRunsOut;
   return (
     <section className="summary" aria-label="Overview" data-testid="overview">
       {cpa.kind === 'down' && (
@@ -58,53 +68,52 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
       >
         <h2>Serving now</h2>
-        {lead ? (
-          <p className="hero hero-id" title={lead.email}>
-            {swatch(lead.account)}
-            <span className="hero-text">{lead.email}</span>
-          </p>
-        ) : (
-          <p className="hero muted">Idle</p>
-        )}
-        <p className="stat-sub">
-          <Segments
-            parts={[
-              lead ? (
-                down ? (
-                  <>
-                    last request at <Clock at={lead.lastAt} />
-                  </>
-                ) : (
-                  <>
-                    last request <Age at={lead.lastAt} /> ago
-                  </>
-                )
+        {o.order.rotates ? (
+          <>
+            <p className="serving-label" data-testid="serving-latest">
+              Latest request{lead ? <> · {when(lead.lastAt)}</> : ', none in the last 2 min'}
+            </p>
+            {hero(lead)}
+            <p className="stat-sub" data-testid="serving-new">
+              <span className="serving-key">New sessions</span>{' '}
+              {inLine.length === 0 ? (
+                <span className="badge critical">No account can take traffic</span>
               ) : (
-                'nothing answered in the last 2 min'
-              ),
-              nextSession,
-              alsoServing.length > 0 && <>also {alsoServing.map((s) => s.email.split('@')[0]).join(', ')}</>,
-            ]}
-          />
-        </p>
-        {runsOut && (
-          <p className="stat-sub" data-testid="serving-runs-out">
-            <Segments
-              parts={[
                 <>
-                  <span className="warn-icon" aria-hidden>
-                    !
-                  </span>{' '}
-                  {who(runsOut.window.account, runsOut.window.email)}{' '}
-                  <a className="jump warn" href={usageLink(paceAnchor(runsOut.window.account, runsOut.window.limit.key))} title="See this window's pace in Usage">
-                    {runsOut.window.limit.label.toLowerCase()} runs out ~<Clock at={runsOut.window.at} />
-                  </a>
-                </>,
-                <span className="num">{duration(runsOut.window.resetsAt - runsOut.window.at)} before reset</span>,
-                runsOut.next ? <>{who(runsOut.next.account, runsOut.next.email)} next</> : 'no other account in line',
-              ]}
-            />
-          </p>
+                  take turns across{' '}
+                  {inLine.map((l, i) => (
+                    <Fragment key={l.account}>
+                      {i > 0 && ', '}
+                      {who(l.account, l.email)}
+                    </Fragment>
+                  ))}
+                </>
+              )}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="serving-label" data-testid="serving-new">
+              New sessions go to
+            </p>
+            {o.target ? (
+              hero(o.target)
+            ) : (
+              <p className="hero">
+                <span className="badge critical">No account can take traffic</span>
+              </p>
+            )}
+            <p className="stat-sub" data-testid="serving-latest">
+              <span className="serving-key">Latest request</span>{' '}
+              {lead ? (
+                <>
+                  {who(lead.account, lead.email)} · {when(lead.lastAt)}
+                </>
+              ) : (
+                'none in the last 2 min'
+              )}
+            </p>
+          </>
         )}
       </div>
 

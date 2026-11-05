@@ -50,8 +50,9 @@ export interface StatusView {
 export type CpaView = { readonly kind: 'up' } | { readonly kind: 'down'; readonly lastAt: Instant | null };
 
 export interface OverviewView {
-  /** Newest request first. takesNext: a new session would land on this account too. */
-  readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant; readonly takesNext: boolean }[];
+  /** The accounts that answered in the last 2 min, newest request first. */
+  readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant }[];
+  /** Where CPA sends the next new session: fill-first's first in line, or under round-robin the eligible account seen last. */
   readonly target: { readonly account: AccountId; readonly email: string } | null;
   readonly servingEvidence: 'keeper' | 'cpa_headers';
   readonly order: ServeOrderView;
@@ -60,11 +61,6 @@ export interface OverviewView {
   readonly claimableCount: number;
   /** Every open window whose pace says it runs out before it resets, soonest first. */
   readonly runningOut: readonly RunOutView[];
-  /**
-   * The soonest of them on an account serving now or taking the next session, with the account next in line after it;
-   * null when none of those runs out.
-   */
-  readonly servingRunsOut: { readonly window: RunOutView; readonly next: { readonly account: AccountId; readonly email: string } | null } | null;
 }
 
 /** An open quota window on course to run out at `at`, before it resets at `resetsAt`, if the average burn since it opened holds. */
@@ -117,8 +113,11 @@ export interface AccountView {
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
   readonly offers: readonly OfferView[];
-  /** What every reset clears ("the session limit") when they all clear the same limits, said once for all of them; null when they differ, so each row names its own. */
-  readonly offersClear: string | null;
+  /**
+   * What every reset clears ("the session limit") when they all clear the same limits, said once for all of them, with when
+   * each of those limits resets on its own without a claim; null when they differ, so each row names its own.
+   */
+  readonly offersClear: { readonly limits: string; readonly selfResets: OfferView['selfResets'] } | null;
   /** Phrases for one line standing in for the offers when none is claimable, waiting, in flight or unreadable; null when any is. */
   readonly quietOffers: readonly string[] | null;
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
@@ -300,9 +299,12 @@ export interface OfferView {
   readonly program: ProgramId;
   /** The reset's one name, from the card row and its Claim button to the claim dialog: its source ("Weekly reset"). */
   readonly name: string;
+  /** The name on its Claim button ("weekly"). */
+  readonly short: string;
   /**
-   * The standing terms that follow the name on the card row ("clears the session limit"), only when the account's
-   * resets differ in that (see AccountView.offersClear). A grant's count and end come from grants.
+   * The standing terms that follow the name on the card row: how often it comes ("one per week"), and what it clears
+   * ("clears the session limit") only when the account's resets differ in that (see AccountView.offersClear). A grant's
+   * count and end come from grants.
    */
   readonly terms: readonly string[];
   readonly effect: string;

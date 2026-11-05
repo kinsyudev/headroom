@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, GrantView, OfferView } from '../../shared/view';
 import { claimResultText } from '../format';
@@ -11,10 +11,28 @@ export const resetsAnchor = (account: string) => `resets-${account}`;
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const a = props.account;
   const claimable = a.offers.some((o) => o.state.kind === 'claimable');
+  const clear = a.offersClear;
   return (
     <div className={claimable ? 'offers claimable' : 'offers'}>
       <h4>
-        Resets you can claim{a.offersClear !== null && <span className="offers-note"> each clears {a.offersClear}</span>}
+        Resets you can claim
+        {clear !== null && (
+          <span className="offers-note">
+            {' '}
+            each clears {clear.limits}
+            {clear.selfResets.length > 0 && (
+              <>
+                , which {clear.selfResets.length === 1 ? 'resets on its own' : 'reset on their own'} in{' '}
+                {clear.selfResets.map((r, i) => (
+                  <Fragment key={r.what}>
+                    {i > 0 && ' and '}
+                    <Countdown at={r.at} />
+                  </Fragment>
+                ))}
+              </>
+            )}
+          </span>
+        )}
       </h4>
       <div className="offer-list">
         {a.offers.map((o) => (
@@ -30,14 +48,11 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
   const several = o.grants.length > 1;
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
+      <strong className="offer-name" title={o.program}>
+        {o.name}
+      </strong>
       <div className="offer-text">
-        <Segments
-          parts={[
-            <strong title={o.program}>{o.name}</strong>,
-            ...o.terms,
-            ...(o.grants.length === 1 ? grantTerms(o.grants[0]!, false) : []),
-          ]}
-        />
+        <Segments parts={[...o.terms, ...(o.grants.length === 1 ? grantTerms(o.grants[0]!, false) : [])]} />
         {several && (
           <ul className="grants">
             {o.grants.map((g) => (
@@ -49,7 +64,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
         )}
       </div>
       {o.state.kind === 'claimable' ? (
-        <ClaimButton name={o.name} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />
+        <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />
       ) : (
         <div className="offer-state">
           <OfferState offer={o} />

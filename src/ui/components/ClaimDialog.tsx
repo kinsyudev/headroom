@@ -21,8 +21,7 @@ export function ClaimDialog(props: {
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
   const stillClaimable = offer.state.kind === 'claimable';
-  const confirmLabel =
-    props.program === 'juniper_tide' ? `Reset session limit on ${a.email}` : `Use 1 “${grant?.label ?? 'bonus'}” reset on ${a.email}`;
+  const confirmLabel = `Claim ${offer.name.toLowerCase()} on ${a.email}`;
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -133,6 +132,7 @@ export function ClaimDialog(props: {
               disabled={claim.pending || !stillClaimable || paused !== null}
               title={paused ?? undefined}
               data-testid="claim-confirm"
+              data-paused={paused !== null || undefined}
               onClick={async () => {
                 const out = await claim.run({ account: a.id, program: props.program, ...(props.grant ? { grant: props.grant } : {}) });
                 if (out) setRecord(out);

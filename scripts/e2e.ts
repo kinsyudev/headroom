@@ -65,13 +65,15 @@ try {
   pass('three accounts read through the budgeted scheduler');
 
   assert((await page.locator('[data-testid^="card-"]').count()) === 3, 'three account cards');
-  // The keep-alive keeps account1 serving, but account2 or account3 may have answered after it, and then the tile leads with that one.
+  // The keep-alive keeps account1 serving, but account2 or account3 may have answered after it, so the latest request may name any of them.
   const servingTile = page.getByTestId('tile-serving');
-  const alsoServing = (await servingTile.locator('.seg').allTextContents()).find((s) => s.startsWith('also ')) ?? '';
   assert(
-    (await servingTile.locator('.hero-text').allTextContents()).includes('account1@example.com') || alsoServing.slice('also '.length).split(', ').includes('account1'),
-    'overview names account1 as serving, as the account that answered last or among the others answering',
+    (await text(servingTile.getByTestId('serving-new'))) === 'New sessions go to' && (await text(servingTile.locator('.hero-text'))) === 'account1@example.com',
+    'overview names account1 as the account new sessions go to',
   );
+  const latest = await text(servingTile.getByTestId('serving-latest'));
+  assert(/^Latest request account[123] · \d+[sm] ago$/.test(latest), `overview names the account that answered the latest request and how long ago: "${latest}"`);
+  assert((await text(card('account1@example.com').getByTestId('role'))) === '● New sessions', "account1's row chip says it serves and takes new sessions, as the tile does");
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
   const nextReset = await text(page.getByTestId('tile-next-reset'));
@@ -80,9 +82,14 @@ try {
     /^Serve order Session left Weekly left 1 account1 88% 73%\s*2 account2 100% 99%\s*– account3 blocked until \d\d:\d\d$/.test(await text(page.getByTestId('tile-headroom'))),
     'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
   );
-  const runsOut = await text(page.getByTestId('serving-runs-out'));
-  assert(/^! account1 session runs out ~\d\d:\d\d (\d+h )?\d+m before reset account2 next$/.test(runsOut), `the serving tile warns account1's session runs out before its reset, with account2 next: "${runsOut}"`);
-  assert((await text(page.getByTestId('nav-analytics').locator('.tab-badge'))) === '1 runs out', 'the Usage tab says how many windows run out');
+  const runsOut = await text(card('account1@example.com').getByTestId('limit-session').getByTestId('pace-note'));
+  assert(/^! Runs out in (\d+h )?\d+m$/.test(runsOut), `account1's session cell warns it runs out before its reset: "${runsOut}"`);
+  const tabBadge = page.getByTestId('nav-analytics').locator('.tab-badge');
+  const tabBadgeTitle = (await tabBadge.getAttribute('title')) ?? '';
+  assert(
+    (await text(tabBadge)) === '1 running out' && /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before it resets$/.test(tabBadgeTitle),
+    `the Usage tab says one window is running out, and its tooltip names account1's session and how long before its reset: "${tabBadgeTitle}"`,
+  );
   assert(
     (await page.locator('.ledger-head > span').allTextContents()).join('|') === 'Account|Session left|Weekly left|Weekly · Fable left|Extra usage|Requests',
     'each quota column says once, in its header, that it counts what is left',
@@ -138,6 +145,10 @@ try {
     await until(async () => (await page.getByTestId('strategy-round-robin').isDisabled()) && (await page.getByTestId('strategy-fill-first').isEnabled()), 'round-robin active');
   });
 
+  assert(
+    (await text(c3.getByTestId('claim-juniper_tide'))) === 'Claim weekly…' && (await text(c3.getByTestId('claim-cedar_ember'))) === 'Claim bonus…',
+    'each Claim button names its reset',
+  );
   await c3.getByTestId('claim-juniper_tide').click();
   const dialog = page.getByTestId('claim-dialog');
   await dialog.waitFor();
@@ -147,7 +158,7 @@ try {
   }
   assert(!facts.includes('juniper_tide'), 'claim dialog shows no raw program code');
   assert((await dialog.locator('#claim-name').getAttribute('title')) === 'juniper_tide', 'claim dialog keeps the program code in the name title');
-  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Reset session limit on account3@example.com', 'confirm button names account and effect');
+  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim weekly reset on account3@example.com', 'confirm button names the reset picked and the account');
   await page.screenshot({ path: join(SHOTS, 'e2e-2-claim-dialog.png') });
   pass('claim dialog names account, program and effect');
   await step(

@@ -80,18 +80,17 @@ describe('routing and serving', () => {
   test('without keeper, the overview names CPA headers as the evidence and lists both serving accounts newest first', () => {
     const d = deck({});
     expect(d.overview.servingEvidence).toBe('cpa_headers');
-    expect(d.overview.serving.map((s) => [s.account, s.why, s.takesNext])).toEqual([
-      [ACC1, 'fill_first_target', true],
-      [ACC2, 'affinity', false],
+    expect(d.overview.serving.map((s) => [s.account, s.why])).toEqual([
+      [ACC1, 'fill_first_target'],
+      [ACC2, 'affinity'],
     ]);
     expect(d.overview.target?.account).toBe(ACC1);
   });
 
-  test('a serving account takes the next new session only when it is the predicted target', () => {
+  test('new sessions go to the predicted target whichever account answered last', () => {
     const seen = (account: typeof ACC1) => deck({ serving: [{ account, lastAt: plus(T0, -10_000), recent: 3 }] }).overview;
-    expect(seen(ACC1).serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC1, true]]);
-    expect(seen(ACC2).serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC2, false]]);
-    expect(seen(ACC2).target?.account).toBe(ACC1);
+    expect([seen(ACC1).serving[0]?.account, seen(ACC1).target?.account]).toEqual([ACC1, ACC1]);
+    expect([seen(ACC2).serving[0]?.account, seen(ACC2).target?.account]).toEqual([ACC2, ACC1]);
   });
 
   test('round-robin: every eligible account is a target and serving accounts say so', () => {
@@ -389,18 +388,30 @@ describe('offers and claimability', () => {
     };
     const panel = (feeds: AccountFeeds) => {
       const a = deriveDeck(snapshot({ feeds: { [ACC3]: feeds } }), T0).accounts.find((x) => x.id === ACC3)!;
-      return { offersClear: a.offersClear, rows: Object.fromEntries(a.offers.map((o) => [o.program, [o.name, ...o.terms]])) };
+      return { offersClear: a.offersClear?.limits ?? null, rows: Object.fromEntries(a.offers.map((o) => [o.program, [o.name, ...o.terms]])) };
     };
     const eachRowSaysItsOwn = (bonus: string[]) => ({
       offersClear: null,
-      rows: { juniper_tide: ['Weekly reset', 'clears the session limit'], cedar_ember: ['Bonus reset', ...bonus] },
+      rows: { juniper_tide: ['Weekly reset', 'clears the session limit', 'one per week'], cedar_ember: ['Bonus reset', ...bonus] },
     });
 
     test('resets that clear the same limit say it once, and each row keeps its one name and what sets it apart', () => {
       expect(panel(feedsFrom(synthetic, T0))).toEqual({
         offersClear: 'the session limit',
-        rows: { juniper_tide: ['Weekly reset'], cedar_ember: ['Bonus reset'] },
+        rows: { juniper_tide: ['Weekly reset', 'one per week'], cedar_ember: ['Bonus reset'] },
       });
+    });
+
+    test('the line said once for every reset names when the limit they clear resets on its own', () => {
+      const a = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0).accounts.find((x) => x.id === ACC3)!;
+      expect(a.offersClear?.selfResets).toEqual([{ what: 'the session limit', at: at('2026-11-04T14:20:00.412Z') }]);
+    });
+
+    test('each Claim button names its reset in a word', () => {
+      expect(offersOf(feedsFrom(synthetic, T0)).map((o) => [o.program, o.short])).toEqual([
+        ['juniper_tide', 'weekly'],
+        ['cedar_ember', 'bonus'],
+      ]);
     });
 
     test.each([
@@ -571,7 +582,7 @@ describe('the serve order', () => {
 
   test('rank 1 is where the Serving tile says a new session lands, even while another account serves by affinity', () => {
     const o = overview({ serving: [seen(ACC2)] });
-    expect(o.serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC2, false]]);
+    expect(o.serving.map((s) => s.account)).toEqual([ACC2]);
     expect(o.target?.account).toBe(ACC1);
     expect(places(o)).toEqual([
       [ACC1, 1],
@@ -695,13 +706,9 @@ describe('windows on course to run out', () => {
   const limit = (kind: string, used: number, resetsInMs: number): Limit => ({ kind, percent: used as Percent, severity: 'normal', resetsAt: plus(T0, resetsInMs), scopeModel: null, isActive: false });
   const feeds = (byAccount: Record<AccountId, Limit[]>) =>
     Object.fromEntries(Object.entries(byAccount).map(([id, limits]) => [id, feedsFrom({ ...usage('anthropic-usage-1.json', 'normal'), limits }, T0)]));
-  const accounts = (disabled: readonly AccountId[]) =>
-    cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null, disabled: disabled.includes(a.id) }));
-  const overview = (byAccount: Record<AccountId, Limit[]>, opts: { readonly serving?: AccountId; readonly disabled?: readonly AccountId[] } = {}) =>
-    deriveDeck(
-      snapshot({ accounts: accounts(opts.disabled ?? [ACC3]), feeds: feeds(byAccount), serving: opts.serving ? [{ account: opts.serving, lastAt: plus(T0, -10_000), recent: 3 }] : [] }),
-      T0,
-    ).overview;
+  const accounts = cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null, disabled: a.id === ACC3 }));
+  const overview = (byAccount: Record<AccountId, Limit[]>, opts: { readonly serving?: AccountId } = {}) =>
+    deriveDeck(snapshot({ accounts, feeds: feeds(byAccount), serving: opts.serving ? [{ account: opts.serving, lastAt: plus(T0, -10_000), recent: 3 }] : [] }), T0).overview;
   const burning = { [ACC1]: [limit('session', 50, 3 * HOUR), limit('weekly_all', 10, 3.5 * 24 * HOUR)], [ACC2]: [limit('weekly_all', 60, 3.5 * 24 * HOUR)] };
 
   test('every window whose pace says it runs out before its reset, soonest first, with when it runs out and when it resets', () => {
@@ -711,31 +718,9 @@ describe('windows on course to run out', () => {
     ] as never);
   });
 
-  test('the serving account running out names its soonest window and the account next in line', () => {
-    expect(overview(burning, { serving: ACC1 }).servingRunsOut).toEqual({
-      window: expect.objectContaining({ account: ACC1, limit: { key: 'session', label: 'Session' }, at: plus(T0, 2 * HOUR) }),
-      next: { account: ACC2, email: 'account2@example.com' },
-    });
-  });
-
-  test('with no other account in line, nothing is next', () => {
-    expect(overview(burning, { serving: ACC1, disabled: [ACC2, ACC3] }).servingRunsOut?.next).toBeNull();
-  });
-
-  test('an account that neither serves nor takes the next session running out is listed, but says nothing in the serving tile', () => {
+  test('a window on course to last to its reset is not listed, whichever account serves', () => {
     const o = overview({ [ACC1]: [limit('session', 10, 3 * HOUR)], [ACC2]: burning[ACC2]! }, { serving: ACC1 });
     expect(o.runningOut.map((r) => r.account)).toEqual([ACC2]);
-    expect(o.servingRunsOut).toBeNull();
-  });
-
-  test('the account taking the next session counts though another serves by affinity, and that one is next', () => {
-    const o = overview({ [ACC1]: burning[ACC1]!, [ACC2]: [limit('weekly_all', 10, 3.5 * 24 * HOUR)] }, { serving: ACC2 });
-    expect(o.target?.account).toBe(ACC1);
-    expect(o.servingRunsOut).toMatchObject({ window: { account: ACC1, limit: { key: 'session' } }, next: { account: ACC2 } });
-  });
-
-  test('with nothing serving, the account taking the next session still warns', () => {
-    expect(overview(burning).servingRunsOut?.window).toMatchObject({ account: ACC1, limit: { key: 'session' } });
   });
 });
 

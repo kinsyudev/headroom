@@ -59,6 +59,10 @@ export function clockTime(at: number, now: number): string {
 /** The one place a column says which way its figures run: the header, the narrow row label and the meter's name. */
 export const leftLabel = (window: string): string => `${window} left`;
 
+/** What the pace tick on a quota meter means, in the one wording every place that explains it uses. */
+export const PACE_TICK_HELP =
+  'The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.';
+
 export function percent(p: PercentLeft | null): string {
   if (p === null) return '—';
   if (p > 0 && p < 1) return '<1%';

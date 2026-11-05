@@ -44,7 +44,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
                   .map((r) => `${r.email.split('@')[0]} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, d.now)}, ${duration(r.resetsAt - r.at)} before it resets`)
                   .join('\n')}
               >
-                {runningOut.length} {runningOut.length === 1 ? 'runs' : 'run'} out
+                {runningOut.length} running out
               </span>
             )}
           </a>
@@ -108,6 +108,7 @@ function AddAccount(props: { readonly deck: DeckView }) {
         disabled={start.pending || paused !== null}
         title={paused ?? undefined}
         data-testid="add-account"
+        data-paused={paused !== null || undefined}
         onClick={async () => {
           const tab = window.open('about:blank', '_blank');
           const out = await start.run({});

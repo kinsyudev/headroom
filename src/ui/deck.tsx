@@ -9,7 +9,7 @@ const CpaContext = createContext<CpaView>({ kind: 'up' });
 export const CpaProvider = CpaContext.Provider;
 
 export function usePaused(): string | null {
-  return useContext(CpaContext).kind === 'down' ? 'Paused: CPA is not answering' : null;
+  return useContext(CpaContext).kind === 'down' ? 'Paused until CPA answers' : null;
 }
 
 export function ClockProvider(props: { readonly children: ReactNode }) {

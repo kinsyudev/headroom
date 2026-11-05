@@ -5,6 +5,7 @@ import { clockTime } from '../format';
 
 const W = 240;
 const H = 22;
+const TICK = 3;
 const TEN_MIN = 600_000;
 
 export function ActivityCell(props: { readonly buckets: AccountView['activity']; readonly color: string; readonly help: string }) {
@@ -24,10 +25,10 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
   const bw = Math.max(2, band - 2);
   const total = b.reduce((n, x) => n + x.success + x.failed, 0);
   const failed = b.reduce((n, x) => n + x.failed, 0);
-  const hours = Math.round(((b.length * 10) / 60) * 10) / 10;
+  const since = clockTime(b[0]!.start, now);
   const h = hover === null ? null : b[hover]!;
   return (
-    <figure className="cell activity" title={`${props.help}, last ${hours} h`}>
+    <figure className="cell activity" title={`${props.help}, since ${since}. A red tick under a bar marks failed requests.`}>
       <span className="cell-label">Requests</span>
       <figcaption className="cell-value num">
         {h ? (
@@ -42,24 +43,28 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
             {total}
             <span className="cell-unit">
               {' '}
-              in {hours} h{failed > 0 && <> · {failed} failed</>}
+              <span className="nowrap">since {since}</span>
+              {failed > 0 && (
+                <>
+                  {' '}
+                  <span className="nowrap">· {failed} failed</span>
+                </>
+              )}
             </span>
           </>
         )}
       </figcaption>
-      <svg className="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests in the last ${b.length * 10} minutes`} onPointerLeave={() => setHover(null)}>
+      <svg className="spark" viewBox={`0 0 ${W} ${H + TICK + 2}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests since ${since}, ${failed} failed`} onPointerLeave={() => setHover(null)}>
         <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} className="axis" />
         {b.map((x, i) => {
-          const scale = (n: number) => (n === 0 ? 0 : Math.max(2.5, (n / max) * (H - 2)));
-          const ok = scale(x.success);
-          const bad = scale(x.failed);
+          const n = x.success + x.failed;
+          const tall = n === 0 ? 0 : Math.max(2.5, (n / max) * (H - 2));
           const left = i * band + (band - bw) / 2;
           return (
             <g key={x.start} onPointerEnter={() => setHover(i)} opacity={hover === null || hover === i ? 1 : 0.45}>
-              <rect x={i * band} y={0} width={band} height={H} fill="transparent" />
-              {ok + bad === 0 && <rect x={left} y={H - 3} width={bw} height={2} className="slot" />}
-              {ok > 0 && <rect x={left} y={H - 1 - ok} width={bw} height={ok} fill={props.color} rx={1} />}
-              {bad > 0 && <rect x={left} y={H - 1 - ok - bad} width={bw} height={bad} fill="var(--critical)" rx={1} />}
+              <rect x={i * band} y={0} width={band} height={H + TICK + 2} fill="transparent" />
+              {n === 0 ? <rect x={left} y={H - 3} width={bw} height={2} className="slot" /> : <rect x={left} y={H - 1 - tall} width={bw} height={tall} fill={props.color} rx={1} />}
+              {x.failed > 0 && <rect x={left} y={H + 1} width={bw} height={TICK} className="failed-tick" rx={1} />}
             </g>
           );
         })}

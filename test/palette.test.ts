@@ -51,6 +51,28 @@ describe('the palette keeps the page legible', () => {
   });
 });
 
+describe('secondary and muted text stay legible on every tinted panel the stylesheet draws', () => {
+  const panel = (m: RegExpMatchArray) => Number(m[2]) <= 25 && (SURFACES as readonly string[]).includes(m[3]!);
+  const tints = [
+    ...new Set(
+      [...css.matchAll(/background:\s*color-mix\(in srgb, var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)\)/g)].filter(panel).map((m) => m[0].slice(m[0].indexOf('color-mix'))),
+    ),
+  ];
+  const mixed = (tint: string) => {
+    const [, a, p, b] = /var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)/.exec(tint)!;
+    const [x, y, share] = [token(a!), token(b!), Number(p) / 100];
+    return `#${[1, 3, 5].map((i) => Math.round(parseInt(x.slice(i, i + 2), 16) * share + parseInt(y.slice(i, i + 2), 16) * (1 - share)).toString(16).padStart(2, '0')).join('')}`;
+  };
+
+  test('the stylesheet has tinted panels to check', () => {
+    expect(tints.length).toBeGreaterThan(5);
+  });
+
+  test.each(tints.flatMap((tint) => ['ink-2', 'muted'].map((name) => [name, tint] as const)))('--%s clears 4.5:1 on %s', (name, tint) => {
+    expect(contrast(token(name), mixed(tint))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe('identity hues are told apart from each other and from the status colours', () => {
   const identity = ['id-1', 'id-2', 'id-3', 'id-4', 'id-5'].map(token);
 

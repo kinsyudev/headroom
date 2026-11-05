@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, LimitColumn } from '../../shared/view';
 import { useNow } from '../deck';
-import { leftLabel, reasonTitle, SERVING_WHY } from '../format';
+import { leftLabel, PACE_TICK_HELP, reasonTitle, SERVING_WHY } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivityCell } from './ActivitySparkline';
 import { Countdown } from './Countdown';
@@ -21,7 +21,8 @@ const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld
 
 const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off, including a zero budget, requests stop at the plan limits.';
 const REQUESTS_HELP = 'Requests CPA routed to the account, per 10 minutes';
-const PRIMARY_HELP = 'First in line; raise another account above it to change';
+const PRIMARY_HELP = 'First in the serve order, so new sessions go here; raise another account above it to change';
+const NEW_SESSIONS_HELP = 'New sessions go here: first in line under fill-first.';
 
 export function Accounts(props: {
   readonly accounts: readonly AccountView[];
@@ -38,7 +39,7 @@ export function Accounts(props: {
           <span>Room left</span>
         ) : (
           props.columns.map((c) => (
-            <span key={c.key} title={c.gloss ? `${c.label}: ${c.gloss}` : undefined}>
+            <span key={c.key} title={[c.gloss && `${c.label}: ${c.gloss}`, PACE_TICK_HELP].filter(Boolean).join('\n')}>
               {leftLabel(c.label)}
             </span>
           ))
@@ -104,13 +105,19 @@ function AccountRow(props: {
             kind="account.makePrimary"
             input={{ account: a.id }}
             disabled={!a.can.makePrimary}
-            title={r.primary ? PRIMARY_HELP : a.can.makePrimary ? 'Set priority above every other account' : 'Already first in priority, outranking every other account'}
+            title={
+              r.primary
+                ? PRIMARY_HELP
+                : a.can.makePrimary
+                  ? 'Raise priority above every other account, so new sessions go here first'
+                  : 'Already first in priority, outranking every other account'
+            }
             pendingLabel="Saving…"
-            done={(o) => (o.changed ? `priority ${o.priority}` : 'already primary')}
+            done={(o) => (o.changed ? `priority ${o.priority}` : 'already first')}
             variant={r.primary ? 'state' : 'quiet'}
             testId="make-primary"
           >
-            {r.primary ? '★ Primary' : 'Make primary'}
+            {r.primary ? '★ Serves first' : 'Serve first'}
           </ActionButton>
           <PriorityStepper account={a.id} routing={r} />
         </div>
@@ -168,18 +175,19 @@ function EmptyCell(props: { readonly label: string }) {
 }
 
 export function RoutingBadge(props: { readonly routing: AccountView['routing'] }) {
-  const role = props.routing.role;
+  const { role, isTarget, ranksByPriority } = props.routing;
+  const takesNew = isTarget && ranksByPriority;
   switch (role.kind) {
     case 'serving':
       return (
-        <span className="badge good role" data-testid="role" title={SERVING_WHY[role.why]}>
-          ● Serving
+        <span className="badge good role" data-testid="role" title={takesNew ? `${NEW_SESSIONS_HELP} Answered a request in the last 2 min.` : `Answered a request in the last 2 min: ${SERVING_WHY[role.why]}`}>
+          ● {takesNew ? 'New sessions' : 'Serving'}
         </span>
       );
     case 'standby':
       return (
-        <span className="badge neutral role" data-testid="role">
-          ○ Standby
+        <span className="badge neutral role" data-testid="role" title={takesNew ? `${NEW_SESSIONS_HELP} No request in the last 2 min.` : 'In line, with no request in the last 2 min'}>
+          ○ {takesNew ? 'New sessions' : 'Standby'}
         </span>
       );
     case 'blocked':

@@ -675,7 +675,9 @@ export function deriveOffers(
   const grants = cv?.grants ?? [];
   const cedarClears = defaultGrant?.clears ?? [...new Set(grants.flatMap((g) => g.clears))];
   const offersClear =
-    cedarClears.length === JUNIPER_CLEARS.length && JUNIPER_CLEARS.every((w) => cedarClears.includes(w)) ? `the ${limitsNamed(JUNIPER_CLEARS)}` : null;
+    cedarClears.length === JUNIPER_CLEARS.length && JUNIPER_CLEARS.every((w) => cedarClears.includes(w))
+      ? { limits: `the ${limitsNamed(JUNIPER_CLEARS)}`, selfResets: selfResets(JUNIPER_CLEARS, limits) }
+      : null;
   const clearsTerm = (clears: readonly string[]) => (offersClear === null && clears.length > 0 ? [`clears the ${limitsNamed(clears)}`] : []);
 
   return {
@@ -684,7 +686,8 @@ export function deriveOffers(
       {
         program: 'juniper_tide',
         name: 'Weekly reset',
-        terms: clearsTerm(JUNIPER_CLEARS),
+        short: 'weekly',
+        terms: [...clearsTerm(JUNIPER_CLEARS), 'one per week'],
         effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
         selfResets: selfResets(JUNIPER_CLEARS, limits),
         state: juniper,
@@ -694,6 +697,7 @@ export function deriveOffers(
       {
         program: 'cedar_ember',
         name: 'Bonus reset',
+        short: 'bonus',
         terms: clearsTerm(cedarClears),
         effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
         selfResets: selfResets(cedarClears, limits),
@@ -816,7 +820,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   const serving = accounts
     .flatMap((a) =>
       a.routing.role.kind === 'serving' && a.routing.lastSeenAt !== null
-        ? [{ account: a.id, email: a.email, why: a.routing.role.why, lastAt: a.routing.lastSeenAt, takesNext: a.id === target?.id }]
+        ? [{ account: a.id, email: a.email, why: a.routing.role.why, lastAt: a.routing.lastSeenAt }]
         : [],
     )
     .sort((x, y) => y.lastAt - x.lastAt);
@@ -847,9 +851,6 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
       }),
     )
     .sort((x, y) => x.at - y.at);
-  const busy = new Set([...serving.map((s) => s.account), ...(target ? [target.id] : [])]);
-  const busyOut = runningOut.find((r) => busy.has(r.account));
-  const next = busyOut && order.lines.find((l) => l.kind === 'in_line' && l.account !== busyOut.account);
   return {
     serving,
     target: target ? { account: target.id, email: target.email } : null,
@@ -859,7 +860,6 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     claimable,
     claimableCount: claimable.reduce((n, g) => n + g.resets.length, 0),
     runningOut,
-    servingRunsOut: busyOut ? { window: busyOut, next: next ? { account: next.account, email: next.email } : null } : null,
   };
 }
 
