@@ -21,11 +21,18 @@ export interface ApiCall {
   readonly xApp: string;
 }
 
+export interface SpendOverride {
+  readonly usedMinor: number;
+  readonly limitMinor: number;
+}
+
 export interface FakeCpa {
   readonly url: string;
   readonly mutations: Mutation[];
   readonly calls: ApiCall[];
   readonly rateLimited: Set<string>;
+  /** Replaces one account's extra-usage spend in normal reads, keyed by its position in the auth files fixture. */
+  readonly spend: Map<number, SpendOverride>;
   claimDelayMs: number;
   failResetQuota: number;
   key: string;
@@ -80,6 +87,7 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
     mutations: [],
     calls: [],
     rateLimited: new Set(),
+    spend: new Map(),
     claimDelayMs: 0,
     failResetQuota: 0,
     key: opts.key,
@@ -136,6 +144,21 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
     return { result: 'reset', reason: null, resets_left: g.resets_left, cleared: g.clears, weekly_resets_at: c.weekly_resets_at, cooldown_until: null };
   }
 
+  function spendOf(id: string, base: Json): Json {
+    const o = fake.spend.get(ids.indexOf(id));
+    if (!o) return base;
+    const percent = o.limitMinor > 0 ? Math.min(100, Math.round((o.usedMinor / o.limitMinor) * 100)) : 0;
+    return {
+      ...base,
+      enabled: true,
+      disabled_reason: null,
+      used: { ...base.used, amount_minor: o.usedMinor },
+      limit: { ...base.used, amount_minor: o.limitMinor },
+      percent,
+      severity: percent >= 100 ? 'critical' : 'normal',
+    };
+  }
+
   async function apiCall(body: Json): Promise<Response> {
     const id = body.auth_index as string;
     const u = new URL(body.url as string);
@@ -153,7 +176,8 @@ export function startFakeCpa(opts: { readonly key: string; readonly port?: numbe
         const { spend: _spend, ...rest } = wall.get(id)!;
         return envelope(200, rest);
       }
-      return envelope(200, { ...usage.get(id)!, cedar_ember: wall.get(id)!.cedar_ember, juniper_tide: null });
+      const normal = usage.get(id)!;
+      return envelope(200, { ...normal, spend: spendOf(id, normal.spend), cedar_ember: wall.get(id)!.cedar_ember, juniper_tide: null });
     }
     if (u.pathname === '/api/oauth/profile') return envelope(200, profile.get(id));
     if (/^\/api\/organizations\/[^/]+\/reset_rate_limits$/.test(u.pathname) && body.method === 'POST') {
