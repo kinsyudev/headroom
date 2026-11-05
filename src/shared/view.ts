@@ -3,17 +3,20 @@ import type {
   ClaimId,
   CooldownReason,
   CooldownScope,
+  Effort,
   GrantId,
   Instant,
   LinkState,
   Money,
   OAuthFlow,
+  Outcome,
   Percent,
   PercentLeft,
   ProgramId,
   RoutingStrategy,
   Severity,
   SourceError,
+  TokenSums,
 } from './domain';
 
 export interface DeckView {
@@ -194,7 +197,30 @@ export interface LimitView {
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
   /** The reading that is not drawn. */
   readonly other: { readonly kind: 'poll' | 'headers'; readonly left: PercentLeft; readonly at: Instant } | null;
+  /** How fast this open window is being used, from its latest reading alone. Null unless the window is open with a known length and reset. */
+  readonly pace: LimitPace | null;
 }
+
+export interface LimitPace {
+  /** When the window opened: its reset less its length. */
+  readonly startsAt: Instant;
+  /** The share of the window's time already gone, 0 to 100. */
+  readonly elapsed: number;
+  readonly used: Percent;
+  /** used ÷ elapsed. 1 is even pace; above 1 the window runs out before it resets. Null while under 1% of the window is gone. */
+  readonly ratio: number | null;
+  readonly outlook: PaceOutlook;
+}
+
+/**
+ * A straight line at the window's average burn since it opened. hits: it reaches the limit at `at`, before the reset.
+ * too_early: under 5% of the window is gone, too little to project from.
+ */
+export type PaceOutlook =
+  | { readonly kind: 'at_limit' }
+  | { readonly kind: 'hits'; readonly at: Instant }
+  | { readonly kind: 'lasts' }
+  | { readonly kind: 'too_early' };
 
 /** off: extra usage is disabled. no_budget: enabled with a cap of zero. cap_used: a cap above zero spent to its limit or past it. budget: a cap with room, or none set. */
 export type SpendState = 'off' | 'no_budget' | 'cap_used' | 'budget';
@@ -281,3 +307,137 @@ export type Banner =
 export const USAGE_RANGES = ['24h', '7d', '30d'] as const;
 export type UsageRange = (typeof USAGE_RANGES)[number];
 export type Grain = 'hour' | 'day';
+
+/** How one chart looks at the usage history. Changing it never refetches; several charts may use different lenses at once. */
+export interface AnalyticsLens {
+  readonly range: UsageRange;
+  /** Default: hour for 24h, day otherwise. */
+  readonly grain?: Grain;
+  /** Narrows every figure to one account, pace included. */
+  readonly account?: AccountId;
+  /** Narrows every figure to one model. Pace does not narrow, because a quota window counts every model. */
+  readonly model?: string;
+}
+
+export interface AnalyticsView {
+  readonly lens: { readonly range: UsageRange; readonly grain: Grain; readonly account: AccountId | null; readonly model: string | null };
+  /** When the server read the history. Bucket edges and `partial` are judged against this, not the ticking clock. */
+  readonly asOf: Instant;
+  readonly keeperLatestAt: Instant | null;
+  /** The server is still reading the history at startup, so the figures cover only part of it. */
+  readonly catchingUp: boolean;
+  /** From the first bucket's start to the last bucket's end, which runs past asOf. */
+  readonly span: { readonly start: Instant; readonly end: Instant };
+  readonly dimensions: AnalyticsDimensions;
+  readonly total: UsageStats;
+  /** Contiguous, zero-filled, browser-local buckets. Day buckets step by calendar date, so a DST day is 23 or 25 h. Only the last is partial. */
+  readonly timeline: readonly TimeBucket[];
+  /** Local weekday by hour of day over the span. */
+  readonly week: WeekGrid;
+  readonly byAccount: readonly Part<AccountId>[];
+  readonly byModel: readonly Part<string>[];
+  readonly byEffort: readonly Part<Effort>[];
+  /** Every account and model pair with traffic in the span, most requests first. */
+  readonly byAccountModel: readonly { readonly account: AccountId; readonly model: string; readonly stats: UsageStats }[];
+  /** One row per open quota window per account in the lens. */
+  readonly pace: readonly PaceView[];
+  /** error_events inside the span that match the lens, newest first. */
+  readonly errors: readonly ErrorEventView[];
+}
+
+/**
+ * The order every breakdown follows, so one index means one series in every bucket. accounts: deck order, which keeps
+ * colours stable. models: most requests in the span first. efforts: none, low, medium, high, xhigh, max, then values
+ * keeper adds later, then '' (unset) last.
+ */
+export interface AnalyticsDimensions {
+  readonly accounts: readonly { readonly id: AccountId; readonly email: string }[];
+  readonly models: readonly string[];
+  readonly efforts: readonly Effort[];
+}
+
+/** Every figure a chart draws for one slice. Ratios are null where the denominator is zero. */
+export interface UsageStats {
+  /** The sum of outcomes, failed requests included. */
+  readonly requests: number;
+  readonly outcomes: Readonly<Record<Outcome, number>>;
+  readonly rates: Readonly<Record<Outcome, number>> | null;
+  readonly tokens: TokenSums;
+  /** cacheRead ÷ (freshInput + cacheRead + cacheCreation). */
+  readonly cacheReadShare: number | null;
+  readonly outputPerRequest: number | null;
+  /** Sessions whose first request falls in this slice, so they add up across slices. */
+  readonly sessions: number;
+  readonly outputPerSession: number | null;
+  /** Ok requests only, read from log-spaced bins: each value lies in the bin of the true one, within 19%. Null under 20 samples. */
+  readonly latencyMs: Percentiles | null;
+  readonly ttftMs: Percentiles | null;
+}
+
+export interface Percentiles {
+  readonly p50: number;
+  readonly p90: number;
+  readonly p99: number;
+  readonly samples: number;
+}
+
+/** One series inside a parent slice. share: its fraction of the parent's requests and output; null when the parent has no requests. */
+export interface Part<K> {
+  readonly key: K;
+  readonly stats: UsageStats;
+  readonly share: { readonly requests: number; readonly output: number } | null;
+}
+
+export interface TimeBucket {
+  readonly start: Instant;
+  readonly end: Instant;
+  /** The bucket that holds asOf, still filling. */
+  readonly partial: boolean;
+  readonly total: UsageStats;
+  /** Aligned with dimensions.accounts, .models and .efforts, and zero-filled. */
+  readonly byAccount: readonly Part<AccountId>[];
+  readonly byModel: readonly Part<string>[];
+  readonly byEffort: readonly Part<Effort>[];
+}
+
+/** 0 is Monday, in browser-local time. */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface WeekGrid {
+  /** rows[weekday][hour], always 7 by 24. */
+  readonly rows: readonly (readonly WeekCell[])[];
+}
+
+export interface WeekCell {
+  readonly weekday: Weekday;
+  /** Local hour of day, 0 to 23. */
+  readonly hour: number;
+  /** How many times this local slot has begun inside the span, so a chart can draw a mean per occurrence. */
+  readonly occurrences: number;
+  readonly stats: UsageStats;
+}
+
+/** Pace toward one open quota window, with what the window has cost so far. */
+export interface PaceView {
+  readonly account: AccountId;
+  readonly email: string;
+  readonly limit: { readonly key: string; readonly label: string };
+  readonly pace: LimitPace;
+  /** Usage on this account since the window opened, every model, counted in whole hours from the hour that holds startsAt. */
+  readonly spent: UsageStats;
+  /** spent ÷ used: what one percent of this window has cost. Null under 1% used. */
+  readonly perPercent: { readonly requests: number; readonly output: number; readonly freshInput: number } | null;
+}
+
+export interface ErrorEventView {
+  readonly id: number;
+  readonly at: Instant | null;
+  readonly account: AccountId | null;
+  readonly email: string | null;
+  readonly model: string | null;
+  readonly status: number | null;
+  readonly outcome: Outcome | null;
+  readonly quotaReason: string | null;
+  readonly recoverAt: Instant | null;
+  readonly message: string;
+}

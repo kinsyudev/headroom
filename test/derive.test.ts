@@ -26,6 +26,7 @@ import {
   type Instant,
   type JuniperTide,
   type Limit,
+  type Percent,
   type Sample,
   type Severity,
   type Snapshot,
@@ -972,5 +973,38 @@ describe('CPA unreachable', () => {
     const d = deriveDeck(never, T0);
     expect(d.cpa).toEqual({ kind: 'down', lastAt: null });
     expect(d.accounts).toEqual([]);
+  });
+});
+
+describe('pace toward a quota window, from its latest reading alone', () => {
+  const HOUR = 3_600_000;
+  const NOW = T0;
+  const limit = (kind: string, used: number, resetsInMs: number): Limit => ({ kind, percent: used as Percent, severity: 'normal', resetsAt: plus(NOW, resetsInMs), scopeModel: kind === 'weekly_scoped' ? 'opus' : null, isActive: false });
+  const paceOf = (l: Limit) => mergeLimits({ value: [l], at: NOW }, null, NOW).find((v) => v.key.startsWith(l.kind))!.pace;
+
+  test.each([
+    ['half used with 40% of the window gone hits the limit before the reset', limit('session', 50, 3 * HOUR), { elapsed: 40, ratio: 1.25, outlook: { kind: 'hits', at: plus(NOW, 2 * HOUR) } }],
+    ['used in step with time lasts exactly to the reset', limit('session', 40, 3 * HOUR), { elapsed: 40, ratio: 1, outlook: { kind: 'lasts' } }],
+    ['used slower than time lasts', limit('session', 20, 3 * HOUR), { elapsed: 40, ratio: 0.5, outlook: { kind: 'lasts' } }],
+    ['nothing used lasts', limit('session', 0, 3 * HOUR), { ratio: 0, outlook: { kind: 'lasts' } }],
+    ['a full window is at its limit', limit('session', 100, 3 * HOUR), { outlook: { kind: 'at_limit' } }],
+    ['under 5% of the window gone is too early to say', limit('session', 30, 5 * HOUR - 9 * MIN), { elapsed: 3, outlook: { kind: 'too_early' } }],
+    ['under 1% gone has no ratio', limit('session', 1, 5 * HOUR - 2 * MIN), { ratio: null, outlook: { kind: 'too_early' } }],
+    ['the weekly window opened 7 days before its reset', limit('weekly_all', 20, 3.5 * 24 * HOUR), { startsAt: plus(NOW, -3.5 * 24 * HOUR), elapsed: 50, ratio: 0.4 }],
+    ['a scoped weekly window is 7 days too, and 60% at half time hits at 5/6 of it', limit('weekly_scoped', 60, 3.5 * 24 * HOUR), { elapsed: 50, outlook: { kind: 'hits', at: plus(NOW, -3.5 * 24 * HOUR + (7 * 24 * HOUR * 5) / 6) } }],
+  ] as const)('%s', (_what, l, want) => {
+    expect(paceOf(l)).toMatchObject({ startsAt: plus(l.resetsAt!, -(l.kind === 'session' ? 5 * HOUR : 7 * 24 * HOUR)), used: l.percent, ...want });
+  });
+
+  test('no pace for a lapsed window, an idle session, an unknown kind, or a window with no reset', () => {
+    expect(paceOf(limit('session', 30, -MIN))).toBeNull();
+    expect(mergeLimits({ value: [limit('weekly_all', 10, HOUR)], at: NOW }, null, NOW).find((v) => v.key === 'session')).toMatchObject({ phase: 'idle', pace: null });
+    expect(paceOf(limit('monthly', 30, HOUR))).toBeNull();
+    expect(paceOf({ ...limit('session', 30, HOUR), resetsAt: null })).toBeNull();
+  });
+
+  test('a header reading gets pace too: 5h maps to the session window', () => {
+    const headers = { observedAt: NOW, status: null, resetsAt: null, windows: [{ key: '5h', percent: 50 as Percent, resetsAt: plus(NOW, 3 * HOUR), status: null }], overageDisabledReason: null };
+    expect(mergeLimits(null, headers, NOW)[0]!.pace).toMatchObject({ startsAt: plus(NOW, -2 * HOUR), outlook: { kind: 'hits', at: plus(NOW, 2 * HOUR) } });
   });
 });

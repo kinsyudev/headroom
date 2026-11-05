@@ -34,6 +34,7 @@ import type {
   FeedName,
   FreshnessView,
   LimitColumn,
+  LimitPace,
   LimitView,
   MeterTone,
   OfferState,
@@ -73,8 +74,20 @@ const FRESHNESS: Record<Exclude<FeedName, 'headers'>, { readonly aging: number; 
   profile: { aging: PROFILE_READ_EVERY_MS + 3_600_000, stale: 4 * PROFILE_READ_EVERY_MS },
 };
 
-const HEADER_TO_KIND: Readonly<Record<string, 'session' | 'weekly_all'>> = { '5h': 'session', '7d': 'weekly_all' };
-const KIND_ORDER = ['session', 'weekly_all', 'weekly_scoped'];
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
+/** Every quota window Headroom knows, in display order: its limit kind, the response header that reports it, and its length. */
+export const QUOTA_WINDOWS = [
+  { kind: 'session', header: '5h', ms: 5 * HOUR_MS },
+  { kind: 'weekly_all', header: '7d', ms: 7 * DAY_MS },
+  { kind: 'weekly_scoped', header: null, ms: 7 * DAY_MS },
+] as const;
+const HEADER_TO_KIND: ReadonlyMap<string, string> = new Map(QUOTA_WINDOWS.flatMap((w) => (w.header === null ? [] : [[w.header, w.kind] as const])));
+const KIND_ORDER: readonly string[] = QUOTA_WINDOWS.map((w) => w.kind);
+const WINDOW_MS: ReadonlyMap<string, number> = new Map(QUOTA_WINDOWS.map((w) => [w.kind, w.ms] as const));
+/** Under this share of a window gone, pace has too little to project from. */
+const PACE_TOO_EARLY = 5;
 
 export const INELIGIBLE_EXPLAIN: Readonly<Record<string, string>> = {
   tier: 'Plan tier is not in the program.',
@@ -402,7 +415,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
   }
   let idleOther: Observation | null = null;
   for (const w of headers?.windows ?? []) {
-    const kind = HEADER_TO_KIND[w.key];
+    const kind = HEADER_TO_KIND.get(w.key);
     if (!kind || w.percent === null || !headers) continue;
     const obs: Observation = {
       kind,
@@ -441,6 +454,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
       source: draw.source,
       other: otherLive ? otherView(other) : null,
+      pace: lapsed || draw.resetsAt === null ? null : pace(draw.kind, draw.percent, draw.resetsAt, now),
     };
   });
   if (poll && !rows.has(rowKey('session', null))) {
@@ -456,9 +470,33 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       limiting: false,
       source: { kind: 'poll', at: poll.at },
       other: idleOther && !(idleOther.resetsAt !== null && idleOther.resetsAt <= now) ? otherView(idleOther) : null,
+      pace: null,
     });
   }
   return views.sort((x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key));
+}
+
+function pace(kind: string, used: Percent, resetsAt: Instant, now: Instant): LimitPace | null {
+  const length = WINDOW_MS.get(kind);
+  if (length === undefined) return null;
+  const startsAt = (resetsAt - length) as Instant;
+  const gone = Math.max(0, now - startsAt);
+  const elapsed = Math.min(100, (100 * gone) / length);
+  const hitsAt = used > 0 ? startsAt + (100 * gone) / used : Infinity;
+  return {
+    startsAt,
+    elapsed,
+    used,
+    ratio: elapsed < 1 ? null : used / elapsed,
+    outlook:
+      used >= 100
+        ? { kind: 'at_limit' }
+        : elapsed < PACE_TOO_EARLY
+          ? { kind: 'too_early' }
+          : hitsAt < resetsAt
+            ? { kind: 'hits', at: Math.round(hitsAt) as Instant }
+            : { kind: 'lasts' },
+  };
 }
 
 function otherView(other: Observation): NonNullable<LimitView['other']> {
