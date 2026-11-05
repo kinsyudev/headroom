@@ -57,6 +57,19 @@ export interface OverviewView {
   readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant } | null;
   readonly claimable: readonly ClaimableView[];
   readonly claimableCount: number;
+  /** Every open window whose pace says it runs out before it resets, soonest first. */
+  readonly runningOut: readonly RunOutView[];
+  /** The soonest of them on the account serving now, with the account next in line once it does; null when nothing serving runs out. */
+  readonly servingRunsOut: { readonly window: RunOutView; readonly next: { readonly account: AccountId; readonly email: string } | null } | null;
+}
+
+/** An open quota window on course to run out at `at`, before it resets at `resetsAt`, if the average burn since it opened holds. */
+export interface RunOutView {
+  readonly account: AccountId;
+  readonly email: string;
+  readonly limit: { readonly key: string; readonly label: string };
+  readonly at: Instant;
+  readonly resetsAt: Instant;
 }
 
 /** One account's claimable resets, named as the card and the claim dialog name them. detail: what is left of the grant. */

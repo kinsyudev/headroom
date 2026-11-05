@@ -3,6 +3,7 @@ import type { AccountId } from '../../../shared/domain';
 import type { MeterTone, PaceView } from '../../../shared/view';
 import { useNow } from '../../deck';
 import { clockTime, compact, count, duration } from '../../format';
+import { paceAnchor, useJumpTarget } from '../../route';
 import { Meter } from '../LimitRow';
 
 type Look = { readonly tone: MeterTone; readonly icon: string; readonly cls: string; readonly main: (p: PaceView, now: number) => ReactNode; readonly sub: (p: PaceView, now: number) => string };
@@ -49,6 +50,7 @@ function spentTitle(p: PaceView): string {
  */
 export function PacePanel(props: { readonly pace: readonly PaceView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
   const now = useNow();
+  const target = useJumpTarget();
   const trouble = props.pace.filter((p) => p.pace.outlook.kind === 'hits' || p.pace.outlook.kind === 'at_limit');
   const headline = (() => {
     const hits = props.pace.filter((p) => p.pace.outlook.kind === 'hits');
@@ -82,8 +84,9 @@ export function PacePanel(props: { readonly pace: readonly PaceView[]; readonly 
             const first = i === 0 || props.pace[i - 1]!.account !== p.account;
             const left = Math.max(0, 100 - p.pace.used);
             const steady = 100 - p.pace.elapsed;
+            const id = paceAnchor(p.account, p.limit.key);
             return (
-              <li key={`${p.account}:${p.limit.key}`} className={`pace-row ${first ? 'first' : ''}`}>
+              <li key={id} id={id} tabIndex={-1} className={`pace-row ${first ? 'first' : ''} ${target === id ? 'targeted' : ''}`}>
                 <span className="pace-who">
                   {first && (
                     <>

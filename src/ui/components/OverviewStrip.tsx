@@ -1,6 +1,7 @@
 import type { AccountId } from '../../shared/domain';
 import type { DeckView, ServeLine } from '../../shared/view';
-import { leftLabel, percent, reasonTitle } from '../format';
+import { duration, leftLabel, percent, reasonTitle } from '../format';
+import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
@@ -31,6 +32,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
     )
   );
   const claimAccounts = o.claimable;
+  const runsOut = o.servingRunsOut;
   return (
     <section className="summary" aria-label="Overview" data-testid="overview">
       {cpa.kind === 'down' && (
@@ -85,6 +87,19 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
             ]}
           />
         </p>
+        {runsOut && (
+          <p className="stat-sub stat-runs-out" data-testid="serving-runs-out">
+            <Segments
+              parts={[
+                <a className="jump warn" href={usageLink(paceAnchor(runsOut.window.account, runsOut.window.limit.key))} title="See this window's pace in Usage">
+                  <span aria-hidden>! </span>
+                  {runsOut.window.limit.label} runs out ~<Clock at={runsOut.window.at} />, {duration(runsOut.window.resetsAt - runsOut.window.at)} before reset
+                </a>,
+                runsOut.next ? <>{who(runsOut.next.account, runsOut.next.email)} next</> : 'no other account in line',
+              ]}
+            />
+          </p>
+        )}
       </div>
 
       <div className="stat" data-testid="tile-next-reset">

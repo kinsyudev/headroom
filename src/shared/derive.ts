@@ -44,6 +44,7 @@ import type {
   PlanView,
   ReadView,
   RoutingView,
+  RunOutView,
   ServeLine,
   ServeOrderView,
   SpendState,
@@ -836,14 +837,28 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     });
     return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets }];
   });
+  const order = deriveServeOrder(accounts, strategy === 'round-robin');
+  const runningOut = accounts
+    .flatMap((a) =>
+      a.limits.flatMap((l): RunOutView[] => {
+        const o = l.pace?.outlook;
+        return l.pace && o?.kind === 'hits' ? [{ account: a.id, email: a.email, limit: { key: l.key, label: l.label }, at: o.at, resetsAt: l.pace.endsAt }] : [];
+      }),
+    )
+    .sort((x, y) => x.at - y.at);
+  const lead = serving[0];
+  const leadOut = lead && runningOut.find((r) => r.account === lead.account);
+  const next = order.lines.find((l) => l.kind === 'in_line' && l.account !== lead?.account);
   return {
     serving,
     target: target ? { account: target.id, email: target.email } : null,
     servingEvidence: evidence,
-    order: deriveServeOrder(accounts, strategy === 'round-robin'),
+    order,
     nextReset,
     claimable,
     claimableCount: claimable.reduce((n, g) => n + g.resets.length, 0),
+    runningOut,
+    servingRunsOut: leadOut ? { window: leadOut, next: next ? { account: next.account, email: next.email } : null } : null,
   };
 }
 

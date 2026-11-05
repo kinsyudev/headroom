@@ -206,24 +206,16 @@ code {
   text-decoration: none;
 }
 .tab-badge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
+  display: inline-block;
   margin-left: 7px;
+  padding: 2px 7px;
   border-radius: 9px;
   background: var(--warning);
   color: var(--page);
   font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+  font-weight: 650;
+  line-height: 14px;
+  vertical-align: 1px;
   white-space: nowrap;
 }
 .view-tab:hover {
@@ -583,6 +575,17 @@ span.banner-line {
 .jump:hover {
   text-decoration: underline;
 }
+.jump.warn,
+a.cell-pace {
+  color: var(--warning);
+  font-weight: 500;
+  text-decoration: underline dotted color-mix(in srgb, var(--warning) 55%, transparent);
+  text-underline-offset: 3px;
+}
+.jump.warn:hover,
+a.cell-pace:hover {
+  text-decoration: underline;
+}
 .hero {
   --hero-size: 30px;
   font-size: var(--hero-size);
@@ -810,9 +813,8 @@ span.banner-line {
 .cell > .cell-pace {
   grid-column: 1 / -1;
   grid-row: 3;
+  justify-self: start;
   font-size: 12.5px;
-  font-weight: 500;
-  color: var(--warning);
 }
 .cell-unit {
   font-size: 12.5px;
@@ -1823,6 +1825,13 @@ table.errors td.message {
 }
 .pace-row.first:not(:first-child) {
   border-top-color: var(--axis);
+}
+.pace-row.targeted {
+  margin-inline: -10px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
 }
 .pace-who {
   grid-area: who;

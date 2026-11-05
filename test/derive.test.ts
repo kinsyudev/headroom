@@ -681,6 +681,49 @@ describe('the next reset', () => {
   });
 });
 
+describe('windows on course to run out', () => {
+  const HOUR = 3_600_000;
+  const limit = (kind: string, used: number, resetsInMs: number): Limit => ({ kind, percent: used as Percent, severity: 'normal', resetsAt: plus(T0, resetsInMs), scopeModel: null, isActive: false });
+  const feeds = (byAccount: Record<AccountId, Limit[]>) =>
+    Object.fromEntries(Object.entries(byAccount).map(([id, limits]) => [id, feedsFrom({ ...usage('anthropic-usage-1.json', 'normal'), limits }, T0)]));
+  const accounts = (disabled: readonly AccountId[]) =>
+    cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null, disabled: disabled.includes(a.id) }));
+  const overview = (byAccount: Record<AccountId, Limit[]>, opts: { readonly serving?: AccountId; readonly disabled?: readonly AccountId[] } = {}) =>
+    deriveDeck(
+      snapshot({ accounts: accounts(opts.disabled ?? [ACC3]), feeds: feeds(byAccount), serving: opts.serving ? [{ account: opts.serving, lastAt: plus(T0, -10_000), recent: 3 }] : [] }),
+      T0,
+    ).overview;
+  const burning = { [ACC1]: [limit('session', 50, 3 * HOUR), limit('weekly_all', 10, 3.5 * 24 * HOUR)], [ACC2]: [limit('weekly_all', 60, 3.5 * 24 * HOUR)] };
+
+  test('every window whose pace says it runs out before its reset, soonest first, with when it runs out and when it resets', () => {
+    expect(overview(burning, { serving: ACC1 }).runningOut).toEqual([
+      { account: ACC1, email: 'account1@example.com', limit: { key: 'session', label: 'Session' }, at: plus(T0, 2 * HOUR), resetsAt: plus(T0, 3 * HOUR) },
+      { account: ACC2, email: 'account2@example.com', limit: { key: 'weekly_all', label: 'Weekly' }, at: plus(T0, (7 * 5) / 6 * 24 * HOUR - 3.5 * 24 * HOUR), resetsAt: plus(T0, 3.5 * 24 * HOUR) },
+    ] as never);
+  });
+
+  test('the serving account running out names its soonest window and the account next in line', () => {
+    expect(overview(burning, { serving: ACC1 }).servingRunsOut).toEqual({
+      window: expect.objectContaining({ account: ACC1, limit: { key: 'session', label: 'Session' }, at: plus(T0, 2 * HOUR) }),
+      next: { account: ACC2, email: 'account2@example.com' },
+    });
+  });
+
+  test('with no other account in line, nothing is next', () => {
+    expect(overview(burning, { serving: ACC1, disabled: [ACC2, ACC3] }).servingRunsOut?.next).toBeNull();
+  });
+
+  test('another account running out is listed, but says nothing about the one serving', () => {
+    const o = overview({ [ACC1]: [limit('session', 10, 3 * HOUR)], [ACC2]: burning[ACC2]! }, { serving: ACC1 });
+    expect(o.runningOut.map((r) => r.account)).toEqual([ACC2]);
+    expect(o.servingRunsOut).toBeNull();
+  });
+
+  test('nothing serving, nothing to warn about in the serving tile', () => {
+    expect(overview(burning).servingRunsOut).toBeNull();
+  });
+});
+
 describe('why an account is in trouble', () => {
   const trouble = (change: (a: CpaAccount) => CpaAccount, id = ACC3, now = T0) =>
     deriveDeck(snapshot({ accounts: cpaAccounts().map((a) => (a.id === id ? change(a) : a)), now }), now).accounts.find((a) => a.id === id)!.trouble;

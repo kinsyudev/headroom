@@ -77,7 +77,7 @@ function AccountRow(props: {
       ) : props.columns.length === 0 ? null : (
         props.columns.map((c) => {
           const l = a.limits.find((x) => x.key === c.key);
-          return l ? <LimitCell key={c.key} limit={l} /> : <EmptyCell key={c.key} label={c.label} />;
+          return l ? <LimitCell key={c.key} account={a.id} limit={l} /> : <EmptyCell key={c.key} label={c.label} />;
         })
       )}
       <SpendCell spend={a.spend} atWall={a.atWall} help={EXTRA_USAGE_HELP} />

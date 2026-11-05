@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import type { PercentLeft } from '../../shared/domain';
+import type { AccountId, PercentLeft } from '../../shared/domain';
 import type { LimitView, MeterTone, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, duration, leftLabel, money, percent, reasonText } from '../format';
+import { paceAnchor, usageLink } from '../route';
 
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
 
@@ -45,7 +46,7 @@ function resetNote(l: LimitView, now: number): { readonly text: string; readonly
   return { text: `${left} · ${at}`, title: `resets ${at}, in ${left}` };
 }
 
-export function LimitCell(props: { readonly limit: LimitView }) {
+export function LimitCell(props: { readonly account: AccountId; readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
   const note = resetNote(l, now);
@@ -69,9 +70,9 @@ export function LimitCell(props: { readonly limit: LimitView }) {
       <span className="cell-note num">{note?.text}</span>
       <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} steady={pace === null ? null : 100 - pace.elapsed} />
       {runsOut && pace && (
-        <span className="cell-pace num" data-testid="pace-note">
+        <a className="cell-pace num" href={usageLink(paceAnchor(props.account, l.key))} title="See this window's pace in Usage" data-testid="pace-note">
           <span aria-hidden>! </span>Runs out in {duration(runsOut.at - now)}
-        </span>
+        </a>
       )}
     </div>
   );
