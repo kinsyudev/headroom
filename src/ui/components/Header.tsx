@@ -30,7 +30,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
   return (
     <header className="topbar">
       <div className="brand">
-        <Mark size={24} />
+        <Mark />
         <Wordmark />
       </div>
       <nav className="views" aria-label="Views">
