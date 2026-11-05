@@ -32,7 +32,6 @@ import type {
   DeckView,
   FeedName,
   FreshnessView,
-  Headroom,
   LimitColumn,
   LimitView,
   MeterTone,
@@ -41,6 +40,7 @@ import type {
   OverviewView,
   PlanView,
   ReadView,
+  RoomView,
   RoutingView,
   SpendView,
   StatusView,
@@ -786,7 +786,7 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     serving,
     target: target ? { account: target.id, email: target.email } : null,
     servingEvidence: evidence,
-    headroom: { session: headroom(enabled, 'session'), weekly: headroom(enabled, 'weekly') },
+    room: deriveRoom(enabled),
     nextReset: nextReset && { ...nextReset, unblocks: unblocksWithReset },
     nextUnblock: unblocksWithReset ? null : nextUnblock,
     claimable,
@@ -794,25 +794,27 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   };
 }
 
-function windowLeft(limits: readonly LimitView[], key: string): number | null {
-  const l = limits.find((x) => x.key === key);
-  return l ? (l.left ?? 100) : null;
-}
+const windowLeft = (limits: readonly LimitView[], key: string) => limits.find((l) => l.key === key)?.left ?? null;
 
-function headroom(accounts: readonly AccountView[], which: 'session' | 'weekly'): Headroom {
-  let sum = 0;
-  let known = 0;
-  let most: Headroom['most'] = null;
-  for (const a of accounts) {
-    const weekly = windowLeft(a.limits, 'weekly_all');
-    const shown = which === 'weekly' ? weekly : windowLeft(a.limits, 'session');
-    if (shown === null) continue;
-    sum += shown;
-    known += 1;
-    const usable = which === 'weekly' ? shown : Math.min(shown, weekly ?? 100);
-    if (most === null || usable / 100 > most.left) most = { account: a.id, email: a.email, left: usable / 100 };
-  }
-  return { of: accounts.length, unknown: accounts.length - known, percent: known === 0 ? null : Math.round(sum / known), most };
+function deriveRoom(enabled: readonly AccountView[]): RoomView {
+  const servedAt = (a: AccountView) => (a.routing.role.kind === 'serving' ? (a.routing.lastSeenAt ?? 0) : 0);
+  const open = enabled
+    .filter((a) => a.routing.role.kind !== 'blocked' && !a.atWall)
+    .sort(
+      (x, y) =>
+        servedAt(y) - servedAt(x) ||
+        y.routing.priority - x.routing.priority ||
+        (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) ||
+        x.email.localeCompare(y.email),
+    )
+    .map((a) => ({
+      account: a.id,
+      email: a.email,
+      serving: a.routing.role.kind === 'serving',
+      session: windowLeft(a.limits, 'session'),
+      weekly: windowLeft(a.limits, 'weekly_all'),
+    }));
+  return { of: enabled.length, open };
 }
 
 function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView): Banner[] {

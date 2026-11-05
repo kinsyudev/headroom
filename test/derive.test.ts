@@ -15,6 +15,7 @@ import {
   emptyFeeds,
   emptySource,
   type AccountFeeds,
+  type AccountId,
   type CedarEmber,
   type ClaimId,
   type ClaimRecord,
@@ -531,45 +532,67 @@ describe('make primary', () => {
   });
 });
 
-describe('headroom and next reset', () => {
+describe('where the room is', () => {
   const threeRead = {
     [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
     [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
     [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
   };
+  const keeperSaw = (account: AccountId) => [{ account, lastAt: plus(T0, -10_000), recent: 3 }];
+  const room = (s: Parameters<typeof snapshot>[0]) => deriveDeck(snapshot({ feeds: threeRead, ...s }), T0).overview.room;
+  const quiet = (a: CpaAccount): CpaAccount => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null });
+  const account1 = { account: ACC1, email: 'account1@example.com', serving: true, session: 88, weekly: 73 };
+  const account2 = { account: ACC2, email: 'account2@example.com', serving: false, session: 100, weekly: 99 };
 
-  test('each pooled figure is the mean of its column of cells: an idle session counts as 100 left, a blocked one as 0', () => {
-    const d = deriveDeck(snapshot({ feeds: threeRead }), T0);
+  test('the blocked account is not open; the serving one leads and the standby one follows, each with the room its row draws', () => {
+    const d = deriveDeck(snapshot({ feeds: threeRead, serving: keeperSaw(ACC1) }), T0);
     const column = (key: string) => d.accounts.map((a) => a.limits.find((l) => l.key === key)!.left as number | null);
     expect(column('session')).toEqual([88, 100, 0]);
     expect(column('weekly_all')).toEqual([73, 99, 40]);
-    const account2 = { account: ACC2, email: 'account2@example.com', left: 0.99 };
-    expect(d.overview.headroom.session).toEqual({ of: 3, unknown: 0, percent: 63, most: account2 });
-    expect(d.overview.headroom.weekly).toEqual({ of: 3, unknown: 0, percent: 71, most: account2 });
-    expect(d.overview.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z') });
+    expect(d.overview.room).toEqual({ of: 3, open: [account1, account2] } as never);
   });
 
-  test('the most room goes to the account that can take the most: a session cannot use more than the week has left', () => {
-    const read = usage('anthropic-usage-1.json', 'normal');
-    const weekGone = { ...read, limits: read.limits.map((l) => (l.kind === 'weekly_all' ? { ...l, percent: 100 as never } : l)) };
-    const d = deriveDeck(snapshot({ feeds: { ...threeRead, [ACC2]: feedsFrom(weekGone, T0) } }), T0);
-    expect(d.accounts.find((a) => a.id === ACC2)!.limits.find((l) => l.key === 'session')!.left).toBe(100 as never);
-    expect(d.overview.headroom.session.most).toEqual({ account: ACC1, email: 'account1@example.com', left: 0.73 });
+  test('an account at its limit is not open even once CPA stops blocking it', () => {
+    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? quiet(a) : a));
+    expect(room({ accounts, serving: keeperSaw(ACC1) }).open.map((o) => o.account)).toEqual([ACC1, ACC2]);
   });
 
-  test('an account with no limits data counts as unknown, not as 0 or 100', () => {
-    const noHeaders = cpaAccounts().map((a): CpaAccount => (a.id === ACC2 ? { ...a, headers: null } : a));
-    const d = deriveDeck(snapshot({ accounts: noHeaders }), T0);
-    const weekly = d.overview.headroom.weekly;
-    expect(weekly.unknown).toBe(1);
-    expect(weekly.of).toBe(3);
-    expect(weekly.most).toEqual({ account: ACC1, email: 'account1@example.com', left: 0.73 });
-    expect(weekly.percent).toBe(57);
+  test('the serving account leads whatever its priority, then the rest by priority', () => {
+    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? { ...quiet(a), headers: null, priority: 60 } : a));
+    const feeds = { ...threeRead, [ACC3]: threeRead[ACC2]! };
+    expect(room({ accounts, feeds, serving: keeperSaw(ACC2) }).open.map((o) => [o.account, o.serving])).toEqual([
+      [ACC2, true],
+      [ACC3, false],
+      [ACC1, false],
+    ]);
   });
 
-  test('with no account read yet, no share and no account with the most room', () => {
-    const blind = cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null }));
-    expect(deriveDeck(snapshot({ accounts: blind }), T0).overview.headroom.session).toEqual({ of: 3, unknown: 3, percent: null, most: null });
+  test('with nothing serving, the account the Serving tile says a new session lands on leads, ties included', () => {
+    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? { ...quiet(a), headers: null } : a));
+    const feeds = { ...threeRead, [ACC3]: threeRead[ACC2]! };
+    const serving = [
+      { account: ACC1, lastAt: plus(T0, -10 * MIN), recent: 0 },
+      { account: ACC3, lastAt: plus(T0, -5 * MIN), recent: 0 },
+    ];
+    const o = deriveDeck(snapshot({ accounts, feeds, serving }), T0).overview;
+    expect(o.serving).toEqual([]);
+    expect(o.target?.account).toBe(ACC3);
+    expect(o.room.open.map((r) => [r.account, r.serving])).toEqual([
+      [ACC3, false],
+      [ACC1, false],
+      [ACC2, false],
+    ]);
+  });
+
+  test('a disabled account is neither open nor counted', () => {
+    const accounts = cpaAccounts().map((a) => (a.id === ACC2 ? { ...a, disabled: true } : a));
+    expect(room({ accounts, serving: keeperSaw(ACC1) })).toEqual({ of: 2, open: [account1] } as never);
+  });
+
+  test('an account with no limits read yet still takes requests, so it is open with no figures', () => {
+    const accounts = cpaAccounts().map((a) => (a.id === ACC2 ? { ...a, headers: null } : a));
+    const open = room({ accounts, feeds: { [ACC1]: threeRead[ACC1]! }, serving: keeperSaw(ACC1) }).open;
+    expect(open[1]).toEqual({ ...account2, session: null, weekly: null } as never);
   });
 });
 

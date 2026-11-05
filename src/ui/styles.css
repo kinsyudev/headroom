@@ -390,7 +390,7 @@ span.banner-line {
 
 .summary {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.3fr);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -419,19 +419,15 @@ span.banner-line {
 .stat p {
   margin: 0;
 }
-.stat-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-}
-.asof {
+.summary-asof {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 6px 18px;
   font-size: 12px;
   font-weight: 500;
   color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
-  border-radius: 5px;
-  padding: 0 6px;
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+  border-bottom: 1px solid var(--grid);
 }
 .page.cpa-down .stat .hero:not(.muted) {
   color: var(--ink-2);
@@ -482,16 +478,21 @@ span.banner-line {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.room-pair {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 18px;
-}
 .room-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--ink-2);
   letter-spacing: 0;
+}
+.room-line .segs {
+  display: flex;
+  column-gap: 1em;
+  white-space: nowrap;
+}
+.room-line .seg:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .swatch {
@@ -1314,10 +1315,10 @@ table.errors td.message {
   .summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .stat:nth-child(odd) {
+  .stat:nth-child(odd of .stat) {
     border-left: 0;
   }
-  .stat:nth-child(n + 3) {
+  .stat:nth-child(n + 3 of .stat) {
     border-top: 1px solid var(--grid);
   }
   .stat {

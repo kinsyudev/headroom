@@ -50,7 +50,7 @@ export interface OverviewView {
   readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant; readonly takesNext: boolean }[];
   readonly target: { readonly account: AccountId; readonly email: string } | null;
   readonly servingEvidence: 'keeper' | 'cpa_headers';
-  readonly headroom: { readonly session: Headroom; readonly weekly: Headroom };
+  readonly room: RoomView;
   /** unblocks: the same account is blocked until within a minute of this reset, so the tile says it on the reset line. */
   readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant; readonly unblocks: boolean } | null;
   /** Null when nextReset already says it. */
@@ -68,15 +68,14 @@ export interface ClaimableView {
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
 
-/** One column of the accounts table pooled over the enabled accounts: the mean of that column's `left` cells, an idle session counting as 100. */
-export interface Headroom {
-  /** The enabled accounts pooled. */
+/**
+ * Where the room is. of: the enabled accounts. open: those CPA can send a request to now, neither blocked nor at a limit,
+ * in the order traffic reaches them: the serving ones newest first, then by priority, so the account a new session would
+ * land on comes next. session and weekly are what the account's row draws as left; null where it has no reading of that window.
+ */
+export interface RoomView {
   readonly of: number;
-  readonly unknown: number;
-  /** The mean as a whole percent over the accounts whose cell is known; null when none is. */
-  readonly percent: number | null;
-  /** The enabled account that can take the most, as a share of one account (0 to 1); a session cannot use more than the week has left. Null when no account's room is known. */
-  readonly most: { readonly account: AccountId; readonly email: string; readonly left: number } | null;
+  readonly open: readonly { readonly account: AccountId; readonly email: string; readonly serving: boolean; readonly session: PercentLeft | null; readonly weekly: PercentLeft | null }[];
 }
 
 export interface AccountView {
