@@ -37,6 +37,12 @@
   --warning: #fab219;
   --critical: #d03b3b;
   --critical-ink: #f27b7b;
+  /* The ceiling: the line over "room". It lights every panel's top edge and sits over whatever is selected. It goes dark while CPA is down. */
+  --ceiling: var(--brand);
+  --ceiling-edge: color-mix(in srgb, var(--ice-5) 32%, transparent);
+  /* Panels are lit from their ceiling: a hair lighter under the top edge, settling to the surface. */
+  --surface-lit: #111820;
+  --panel-fill: linear-gradient(var(--surface-lit), var(--surface) 96px);
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* Names in Hubot Sans Expanded; every digit falls through to the system face, so all numbers share one style. */
   --display: 'Hubot Sans Expanded', var(--font);
@@ -92,7 +98,7 @@ body::after {
   position: fixed;
   inset: 0 0 auto 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--ice-4) 16%, var(--ice-5) 50%, var(--ice-4) 84%, transparent);
+  background: linear-gradient(90deg, transparent, var(--ceiling) 16% 84%, transparent);
   opacity: 0.75;
   pointer-events: none;
 }
@@ -271,21 +277,53 @@ code {
   font-stretch: normal;
 }
 
-/* The line over "room" again, short, above each panel's title. */
-:is(.stat, .panel-head, .card-title, .modal) h2,
-.toolbar-title {
+/* The ceiling: each panel's top edge is lit, and the line over "room" sits on it above the panel's name. */
+.panel,
+.card,
+.stat,
+.modal {
   position: relative;
 }
-:is(.stat, .panel-head, .card-title, .modal) h2::before,
-.toolbar-title::before {
+.panel:not(.accounts),
+.toolbar {
+  --inset: 16px;
+}
+.modal {
+  --inset: 22px;
+}
+:is(.panel, .card, .toolbar, .modal, .stat)::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: -0.2em;
-  width: 20px;
+  top: -1px;
+  left: var(--inset, 18px);
+  width: 22px;
   height: 2px;
-  border-radius: 1px;
-  background: var(--brand);
+  border-radius: 0 0 1px 1px;
+  background: var(--ceiling);
+}
+/* The strip clips to its rounded border, so its tiles hang the line just inside it. */
+.stat::before {
+  top: 0;
+}
+/* While CPA is down every reading is frozen, and the ceiling goes dark with it. */
+:root:has(.page.cpa-down) {
+  --ceiling: var(--quiet);
+  --ceiling-edge: var(--border);
+}
+/* While a panel is still reading the history, its line walks the ceiling. */
+:is(.panel, .card)[aria-busy='true']::before,
+.card:has(.chart.dim)::before {
+  animation: ceiling-scan 1.6s ease-in-out infinite alternate;
+}
+@keyframes ceiling-scan {
+  to {
+    left: calc(100% - var(--inset, 18px) - 22px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.panel, .card)::before {
+    animation: none;
+  }
 }
 .views {
   display: flex;
@@ -320,7 +358,9 @@ code {
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 16%, var(--surface));
 }
-.view-tab[aria-current='page']::before {
+/* Selected: the ceiling over it, the bar every panel's name hangs under. */
+.view-tab[aria-current='page']::before,
+.btn.selected::before {
   content: '';
   position: absolute;
   left: 10px;
@@ -328,7 +368,7 @@ code {
   top: 0;
   height: 2px;
   border-radius: 0 0 2px 2px;
-  background: var(--brand);
+  background: var(--ceiling);
 }
 .topbar-status {
   margin-left: auto;
@@ -409,6 +449,7 @@ code {
 }
 .btn.selected,
 .btn.selected:hover:not(:disabled) {
+  position: relative;
   background: color-mix(in srgb, var(--ink) 16%, var(--surface));
   border-color: color-mix(in srgb, var(--ink) 45%, transparent);
 }
@@ -593,8 +634,9 @@ span.banner-line {
 .summary {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1.3fr);
-  background: var(--surface);
+  background: var(--panel-fill);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: var(--radius);
   overflow: hidden;
 }
@@ -1232,6 +1274,7 @@ a.cell-pace:hover {
   padding: 4px;
   background: var(--raised);
   border: 1px solid var(--border-strong);
+  border-top-color: var(--ceiling-edge);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
@@ -1361,8 +1404,9 @@ a.cell-pace:hover {
 }
 
 .panel {
-  background: var(--surface);
+  background: var(--panel-fill);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: var(--radius);
   padding: 14px 16px;
   display: flex;
@@ -1467,6 +1511,7 @@ a.cell-pace:hover {
   pointer-events: none;
   background: var(--raised);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;
@@ -1593,8 +1638,9 @@ table.data th.wrap {
 }
 .modal {
   width: min(560px, 100%);
-  background: var(--surface);
+  background: var(--panel-fill);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: 12px;
   padding: 20px 22px;
   display: flex;
@@ -1690,6 +1736,10 @@ table.data th.wrap {
     display: block;
   }
   .ledger-head > span {
+    display: none;
+  }
+  /* The column names are gone, so there is no name for the line to sit over. */
+  .panel.accounts::before {
     display: none;
   }
   .acct {
@@ -1819,8 +1869,9 @@ table.data th.wrap {
 
 /* Cards: the frame every Usage panel sits in. */
 .card {
-  background: var(--surface);
+  background: var(--panel-fill);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: var(--radius);
   padding: 16px 18px 18px;
   display: flex;
@@ -2000,8 +2051,9 @@ table.data th.wrap {
   align-items: center;
   gap: 10px 22px;
   padding: 10px 16px;
-  background: var(--surface);
+  background: var(--panel-fill);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: var(--radius);
   box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.7);
 }
@@ -2435,6 +2487,7 @@ button.bar-body {
   padding: 8px 10px;
   background: var(--raised);
   border: 1px solid var(--border);
+  border-top-color: var(--ceiling-edge);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   font-size: 13px;

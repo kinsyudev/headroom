@@ -39,7 +39,7 @@ const hueGap = (a: string, b: string) => {
   return Math.min(d, 360 - d);
 };
 
-const SURFACES = ['page', 'surface', 'surface-2', 'raised'] as const;
+const SURFACES = ['page', 'surface', 'surface-lit', 'surface-2', 'raised'] as const;
 const TEXT = ['ink', 'ink-2', 'muted', 'brand', 'link', 'brand-ink', 'critical-ink', 'warning', 'good'] as const;
 
 describe('the palette keeps the page legible', () => {
