@@ -1,7 +1,8 @@
 import { memo, useRef, useState, type ReactNode } from 'react';
 import { changeText } from '../../format';
 import { ChartTip } from './ChartTip';
-import { TOOLTIP_W, niceTicks, roundedTop, tooltipLeft, useWidth } from './kit';
+import { Key } from './Key';
+import { TOOLTIP_W, niceTicks, roundedTop, tooltipLeft, useHeight, useWidth } from './kit';
 
 export interface Series {
   readonly key: string;
@@ -19,6 +20,7 @@ export interface Bucket {
 const PAD = { top: 14, right: 8, bottom: 26, left: 48 };
 const GAP = 2;
 const NOW_LABEL_CLEARANCE = 40;
+const GHOST_OVERHANG = 5;
 
 /** A fixed vertical scale from zero, for a chart whose values are shares and not counts. */
 export interface Domain {
@@ -26,7 +28,7 @@ export interface Domain {
   readonly ticks: readonly number[];
 }
 
-/** The same buckets one span earlier, drawn as a level mark across each column on the chart's one scale. null leaves a column unmarked. */
+/** The same buckets one span earlier, drawn as a dim ghost column behind each one on the chart's one scale. null leaves a column without. */
 export interface Previous {
   readonly label: (bucket: Bucket) => string;
   readonly values: readonly (number | null)[];
@@ -54,11 +56,16 @@ export const StackedColumns = memo(function StackedColumns(props: {
   readonly domain?: Domain;
   readonly hideTotal?: boolean;
   readonly previous?: Previous | undefined;
+  /** Grow past `height` to fill the room the layout gives the chart, so a panel beside a taller one leaves no empty band. */
+  readonly fill?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
+  const fill = props.fill === true;
+  const measured = useHeight(ref, fill);
   const [hover, setHover] = useState<number | null>(null);
-  const H = Math.round((props.height ?? 230) * (width < 600 ? 0.82 : 1));
+  const floor = Math.round((props.height ?? 230) * (width < 600 ? 0.82 : 1));
+  const H = fill ? Math.max(floor, measured) : floor;
   const n = props.buckets.length;
   const plotW = Math.max(100, width - PAD.left - PAD.right);
   const plotH = H - PAD.top - PAD.bottom;
@@ -75,7 +82,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
   const labelled = (b: Bucket, i: number) => b.partial || (i % labelEvery === 0 && (nowAt < 0 || (nowAt - i) * band >= NOW_LABEL_CLEARANCE));
 
   return (
-    <div className={`chart ${props.dim ? 'dim' : ''}`} ref={ref} onPointerLeave={() => setHover(null)}>
+    <div className={`chart ${props.dim ? 'dim' : ''} ${fill ? 'fill' : ''}`} ref={ref} style={fill ? { minHeight: floor } : undefined} onPointerLeave={() => setHover(null)}>
       <svg width={width} height={H} role="img" aria-label={props.label}>
         <defs>
           <pattern id="partial-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -107,18 +114,13 @@ export const StackedColumns = memo(function StackedColumns(props: {
           return (
             <g key={b.start}>
               <g opacity={hover === null || hover === i ? 1 : 0.55}>
+                {p != null && <rect className="prev-bar" x={x - GHOST_OVERHANG} y={y(p)} width={bw + 2 * GHOST_OVERHANG} height={Math.max(1, y(0) - y(p))} rx={2} />}
                 {segs.map((g, k) => (
                   <g key={g.key}>
                     {shape(g, k, g.color)}
                     {b.partial && shape(g, k, 'url(#partial-hatch)')}
                   </g>
                 ))}
-                {p != null && (
-                  <>
-                    <line x1={x - 4} x2={x + bw + 4} y1={y(p)} y2={y(p)} className="prev-ring" />
-                    <line x1={x - 4} x2={x + bw + 4} y1={y(p)} y2={y(p)} className="prev-line" />
-                  </>
-                )}
               </g>
               {labelled(b, i) && (
                 <text x={x + bw / 2} y={H - 8} textAnchor="middle" className="tick">
@@ -151,7 +153,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
         >
           {props.previous && prev[hover] != null && (
             <div className="tooltip-row">
-              <span className="line-key prev" />
+              <Key mark="ghost" color="var(--ink)" />
               <strong className="num">{props.format(prev[hover])}</strong>
               <span className="muted">
                 {props.previous.label(props.buckets[hover])}

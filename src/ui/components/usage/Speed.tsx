@@ -3,12 +3,13 @@ import type { AnalyticsView, Percentiles, UsageStats } from '../../../shared/vie
 import { useNow } from '../../deck';
 import { bucketText, count, seconds } from '../../format';
 import { ChartCard, Legend } from '../charts/ChartCard';
+import { Key } from '../charts/Key';
 import { LineChart } from '../charts/LineChart';
 import { Switch } from '../charts/Switch';
 import { RANGE_LABEL } from './Toolbar';
 
 const P50 = 'var(--ice-5)';
-const P90 = 'var(--ice-3)';
+const P90 = 'var(--ice-6)';
 
 type Measure = 'first' | 'finish';
 
@@ -31,7 +32,7 @@ export function Speed(props: { readonly view: AnalyticsView }) {
   const series = useMemo(
     () => [
       { key: 'p50', label: 'Median', end: 'median', color: P50, values: v.timeline.map((b) => m.pick(b.total)?.p50 ?? null) },
-      { key: 'p90', label: nine, end: '9 in 10', color: P90, values: v.timeline.map((b) => m.pick(b.total)?.p90 ?? null) },
+      { key: 'p90', label: nine, end: '9 in 10', color: P90, dash: true, values: v.timeline.map((b) => m.pick(b.total)?.p90 ?? null) },
     ],
     [v.timeline, m],
   );
@@ -51,7 +52,7 @@ export function Speed(props: { readonly view: AnalyticsView }) {
       title="Speed"
       sub={`${m.sub} · ${RANGE_LABEL[v.lens.range].toLowerCase()}`}
       actions={<Switch label="Measure" options={MEASURES} value={measure} onChange={setMeasure} />}
-      legend={<Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color, line: true }))} />}
+      legend={<Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color, mark: s.dash ? 'dash' : 'line' }))} />}
       table={table}
       testId="speed"
     >
@@ -79,7 +80,7 @@ export function Speed(props: { readonly view: AnalyticsView }) {
           return p ? (
             <>
               <div className="tooltip-row">
-                <span className="line-key off" />
+                <Key mark="line" color="transparent" />
                 <strong className="num">{seconds(p.p99)}</strong>
                 <span className="muted">99 in 100 within</span>
               </div>

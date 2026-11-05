@@ -13,6 +13,19 @@ export function useWidth(ref: RefObject<HTMLElement | null>, initial = 800): num
   return w;
 }
 
+/** The pixel height of an element a layout stretches, so a chart can fill the room its neighbour left. It only watches while enabled. */
+export function useHeight(ref: RefObject<HTMLElement | null>, enabled: boolean): number {
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return;
+    const ro = new ResizeObserver(([e]) => setH(Math.floor(e!.contentRect.height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, enabled]);
+  return h;
+}
+
 /** Round axis ticks from 0 up to just past max, about `n` of them. */
 export function niceTicks(max: number, n = 4): number[] {
   if (max <= 0) return [0, 1];

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AccountId } from '../../../shared/domain';
 import type { AnalyticsView, UsageStats } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { bucketText, compact, count } from '../../format';
+import { bucketText, compact, count, shortName } from '../../format';
 import { ChartCard, Legend } from '../charts/ChartCard';
 import { StackedColumns, type Bucket } from '../charts/StackedColumns';
 import { Switch } from '../charts/Switch';
@@ -35,7 +35,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
     () =>
       v.dimensions.accounts.map((a, j) => ({
         key: a.id as string,
-        label: a.email,
+        label: shortName(a.email),
         color: props.colors.get(a.id)!,
         values: v.timeline.map((b) => metricOf(b.byAccount[j]!.stats, metric)),
       })),
@@ -65,7 +65,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
       title={`${m.noun} over time`}
       sub={`${RANGE_LABEL[v.lens.range]} · per ${v.lens.grain} · by account`}
       actions={<Switch label="Measure" options={METRICS} value={metric} onChange={setMetric} />}
-      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: 'var(--ink)', line: true }] : [])]} />}
+      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: 'var(--ink)', mark: 'ghost' as const }] : [])]} />}
       table={table}
       testId="over-time"
     >
@@ -75,7 +75,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
         format={format}
         bucketLabel={label}
         tooltipTitle={title}
-        label={`${m.noun} per ${v.lens.grain}, stacked by account${previous ? `, with ${LAST_WEEK_NAME.toLowerCase()} marked` : ''}`}
+        label={`${m.noun} per ${v.lens.grain}, stacked by account${previous ? `, with ${LAST_WEEK_NAME.toLowerCase()} as a dim column behind` : ''}`}
         dim={props.dim}
         height={260}
         previous={previous}

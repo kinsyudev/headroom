@@ -9,6 +9,8 @@ export interface LineSeries {
   /** The short name drawn at the line's end. */
   readonly end: string;
   readonly color: string;
+  /** A thinner, dashed line, so a second series is told from the first by more than its tone. */
+  readonly dash?: boolean;
   /** null breaks the line: a bucket with too few samples to say. */
   readonly values: readonly (number | null)[];
 }
@@ -77,7 +79,7 @@ export const LineChart = memo(function LineChart(props: {
           const last = lastIndex(s.values);
           return (
             <g key={s.key}>
-              <path d={path(s.values)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              <path d={path(s.values)} fill="none" stroke={s.color} strokeWidth={s.dash ? 1.5 : 2} strokeDasharray={s.dash ? '6 4' : undefined} strokeLinejoin="round" strokeLinecap="round" />
               {last >= 0 && hover === null && (
                 <>
                   <circle cx={x(last)} cy={y(s.values[last]!)} r={4} fill={s.color} className="ring" />
@@ -111,7 +113,7 @@ export const LineChart = memo(function LineChart(props: {
           left={tooltipLeft(PAD.left + hover * band, band, PAD.left + plotW, 220)}
           width={220}
           title={props.tooltipTitle(props.buckets[hover])}
-          rows={props.series.map((s) => ({ key: s.key, color: s.color, value: s.values[hover] == null ? '—' : props.format(s.values[hover]!), label: s.label }))}
+          rows={props.series.map((s) => ({ key: s.key, color: s.color, mark: s.dash ? 'dash' : 'line', value: s.values[hover] == null ? '—' : props.format(s.values[hover]!), label: s.label }))}
         >
           {props.extra?.(hover)}
         </ChartTip>

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { TableScroll } from '../TableScroll';
+import { Key, type KeyMark } from './Key';
 import { Switch } from './Switch';
 
 /** The numbers behind a chart, as a table. The first column names the row and the rest are figures. */
@@ -82,7 +83,7 @@ export interface LegendItem {
   readonly color: string;
   /** A glyph that says what the colour says, for series that carry a status. */
   readonly icon?: string;
-  readonly line?: boolean;
+  readonly mark?: KeyMark;
 }
 
 export function Legend(props: { readonly items: readonly LegendItem[] }) {
@@ -90,7 +91,7 @@ export function Legend(props: { readonly items: readonly LegendItem[] }) {
     <ul className="legend-items" aria-label="Legend">
       {props.items.map((s) => (
         <li key={s.key} className="legend-item">
-          <span className={s.line ? 'legend-line' : 'legend-swatch'} style={{ background: s.color }} />
+          <Key mark={s.mark ?? 'square'} color={s.color} />
           {s.icon && (
             <span className="legend-icon" aria-hidden>
               {s.icon}
