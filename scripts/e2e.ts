@@ -42,6 +42,8 @@ async function until(cond: () => Promise<boolean> | boolean, what: string, timeo
   }
 }
 const text = async (l: Locator) => ((await l.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+/** A time as clockTime prints it: "19:25" today, "Fri 00:23" on another day. The fake's resets follow the wall clock, so late in the day they fall after midnight. */
+const CLOCK = String.raw`(?:[A-Z][a-z]{2} )?\d\d:\d\d`;
 
 mkdirSync(SHOTS, { recursive: true });
 const stack = await startStack({ port: 18_338, log: join(ROOT, 'var/e2e-app.log') });
@@ -88,28 +90,28 @@ try {
   const verdict = await text(page.getByTestId('tile-claimable').getByTestId('claim-verdict'));
   const panelVerdict = await text(card('account3@example.com').getByTestId('claim-verdict'));
   assert(
-    verdict === 'Not needed now: account1 and account2 have room' && new RegExp(`^${verdict}; account3 is back at \\d\\d:\\d\\d$`).test(panelVerdict),
+    verdict === 'Not needed now: account1 and account2 have room' && new RegExp(`^${verdict}; account3 is back at ${CLOCK}$`).test(panelVerdict),
     `the Claimable tile and account3's claim panel say in one line why a claim is not needed now, and the panel when account3 is back: "${verdict}" / "${panelVerdict}"`,
   );
   const nextReset = await text(page.getByTestId('tile-next-reset').getByTestId('next-reset'));
-  assert(/^account3 session resets \d\d:\d\d$/.test(nextReset) && !(await text(page.getByTestId('tile-next-reset'))).includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
+  assert(new RegExp(`^account3 session resets ${CLOCK}$`).test(nextReset) && !(await text(page.getByTestId('tile-next-reset'))).includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
   const runOut = page.getByTestId('tile-next-reset').getByTestId('run-out');
   const runOutTitle = (await runOut.getAttribute('title')) ?? '';
   assert(
-    /^! account1 session runs out ~\d\d:\d\d · in (\d+h )?\d+m$/.test(await text(runOut)) &&
-      /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before its \d\d:\d\d reset\. New sessions then go to account2\./.test(runOutTitle),
+    new RegExp(String.raw`^! account1 session runs out ~${CLOCK} · in (\d+h )?\d+m$`).test(await text(runOut)) &&
+      new RegExp(String.raw`^account1 session runs out ~${CLOCK}, (\d+h )?\d+m before its ${CLOCK} reset\. New sessions then go to account2\.`).test(runOutTitle),
     `the strip warns in one line that account1's session runs out, and its tooltip says how long before the reset and that account2 takes over: "${await text(runOut)}" / "${runOutTitle}"`,
   );
   // account2 may have answered in the last 2 min, so its word follows its own row chip: Active or Standby.
   const word2 = (await text(card('account2@example.com').getByTestId('role'))).includes('Active') ? 'active' : 'standby';
   const order = await text(page.getByTestId('tile-headroom'));
   assert(
-    new RegExp(`^Serve order 1 account1 taking new sessions\\s*2 account2 ${word2}\\s*– account3 blocked until \\d\\d:\\d\\d$`).test(order),
+    new RegExp(`^Serve order 1 account1 taking new sessions\\s*2 account2 ${word2}\\s*– account3 blocked until ${CLOCK}$`).test(order),
     `serve order: account1 then account2 by priority, each with the one word its row chip says and no percentages, then account3 out, blocked until its session reset frees it: "${order}"`,
   );
   const runsOut = await text(card('account1@example.com').getByTestId('limit-session').getByTestId('pace-note'));
   assert(
-    /^! Runs out ~\d\d:\d\d · in (\d+h )?\d+m$/.test(runsOut) && runsOut.slice('! Runs out '.length) === (await text(runOut)).slice('! account1 session runs out '.length),
+    new RegExp(String.raw`^! Runs out ~${CLOCK} · in (\d+h )?\d+m$`).test(runsOut) && runsOut.slice('! Runs out '.length) === (await text(runOut)).slice('! account1 session runs out '.length),
     `account1's session cell warns it runs out before its reset, in the strip's own words: "${runsOut}"`,
   );
   assert((await runOut.getAttribute('href')) === `#usage/pace-${ACC1}-session`, "the strip's runs-out line links to account1's session pace row in Usage");
@@ -305,7 +307,7 @@ try {
   assert(page.url().endsWith(`#usage/pace-${ACC1}-session`), "the run-out note links to its window's row in Usage");
   assert(
     (await paceRow.evaluate((el) => el.classList.contains('targeted') && el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().bottom <= window.innerHeight)) &&
-      /Runs out ~\d\d:\d\d · in (\d+h )?\d+m/.test(await text(paceRow)),
+      new RegExp(String.raw`Runs out ~${CLOCK} · in (\d+h )?\d+m`).test(await text(paceRow)),
     "the run-out note opens Usage scrolled to account1's session pace row, marked, and saying it runs out",
   );
   pass('the run-out note on a card opens its quota pace row in Usage');
