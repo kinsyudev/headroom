@@ -123,9 +123,94 @@ describe('breakdowns', () => {
     const v = view([cell('2026-11-04T12:00:00Z', ACC1, tally({ outcomes: { ok: 3, rate_limited: 1 }, freshInput: 10, cacheRead: 970, cacheCreation: 20, output: 400, sessions: 2 }))]);
     expect(v.total.rates).toMatchObject({ ok: 0.75, rate_limited: 0.25, client_closed: 0 });
     expect(v.total.cacheReadShare).toBe(0.97);
+    expect(v.total.cacheMissShare).toBe(0.03);
     expect(v.total.outputPerRequest).toBe(100);
     expect(v.total.outputPerSession).toBe(200);
-    expect(view([]).total).toMatchObject({ requests: 0, rates: null, cacheReadShare: null, outputPerRequest: null, outputPerSession: null, latencyMs: null });
+    expect(view([]).total).toMatchObject({ requests: 0, rates: null, cacheReadShare: null, cacheMissShare: null, outputPerRequest: null, outputPerSession: null, latencyMs: null });
+  });
+
+  test('the cache miss share is what written and uncached input add up to, per bucket as well', () => {
+    const v = view([
+      cell('2026-11-04T11:00:00Z', ACC1, tally({ freshInput: 5, cacheRead: 90, cacheCreation: 5 })),
+      cell('2026-11-04T12:00:00Z', ACC1, tally({ freshInput: 30, cacheRead: 60, cacheCreation: 10 })),
+    ]);
+    expect(v.timeline.at(-3)!.total.cacheMissShare).toBeCloseTo(0.1);
+    expect(v.timeline.at(-2)!.total.cacheMissShare).toBeCloseTo(0.4);
+    expect(v.timeline.at(-1)!.total.cacheMissShare).toBeNull();
+    expect(v.total.cacheMissShare).toBeCloseTo(0.25);
+    expect(v.total.cacheMissShare! + v.total.cacheReadShare!).toBeCloseTo(1);
+  });
+});
+
+describe('the span one range earlier', () => {
+  const HALF_PAST = (NOW + 30 * 60_000) as Instant;
+
+  test('7d: each day meets the same local day a week before, and the running day only up to this time of day', () => {
+    const v = view(
+      [
+        cell('2026-10-21T12:00:00Z', ACC1, ok(1_000)),
+        cell('2026-10-22T10:00:00Z', ACC1, ok(2)),
+        cell('2026-10-24T22:00:00Z', ACC1, ok(11)),
+        cell('2026-10-25T22:00:00Z', ACC1, ok(4)),
+        cell('2026-10-27T20:00:00Z', ACC2, ok(6)),
+        cell('2026-10-28T12:00:00Z', ACC1, ok(3)),
+        cell('2026-10-28T13:00:00Z', ACC1, ok(5)),
+        cell('2026-10-28T14:00:00Z', ACC1, ok(100)),
+        cell('2026-11-04T12:00:00Z', ACC1, ok(40)),
+      ],
+      { range: '7d' },
+      { generatedAt: HALF_PAST },
+    );
+    const today = v.timeline.at(-1)!;
+    expect(today.previous!.stats.requests).toBe(8);
+    expect(today.previous!.start).toBe(at('2026-10-27T23:00:00Z'));
+    expect(today.previous!.end).toBe(at('2026-10-28T13:30:00Z'));
+    expect(v.timeline.at(-2)!.previous!.stats.requests).toBe(6);
+    expect(v.timeline[0]!.previous!.stats.requests).toBe(2);
+    expect(v.previous!.stats.requests).toBe(2 + 11 + 4 + 6 + 8);
+    expect(v.previous!.start).toBe(v.timeline[0]!.previous!.start);
+    expect(v.previous!.end).toBe(today.previous!.end);
+    expect(v.total.requests).toBe(40);
+  });
+
+  test('a day is a calendar day: the 25-hour day of the clocks going back is one bucket, not 24 hours and an hour of the next', () => {
+    const v = view([cell('2026-10-22T10:00:00Z', ACC1, ok(2)), cell('2026-10-24T22:00:00Z', ACC1, ok(11)), cell('2026-10-25T22:00:00Z', ACC1, ok(4))], { range: '7d' });
+    const nov1 = v.timeline.find((b) => new Date(b.start).getDate() === 1)!;
+    expect(nov1.previous!.stats.requests).toBe(15);
+    expect((nov1.previous!.end - nov1.previous!.start) / HOUR).toBe(25);
+    expect(v.timeline.filter((b) => b !== nov1 && b.previous!.stats.requests > 2)).toEqual([]);
+  });
+
+  test('24h: each hour meets the same hour the day before, and the hour holding the cut counts in full', () => {
+    const v = view(
+      [cell('2026-11-03T12:00:00Z', ACC1, ok(6)), cell('2026-11-03T13:00:00Z', ACC1, ok(50)), cell('2026-11-03T14:00:00Z', ACC1, ok(1_000))],
+      { range: '24h' },
+      { generatedAt: HALF_PAST },
+    );
+    expect(v.timeline.at(-2)!.previous!.stats.requests).toBe(6);
+    expect(v.timeline.at(-1)!.previous!.stats.requests).toBe(50);
+    expect(v.previous!.stats.requests).toBe(56);
+  });
+
+  test('the lens narrows the earlier span too', () => {
+    const cells = [cell('2026-10-22T10:00:00Z', ACC1, ok(1)), cell('2026-10-28T10:00:00Z', ACC1, ok(3)), cell('2026-10-28T10:00:00Z', ACC2, ok(5), 'claude-sonnet-5-5')];
+    expect(view(cells, { range: '7d', account: ACC2 }).previous!.stats.requests).toBe(5);
+    expect(view(cells, { range: '7d', model: 'claude-opus-5-5' }).previous!.stats.requests).toBe(4);
+  });
+
+  test('30d has nothing to meet, because the history reaches back a month and a day', () => {
+    const v = view([cell('2026-10-04T14:00:00Z', ACC1, ok(9))], { range: '30d' });
+    expect(v.previous).toBeNull();
+    expect(v.timeline.every((b) => b.previous === null)).toBe(true);
+  });
+
+  test('without history reaching back to the start of the earlier span, while catching up, or with no history at all, it is null', () => {
+    const early = cell('2026-10-22T10:00:00Z', ACC1, ok(2));
+    expect(view([early], { range: '7d' }).previous).not.toBeNull();
+    expect(view([cell('2026-11-02T12:00:00Z', ACC1, ok(9))], { range: '7d' }).previous).toBeNull();
+    expect(view([early], { range: '7d' }, { catchingUp: true }).previous).toBeNull();
+    expect(view([], { range: '7d' }).previous).toBeNull();
+    expect(view([cell('2026-11-02T12:00:00Z', ACC1, ok(9))], { range: '7d' }).timeline.every((b) => b.previous === null)).toBe(true);
   });
 });
 

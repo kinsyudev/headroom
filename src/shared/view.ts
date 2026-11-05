@@ -337,6 +337,8 @@ export interface AnalyticsView {
   readonly span: { readonly start: Instant; readonly end: Instant };
   readonly dimensions: AnalyticsDimensions;
   readonly total: UsageStats;
+  /** The span one range earlier, so 24h meets the 24 hours before and 7d the 7 days before. Null for 30d, which the history cannot reach back far enough to match. */
+  readonly previous: PriorSpan | null;
   /** Contiguous, zero-filled, browser-local buckets. Day buckets step by calendar date, so a DST day is 23 or 25 h. Only the last is partial. */
   readonly timeline: readonly TimeBucket[];
   /** Local weekday by hour of day over the span. */
@@ -385,6 +387,18 @@ export interface AnalyticsDimensions {
   readonly efforts: readonly Effort[];
 }
 
+/**
+ * What a span, or one of its buckets, is compared with: the same stretch of local calendar one range earlier, narrowed by the
+ * same lens. The span still running is cut at asOf less that shift, so it meets as much of the earlier one as it has itself.
+ * Cells count in whole hours, so the hour holding the cut counts in full. Null while the history does not reach back to the
+ * start of the earlier span, or while the server is still reading it, because a short span would read as a drop.
+ */
+export interface PriorSpan {
+  readonly start: Instant;
+  readonly end: Instant;
+  readonly stats: UsageStats;
+}
+
 /** Every figure a chart draws for one slice. Ratios are null where the denominator is zero. */
 export interface UsageStats {
   /** The sum of outcomes, failed requests included. */
@@ -394,6 +408,8 @@ export interface UsageStats {
   readonly tokens: TokenSums;
   /** cacheRead ÷ (freshInput + cacheRead + cacheCreation). */
   readonly cacheReadShare: number | null;
+  /** (freshInput + cacheCreation) ÷ the same input: what missed the cache, so it and cacheReadShare add to 1. */
+  readonly cacheMissShare: number | null;
   readonly outputPerRequest: number | null;
   /** Sessions whose first request falls in this slice, so they add up across slices. */
   readonly sessions: number;
@@ -423,6 +439,8 @@ export interface TimeBucket {
   /** The bucket that holds asOf, still filling. */
   readonly partial: boolean;
   readonly total: UsageStats;
+  /** This bucket one range earlier, cut the way AnalyticsView.previous is; null where that is null. */
+  readonly previous: PriorSpan | null;
   /** Aligned with dimensions.accounts, .models and .efforts, and zero-filled. */
   readonly byAccount: readonly Part<AccountId>[];
   readonly byModel: readonly Part<string>[];

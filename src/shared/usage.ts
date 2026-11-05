@@ -130,7 +130,9 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
   const spanEnd = starts[n]!;
   const dimAccounts = accounts.filter((a) => lens.account === null || a.id === lens.account).map((a) => ({ id: a.id, email: a.email }));
   const accountIndex = new Map(dimAccounts.map((a, i) => [a.id, i]));
-  const cells = cube.cells.filter((c) => c.hour >= spanStart && c.hour < spanEnd && accountIndex.has(c.account) && (lens.model === null || c.model === lens.model));
+  const inLens = (c: UsageCell) => accountIndex.has(c.account) && (lens.model === null || c.model === lens.model);
+  const cells = cube.cells.filter((c) => c.hour >= spanStart && c.hour < spanEnd && inLens(c));
+  const previous = foldPrevious(cube, lens.range, starts, inLens);
 
   const total = new Acc();
   const byModel = new Map<string, Acc>();
@@ -177,6 +179,7 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
     span: { start: spanStart as Instant, end: spanEnd as Instant },
     dimensions: { accounts: dimAccounts, models, efforts },
     total: totalStats,
+    previous: previous && { start: previous.edges[0]! as Instant, end: previous.edges[n]! as Instant, stats: previous.total },
     timeline: buckets.map((b, i): TimeBucket => {
       const t = b.total.stats();
       return {
@@ -184,6 +187,7 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
         end: starts[i + 1]! as Instant,
         partial: starts[i + 1]! > cube.generatedAt,
         total: t,
+        previous: previous && { start: previous.edges[i]! as Instant, end: previous.edges[i + 1]! as Instant, stats: previous.buckets[i]! },
         byAccount: parts(dimAccounts.map((a, j) => [a.id, b.accounts[j]!]), t),
         byModel: parts(models.map((m, j) => [m, b.models[j]!]), t),
         byEffort: parts(efforts.map((e, j) => [e, b.efforts[j]!]), t),
@@ -201,6 +205,31 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
       .filter((e) => e.at !== null && e.at >= spanStart && e.at < spanEnd && e.account !== null && accountIndex.has(e.account) && (lens.model === null || e.model === lens.model))
       .map((e): ErrorEventView => ({ ...e, email: emails.get(e.account!) ?? null })),
   };
+}
+
+/**
+ * The buckets one range earlier, by local calendar, as edges (one more than buckets, the last the cut at asOf less the shift)
+ * with their stats. Null where PriorSpan says the history cannot match them.
+ */
+function foldPrevious(cube: UsageCube, range: UsageRange, starts: readonly number[], inLens: (c: UsageCell) => boolean) {
+  const n = starts.length - 1;
+  const days = Math.round(RANGE_SPAN[range].ms / DAY_MS);
+  const back = (t: number) => {
+    const d = new Date(t);
+    d.setDate(d.getDate() - days);
+    return d.getTime();
+  };
+  const edges = [...starts.slice(0, n).map(back), back(cube.generatedAt)];
+  const reachesBack = !cube.catchingUp && edges[0]! >= cube.horizonStart && cube.cells.length > 0 && cube.cells[0]!.hour <= edges[0]! + DAY_MS;
+  if (!reachesBack) return null;
+  const total = new Acc();
+  const buckets = Array.from({ length: n }, () => new Acc());
+  for (const c of cube.cells) {
+    if (c.hour < edges[0]! || c.hour >= edges[n]! || !inLens(c)) continue;
+    total.add(c.tally);
+    buckets[lastIndexAtOrBefore(edges, c.hour)]!.add(c.tally);
+  }
+  return { edges, total: total.stats(), buckets: buckets.map((b) => b.stats()) };
 }
 
 const mean = (c: WeekCell) => (c.occurrences === 0 ? 0 : c.stats.requests / c.occurrences);
@@ -305,6 +334,7 @@ class Acc {
       rates: requests === 0 ? null : (Object.fromEntries(OUTCOMES.map((o) => [o, this.outcomes[o] / requests])) as Record<Outcome, number>),
       tokens: { ...this.tokens },
       cacheReadShare: input === 0 ? null : cacheRead / input,
+      cacheMissShare: input === 0 ? null : (freshInput + cacheCreation) / input,
       outputPerRequest: requests === 0 ? null : output / requests,
       sessions: this.sessions,
       outputPerSession: this.sessions === 0 ? null : output / this.sessions,
