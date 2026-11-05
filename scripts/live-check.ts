@@ -39,7 +39,7 @@ try {
       priority: a.routing.priority,
       role: a.routing.role.kind,
       atWall: a.atWall,
-      limits: a.limits.map((l) => `${l.label} ${l.phase === 'open' ? `${l.percent}%` : l.phase} (${l.source.kind})`),
+      limits: a.limits.map((l) => `${l.label} ${l.phase === 'open' ? `${l.left}% left` : l.phase} (${l.source.kind})`),
       offers: a.offers.map((o) => `${o.program}: ${o.state.kind}`),
       anthropic: (['limits', 'cedar', 'juniper', 'profile'] as const).map((k) => {
         const f = s.feeds[a.id]?.[k];

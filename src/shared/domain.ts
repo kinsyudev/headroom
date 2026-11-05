@@ -5,6 +5,8 @@ export type Instant = Brand<number, 'Instant'>;
 export type AccountId = Brand<string, 'AccountId'>;
 /** Percent of a window used. It can exceed 100 (header overage utilization 1.01 is 101). */
 export type Percent = Brand<number, 'Percent'>;
+/** Percent of a window still free, 0 to 100: the one direction the page draws. The wall, severity and trouble are judged on Percent. */
+export type PercentLeft = Brand<number, 'PercentLeft'>;
 export type GrantId = Brand<string, 'GrantId'>;
 export type ClaimId = Brand<string, 'ClaimId'>;
 export type FlowId = Brand<string, 'FlowId'>;

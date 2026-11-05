@@ -29,6 +29,7 @@ import {
   type Snapshot,
   type Source,
   type SourceError,
+  type Spend,
 } from '../src/shared/domain';
 import type { OfferState } from '../src/shared/view';
 import { ACC1, ACC2, ACC3, MIN, T0, account, at, cpaAccounts, feedsFrom, plus, snapshot, usage } from './support';
@@ -156,43 +157,54 @@ describe('isAtWall', () => {
 
 describe('window lifecycle', () => {
   const rows = (poll: Sample<readonly Limit[]> | null, a: CpaAccount | null, now: Instant) =>
-    mergeLimits(poll, a?.headers ?? null, now).map((l): unknown[] => [l.key, l.phase, l.percent, l.source.kind, l.other?.kind ?? null, l.other?.percent ?? null]);
+    mergeLimits(poll, a?.headers ?? null, now).map((l): unknown[] => [l.key, l.phase, l.left, l.source.kind, l.other?.kind ?? null, l.other?.left ?? null]);
 
-  test('fixture 1 has no session limit: the session row is idle, never 0% or 100%', () => {
+  test('fixture 1 has no session limit: the session row is idle and fully free, never 0% or 100% used', () => {
     expect(rows(pollOf('anthropic-usage-1.json', T0), null, T0)).toEqual([
-      ['session', 'idle', null, 'poll', null, null],
-      ['weekly_all', 'open', 1, 'poll', null, null],
-      ['weekly_scoped:Fable', 'open', 0, 'poll', null, null],
+      ['session', 'idle', 100, 'poll', null, null],
+      ['weekly_all', 'open', 99, 'poll', null, null],
+      ['weekly_scoped:Fable', 'open', 100, 'poll', null, null],
     ]);
   });
 
-  test('headers only: account1 shows 17% / 27% from headers, with resets from the epoch headers', () => {
+  test('headers only: account1 has 83% / 73% left from headers, with resets from the epoch headers', () => {
     const m = mergeLimits(null, account(ACC1).headers, T0);
     expect(rows(null, account(ACC1), T0)).toEqual([
-      ['session', 'open', 17, 'headers', null, null],
-      ['weekly_all', 'open', 27, 'headers', null, null],
+      ['session', 'open', 83, 'headers', null, null],
+      ['weekly_all', 'open', 73, 'headers', null, null],
     ]);
     expect(m[0]!.resetsAt).toBe(at('2026-11-04T17:00:00Z'));
   });
 
   test('a poll older than the headers: headers drawn, poll kept as the faint tick', () => {
     expect(rows(pollOf('anthropic-usage-2.json', plus(T0, -5 * MIN)), account(ACC1), T0).slice(0, 2)).toEqual([
-      ['session', 'open', 17, 'headers', 'poll', 12],
-      ['weekly_all', 'open', 27, 'headers', 'poll', 27],
+      ['session', 'open', 83, 'headers', 'poll', 88],
+      ['weekly_all', 'open', 73, 'headers', 'poll', 73],
     ]);
   });
 
   test('a poll newer than the headers: poll drawn, headers kept as the faint tick', () => {
     expect(rows(pollOf('anthropic-usage-2.json', T0), account(ACC1), T0).slice(0, 2)).toEqual([
-      ['session', 'open', 12, 'poll', 'headers', 17],
-      ['weekly_all', 'open', 27, 'poll', 'headers', 27],
+      ['session', 'open', 88, 'poll', 'headers', 83],
+      ['weekly_all', 'open', 73, 'poll', 'headers', 73],
     ]);
   });
 
-  test('after resetsAt with nothing newer, the row is lapsed and the old percent is gone', () => {
+  test('after resetsAt with nothing newer, the row is lapsed and the old reading is gone', () => {
     const m = mergeLimits(pollOf('anthropic-usage-3.json', T0), null, AFTER_COOLDOWN);
-    expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', percent: null, severity: 'normal', resetsAt: at('2026-11-04T14:20:00.412Z') });
-    expect(m[1]).toMatchObject({ key: 'weekly_all', phase: 'open', percent: 60 });
+    expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', percent: null, left: null, severity: 'normal', resetsAt: at('2026-11-04T14:20:00.412Z') });
+    expect(m[1]).toMatchObject({ key: 'weekly_all', phase: 'open', percent: 60, left: 40 });
+  });
+
+  test('what is left is 100 minus what is used, and nothing is left at the wall or past it', () => {
+    const left = (used: number) => {
+      const poll = { value: usage('anthropic-usage-2.json', 'normal').limits.map((l) => (l.kind === 'session' ? { ...l, percent: used as never } : l)), at: T0 };
+      return mergeLimits(poll, null, T0)[0]!;
+    };
+    expect(left(12)).toMatchObject({ percent: 12, left: 88 });
+    expect(left(100)).toMatchObject({ percent: 100, left: 0 });
+    expect(left(101)).toMatchObject({ percent: 101, left: 0 });
+    expect(left(0)).toMatchObject({ percent: 0, left: 100 });
   });
 
   test('a newer header window after a reset replaces the lapsed poll row', () => {
@@ -204,12 +216,12 @@ describe('window lifecycle', () => {
   });
 
   test('a rejected header status draws as critical', () => {
-    expect(mergeLimits(null, account(ACC3).headers, T0)[0]).toMatchObject({ key: 'session', percent: 100, severity: 'critical' });
+    expect(mergeLimits(null, account(ACC3).headers, T0)[0]).toMatchObject({ key: 'session', percent: 100, left: 0, severity: 'critical' });
   });
 
   test('a poll without a session limit and older 5h headers stays idle and keeps the header value, with nothing drawn to differ from', () => {
     const m = mergeLimits(pollOf('anthropic-usage-1.json', T0), account(ACC1).headers, T0);
-    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, other: { kind: 'headers', percent: 17, differs: false } });
+    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, left: 100, other: { kind: 'headers', left: 83, differs: false } });
   });
 
   describe('which readings differ enough to mark', () => {
@@ -233,7 +245,7 @@ describe('window lifecycle', () => {
     test('a lapsed row has no drawn percent, so its other reading is never marked', () => {
       const older = { ...headerSession(40)!, observedAt: plus(T0, -MIN) };
       const m = mergeLimits(pollOf('anthropic-usage-3.json', T0), { ...older, windows: [{ key: '5h', percent: 40 as never, resetsAt: at('2026-11-04T19:20:00Z'), status: 'allowed' }] }, AFTER_COOLDOWN);
-      expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', other: { percent: 40, differs: false } });
+      expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', other: { left: 60, differs: false } });
     });
   });
 
@@ -496,17 +508,29 @@ describe('make primary', () => {
 });
 
 describe('headroom and next reset', () => {
-  test('session headroom is min(session left, weekly left); idle sessions count as full', () => {
-    const feeds = {
-      [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
-      [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
-      [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
-    };
-    const d = deriveDeck(snapshot({ feeds }), T0);
+  const threeRead = {
+    [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
+    [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
+    [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
+  };
+
+  test('each pooled figure is the mean of its column of cells: an idle session counts as 100 left, a blocked one as 0', () => {
+    const d = deriveDeck(snapshot({ feeds: threeRead }), T0);
+    const column = (key: string) => d.accounts.map((a) => a.limits.find((l) => l.key === key)!.left as number | null);
+    expect(column('session')).toEqual([88, 100, 0]);
+    expect(column('weekly_all')).toEqual([73, 99, 40]);
     const account2 = { account: ACC2, email: 'account2@example.com', left: 0.99 };
-    expect(d.overview.headroom.session).toEqual({ value: 1.72, of: 3, unknown: 0, percent: 57, most: account2 });
-    expect(d.overview.headroom.weekly).toEqual({ value: 2.12, of: 3, unknown: 0, percent: 71, most: account2 });
+    expect(d.overview.headroom.session).toEqual({ of: 3, unknown: 0, percent: 63, most: account2 });
+    expect(d.overview.headroom.weekly).toEqual({ of: 3, unknown: 0, percent: 71, most: account2 });
     expect(d.overview.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z') });
+  });
+
+  test('the most room goes to the account that can take the most: a session cannot use more than the week has left', () => {
+    const read = usage('anthropic-usage-1.json', 'normal');
+    const weekGone = { ...read, limits: read.limits.map((l) => (l.kind === 'weekly_all' ? { ...l, percent: 100 as never } : l)) };
+    const d = deriveDeck(snapshot({ feeds: { ...threeRead, [ACC2]: feedsFrom(weekGone, T0) } }), T0);
+    expect(d.accounts.find((a) => a.id === ACC2)!.limits.find((l) => l.key === 'session')!.left).toBe(100 as never);
+    expect(d.overview.headroom.session.most).toEqual({ account: ACC1, email: 'account1@example.com', left: 0.73 });
   });
 
   test('an account with no limits data counts as unknown, not as 0 or 100', () => {
@@ -521,7 +545,7 @@ describe('headroom and next reset', () => {
 
   test('with no account read yet, no share and no account with the most room', () => {
     const blind = cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null }));
-    expect(deriveDeck(snapshot({ accounts: blind }), T0).overview.headroom.session).toEqual({ value: 0, of: 3, unknown: 3, percent: null, most: null });
+    expect(deriveDeck(snapshot({ accounts: blind }), T0).overview.headroom.session).toEqual({ of: 3, unknown: 3, percent: null, most: null });
   });
 });
 
@@ -617,7 +641,7 @@ describe('why an account is in trouble', () => {
     const held = (change: (a: CpaAccount) => CpaAccount, feeds: Record<string, AccountFeeds> = atWall) =>
       deriveDeck(snapshot({ accounts: cpaAccounts().map((a) => (a.id === ACC3 ? change(a) : a)), feeds }), T0).accounts.find((a) => a.id === ACC3)!;
 
-    test('a spend-cap message on an account with its session used up names the session window, and keeps the message as the cause', () => {
+    test('a spend-cap message on an account with its session emptied names the session window, and keeps the message as the cause', () => {
       const a = held((x) => x);
       expect(a.limits.find((l) => l.key === 'session')?.percent).toBe(100 as never);
       expect(a.trouble).toMatchObject({ cause: 'Monthly spend limit hit', limit: { label: 'Session' } });
@@ -657,7 +681,7 @@ describe('why an account is in trouble', () => {
   test.each([
     ['CPA message with a known phrase wins over the cooldown code', 'This request would exceed your account\'s monthly spend limit.', 'credential_quota', 'Monthly spend limit hit'],
     ['an unmapped message gives way to the cooldown code', 'Something new broke.', 'unauthorized', 'Token rejected'],
-    ['no message: the cooldown code in plain words', null, 'credential_quota', 'Quota used up'],
+    ['no message: the cooldown code in plain words', null, 'credential_quota', 'No quota left'],
     ['an unmapped message with only an unknown code is shown as it came', 'Something new broke.', 'unknown', 'Something new broke.'],
     ['no message and an unknown code: said so', null, 'unknown', 'Reason unknown'],
   ] as const)('%s', (_label, statusMessage, reason, cause) => {
@@ -666,12 +690,12 @@ describe('why an account is in trouble', () => {
 
   test('the account-wide reason leads over a model reason', () => {
     const t = trouble((a) => ({ ...a, statusMessage: null, cooldowns: [model('claude-opus-5-5', 'unauthorized', END), credential('credential_quota', END)] }));
-    expect(t?.cause).toBe('Quota used up');
+    expect(t?.cause).toBe('No quota left');
   });
 
   test('one model cooling down on an account that still routes is named, and the account is not called blocked', () => {
     const t = trouble((a) => ({ ...a, statusMessage: null, unavailable: false, nextRetryAfter: null, cooldowns: [model('claude-opus-5-5', 'quota', END)] }));
-    expect(t).toMatchObject({ cause: 'Quota used up', holds: [{ what: 'opus-5-5 cooling down', until: END }] });
+    expect(t).toMatchObject({ cause: 'No quota left', holds: [{ what: 'opus-5-5 cooling down', until: END }] });
   });
 
   test('model cooldowns that outlast the account get their own time', () => {
@@ -796,7 +820,7 @@ describe('card status line', () => {
       overageDisabledReason: null,
       windows: [...headers.windows.filter((w) => w.key !== 'Overage'), { key: 'Overage', percent: percent as never, resetsAt: null, status }],
     });
-    expect(deriveSpend(emptySource(), headers)?.live).toMatchObject({ percent: 101, status: 'rejected', reason: 'org_spend_cap_reached', severity: 'critical' });
+    expect(deriveSpend(emptySource(), headers)?.live).toMatchObject({ left: 0, status: 'rejected', reason: 'org_spend_cap_reached', severity: 'critical' });
     expect(deriveSpend(emptySource(), withOverage('allowed_warning', 78))?.live?.severity).toBe('warning');
     expect(deriveSpend(emptySource(), withOverage('allowed', 0))?.live?.severity).toBe('normal');
   });
@@ -824,6 +848,15 @@ describe('card status line', () => {
       if (read.mode !== 'normal') throw new Error('fixture is a normal read');
       const uncapped = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, limit: null }, at: T0 } };
       expect(deriveSpend(uncapped, null)?.poll?.state).toBe('budget');
+    });
+
+    test('what is left of the cap is the cap less the spend, never below zero, and nothing without a cap', () => {
+      const read = usage('anthropic-usage-3.json', 'normal');
+      if (read.mode !== 'normal') throw new Error('fixture is a normal read');
+      const poll = (change: Partial<Spend>) => deriveSpend({ ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, ...change }, at: T0 } }, null)?.poll;
+      expect(poll({})).toMatchObject({ left: 0, remaining: { minor: 0, currency: 'USD' } });
+      expect(poll({ used: { ...read.spend!.used, minor: 1200 }, percent: 12 as never })).toMatchObject({ left: 88, remaining: { minor: 8800 } });
+      expect(poll({ limit: null, percent: null })).toMatchObject({ left: null, remaining: null });
     });
   });
 });

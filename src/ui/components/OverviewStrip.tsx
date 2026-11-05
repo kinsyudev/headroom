@@ -6,7 +6,7 @@ import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
 
 const ROOM_HELP =
-  "Room left across the enabled accounts, as a share of what they hold when every window is fresh. Session room is capped by each account's weekly room, since a session cannot use more than the week has left.";
+  'Room left, pooled across the enabled accounts: the average of their Session cells and the average of their Weekly cells, an idle session counting as 100% left. “Most room” names the enabled account that can take the most, since a session cannot use more than the week has left.';
 
 export function OverviewStrip(props: { readonly deck: DeckView; readonly colors: ReadonlyMap<AccountId, string> }) {
   const o = props.deck.overview;
@@ -136,11 +136,11 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         <p className="stat-sub">
           <Segments
             parts={[
-              `of ${o.headroom.session.of} ${o.headroom.session.of === 1 ? 'account' : 'accounts'}`,
+              `pooled across ${o.headroom.session.of} ${o.headroom.session.of === 1 ? 'account' : 'accounts'}`,
               o.headroom.session.unknown > 0 && <span className="muted">{o.headroom.session.unknown} not read yet</span>,
               o.headroom.session.most && o.headroom.session.of > 1 && (
                 <>
-                  most on {swatch(o.headroom.session.most.account)} {o.headroom.session.most.email}
+                  most room on {swatch(o.headroom.session.most.account)} {o.headroom.session.most.email}
                 </>
               ),
             ]}

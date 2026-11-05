@@ -5,8 +5,8 @@ import { claimText, reasonText, reasonTitle } from '../src/ui/format';
 
 describe('raw codes in plain words', () => {
   test.each([
-    ['credential_quota', 'quota used up'],
-    ['quota', 'quota used up'],
+    ['credential_quota', 'no quota left'],
+    ['quota', 'no quota left'],
     ['org_spend_cap_reached', 'monthly spend cap reached'],
     ['group_zero_credit_limit', 'no extra-usage credit'],
   ])('%s reads %s', (code, phrase) => {

@@ -1,4 +1,4 @@
-import type { ClaimRecord, Money, Percent, SourceError } from '../shared/domain';
+import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
 import type { ServingWhy } from '../shared/view';
 
@@ -56,7 +56,7 @@ export function clockTime(at: number, now: number): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
 }
 
-export function percent(p: Percent | number | null): string {
+export function percent(p: PercentLeft | null): string {
   if (p === null) return '—';
   if (p > 0 && p < 1) return '<1%';
   return `${Math.round(p)}%`;

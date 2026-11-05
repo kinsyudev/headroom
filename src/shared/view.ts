@@ -9,6 +9,7 @@ import type {
   Money,
   OAuthFlow,
   Percent,
+  PercentLeft,
   ProgramId,
   RoutingStrategy,
   Severity,
@@ -67,13 +68,14 @@ export interface ClaimableView {
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
 
+/** One column of the accounts table pooled over the enabled accounts: the mean of that column's `left` cells, an idle session counting as 100. */
 export interface Headroom {
-  readonly value: number;
+  /** The enabled accounts pooled. */
   readonly of: number;
   readonly unknown: number;
-  /** value as a whole percent of the accounts whose room is known; null when none is. */
+  /** The mean as a whole percent over the accounts whose cell is known; null when none is. */
   readonly percent: number | null;
-  /** The enabled account with the most room left, as a share of one account (0 to 1); null when no account's room is known. */
+  /** The enabled account that can take the most, as a share of one account (0 to 1); a session cannot use more than the week has left. Null when no account's room is known. */
   readonly most: { readonly account: AccountId; readonly email: string; readonly left: number } | null;
 }
 
@@ -169,14 +171,17 @@ export interface LimitView {
   readonly key: string;
   readonly label: string;
   readonly phase: WindowPhase;
+  /** Used. What the wall and trouble are judged on; the page draws `left`. */
   readonly percent: Percent | null;
+  /** Free: 100 for an idle window, null once the window has lapsed and no newer reading has arrived. */
+  readonly left: PercentLeft | null;
   readonly severity: Severity;
   readonly resetsAt: Instant | null;
   /** Anthropic marks this window active and it is at warning or critical, so it is what holds the account back. */
   readonly limiting: boolean;
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
-  /** The reading that is not drawn. differs: it is 2 points or more from the drawn percent, enough to mark on the meter. */
-  readonly other: { readonly kind: 'poll' | 'headers'; readonly percent: Percent; readonly at: Instant; readonly differs: boolean } | null;
+  /** The reading that is not drawn. differs: it is 2 points or more from the drawn reading, enough to mark on the meter. */
+  readonly other: { readonly kind: 'poll' | 'headers'; readonly left: PercentLeft; readonly at: Instant; readonly differs: boolean } | null;
 }
 
 /** off: extra usage is disabled. no_budget: enabled with a cap of zero. budget: a cap above zero, or none set. */
@@ -187,13 +192,15 @@ export interface SpendView {
     readonly state: SpendState;
     readonly used: Money;
     readonly limit: Money | null;
-    readonly percent: Percent | null;
+    readonly left: PercentLeft | null;
+    /** The cap less what is spent, never below zero; null when there is no cap. */
+    readonly remaining: Money | null;
     readonly severity: Severity;
     readonly disabledReason: string | null;
     readonly at: Instant;
   } | null;
   readonly live: {
-    readonly percent: Percent | null;
+    readonly left: PercentLeft | null;
     readonly status: string | null;
     readonly reason: string | null;
     readonly severity: Severity;

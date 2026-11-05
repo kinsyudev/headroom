@@ -14,6 +14,7 @@ import {
   type JuniperTide,
   type Limit,
   type Percent,
+  type PercentLeft,
   type Profile,
   type ProgramId,
   type RoutingStrategy,
@@ -100,8 +101,8 @@ const WINDOW_LIMIT: Readonly<Record<string, string>> = {
 const JUNIPER_CLEARS: readonly string[] = ['five_hour'];
 
 export const REASON_TEXT: Readonly<Record<string, string>> = {
-  quota: 'quota used up',
-  credential_quota: 'quota used up',
+  quota: 'no quota left',
+  credential_quota: 'no quota left',
   unauthorized: 'token rejected',
   payment_required: 'payment required',
   not_found: 'not found',
@@ -114,7 +115,7 @@ export const REASON_TEXT: Readonly<Record<string, string>> = {
   group_zero_credit_limit: 'no extra-usage credit',
 };
 
-/** quota: the cause only bites once a plan limit is used up, so a full window is what holds the account. */
+/** quota: the cause only bites once a plan limit has nothing left, so an emptied window is what holds the account. */
 const MESSAGE_CAUSES: readonly { readonly pattern: RegExp; readonly cause: string; readonly quota: boolean }[] = [
   { pattern: /monthly spend limit/i, cause: 'Monthly spend limit hit', quota: true },
 ];
@@ -378,6 +379,9 @@ interface Observation {
   readonly source: { readonly kind: 'poll' | 'headers'; readonly at: Instant };
 }
 
+const percentLeft = (used: Percent): PercentLeft => Math.min(100, Math.max(0, 100 - used)) as PercentLeft;
+const percentLeftOrNull = (used: Percent | null): PercentLeft | null => (used === null ? null : percentLeft(used));
+
 export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: HeaderQuota | null, now: Instant): LimitView[] {
   const rows = new Map<string, { draw: Observation; other: Observation | null }>();
   for (const l of poll?.value ?? []) {
@@ -415,6 +419,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       label: limitLabel(draw.kind, draw.scopeModel),
       phase: lapsed ? 'lapsed' : 'open',
       percent: lapsed ? null : draw.percent,
+      left: lapsed ? null : percentLeft(draw.percent),
       severity: lapsed ? 'normal' : draw.severity,
       resetsAt: draw.resetsAt,
       limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
@@ -428,6 +433,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       label: limitLabel('session', null),
       phase: 'idle',
       percent: null,
+      left: 100 as PercentLeft,
       severity: 'normal',
       resetsAt: null,
       limiting: false,
@@ -442,7 +448,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
 const TICK_MIN_GAP = 2;
 
 function otherView(other: Observation, drawn: Percent | null): NonNullable<LimitView['other']> {
-  return { kind: other.source.kind, percent: other.percent, at: other.source.at, differs: drawn !== null && Math.abs(other.percent - drawn) >= TICK_MIN_GAP };
+  return { kind: other.source.kind, left: percentLeft(other.percent), at: other.source.at, differs: drawn !== null && Math.abs(other.percent - drawn) >= TICK_MIN_GAP };
 }
 
 function rowKey(kind: string, scopeModel: string | null): string {
@@ -473,7 +479,7 @@ export function deriveSpend(spend: Source<Spend | null>, headers: HeaderQuota | 
   const live =
     headers && (overage || headers.overageDisabledReason) && (!s || headers.observedAt > s.at)
       ? {
-          percent: overage?.percent ?? null,
+          left: percentLeftOrNull(overage?.percent ?? null),
           status: overage?.status ?? null,
           reason: headers.overageDisabledReason,
           severity: overage ? headerSeverity(overage) : 'normal',
@@ -485,8 +491,10 @@ export function deriveSpend(spend: Source<Spend | null>, headers: HeaderQuota | 
   return poll || live ? { poll, live } : null;
 }
 
-function pollView({ enabled, ...rest }: Spend, at: Instant): NonNullable<SpendView['poll']> {
-  return { ...rest, state: !enabled ? 'off' : rest.limit?.minor === 0 ? 'no_budget' : 'budget', at };
+function pollView({ enabled, percent, ...rest }: Spend, at: Instant): NonNullable<SpendView['poll']> {
+  const { used, limit } = rest;
+  const remaining = limit && { ...limit, minor: Math.max(0, limit.minor - used.minor) };
+  return { ...rest, state: !enabled ? 'off' : limit?.minor === 0 ? 'no_budget' : 'budget', left: percentLeftOrNull(percent), remaining, at };
 }
 
 export function derivePlan(profile: Source<Profile>): PlanView | null {
@@ -772,30 +780,25 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   };
 }
 
-function left(limits: readonly LimitView[], key: string): number | null {
+function windowLeft(limits: readonly LimitView[], key: string): number | null {
   const l = limits.find((x) => x.key === key);
-  if (!l) return null;
-  if (l.phase !== 'open' || l.percent === null) return 100;
-  return Math.max(0, 100 - l.percent);
+  return l ? (l.left ?? 100) : null;
 }
 
 function headroom(accounts: readonly AccountView[], which: 'session' | 'weekly'): Headroom {
-  let value = 0;
-  let unknown = 0;
+  let sum = 0;
+  let known = 0;
   let most: Headroom['most'] = null;
   for (const a of accounts) {
-    const weekly = left(a.limits, 'weekly_all');
-    const session = left(a.limits, 'session');
-    const v = which === 'weekly' ? weekly : session === null && weekly === null ? null : Math.min(session ?? 100, weekly ?? 100);
-    if (v === null) {
-      unknown += 1;
-      continue;
-    }
-    value += v / 100;
-    if (most === null || v / 100 > most.left) most = { account: a.id, email: a.email, left: v / 100 };
+    const weekly = windowLeft(a.limits, 'weekly_all');
+    const shown = which === 'weekly' ? weekly : windowLeft(a.limits, 'session');
+    if (shown === null) continue;
+    sum += shown;
+    known += 1;
+    const usable = which === 'weekly' ? shown : Math.min(shown, weekly ?? 100);
+    if (most === null || usable / 100 > most.left) most = { account: a.id, email: a.email, left: usable / 100 };
   }
-  const known = accounts.length - unknown;
-  return { value: Math.round(value * 100) / 100, of: accounts.length, unknown, percent: known === 0 ? null : Math.round((value / known) * 100), most };
+  return { of: accounts.length, unknown: accounts.length - known, percent: known === 0 ? null : Math.round(sum / known), most };
 }
 
 function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView): Banner[] {

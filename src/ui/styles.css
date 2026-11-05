@@ -513,7 +513,7 @@ span.banner-line {
 }
 
 .panel.accounts {
-  --cols: minmax(236px, 1.45fr) repeat(var(--limit-cols), minmax(0, 1fr)) minmax(0, 0.85fr) minmax(0, 0.9fr);
+  --cols: minmax(236px, 1.2fr) repeat(var(--limit-cols), minmax(0, 1fr)) minmax(112px, 0.6fr) minmax(136px, 0.7fr);
   padding: 0;
   gap: 0;
 }
@@ -681,6 +681,10 @@ span.banner-line {
   height: 6px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--fill, var(--muted)) 18%, var(--surface-2));
+}
+.meter.sev-critical {
+  background: color-mix(in srgb, var(--critical) 40%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px var(--critical);
 }
 .meter-fill {
   height: 100%;
@@ -1210,12 +1214,12 @@ table.errors td.message {
 }
 
 
-@media (max-width: 1200px) {
+@media (max-width: 1250px) {
   .ledger-head {
     display: none;
   }
   .acct {
-    grid-template-columns: max-content minmax(60px, 1fr) 48px minmax(124px, max-content);
+    grid-template-columns: max-content minmax(60px, 1fr) max-content minmax(124px, max-content);
     column-gap: 14px;
     row-gap: 10px;
   }
