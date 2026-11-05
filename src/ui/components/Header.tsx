@@ -8,7 +8,6 @@ import type { DeckView } from '../../shared/view';
 import { useAction, type Connection } from '../api';
 import { Mark, Wordmark } from '../brand';
 import { usePaused } from '../deck';
-import { clockTime, duration, shortName } from '../format';
 import { VIEWS, type ViewKey } from '../route';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
@@ -24,7 +23,6 @@ const FLOW_TTL_MS = 5 * 60_000;
 
 export function Header(props: { readonly deck: DeckView; readonly connection: Connection; readonly view: ViewKey }) {
   const d = props.deck;
-  const runningOut = d.overview.runningOut;
   const cpaDown = props.connection === 'live' && d.cpa.kind === 'down';
   const status = cpaDown ? 'cpa-down' : props.connection;
   return (
@@ -37,16 +35,6 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         {VIEWS.map((v) => (
           <a key={v.key} href={v.hash} className="view-tab" aria-current={v.key === props.view ? 'page' : undefined} data-testid={v.testId}>
             {v.label}
-            {v.key === 'usage' && runningOut.length > 0 && (
-              <span
-                className="tab-badge"
-                title={runningOut
-                  .map((r) => `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, d.now)}, ${duration(r.resetsAt - r.at)} before it resets`)
-                  .join('\n')}
-              >
-                {runningOut.length} running out
-              </span>
-            )}
           </a>
         ))}
       </nav>

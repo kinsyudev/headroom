@@ -29,6 +29,7 @@ import type {
   AccountView,
   Banner,
   ClaimableView,
+  ClaimVerdict,
   CpaView,
   DeckView,
   FeedName,
@@ -79,15 +80,19 @@ const FRESHNESS: Record<Exclude<FeedName, 'headers'>, { readonly aging: number; 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-/** Every quota window Headroom knows, in display order: its limit kind, the response header that reports it, and its length. */
+/**
+ * Every quota window Headroom knows, in display order: its limit kind, the response header that reports it, its length, and the
+ * wider window whose requests it counts a share of.
+ */
 export const QUOTA_WINDOWS = [
-  { kind: 'session', header: '5h', ms: 5 * HOUR_MS },
-  { kind: 'weekly_all', header: '7d', ms: 7 * DAY_MS },
-  { kind: 'weekly_scoped', header: null, ms: 7 * DAY_MS },
+  { kind: 'session', header: '5h', ms: 5 * HOUR_MS, within: null },
+  { kind: 'weekly_all', header: '7d', ms: 7 * DAY_MS, within: null },
+  { kind: 'weekly_scoped', header: null, ms: 7 * DAY_MS, within: 'weekly_all' },
 ] as const;
 const HEADER_TO_KIND: ReadonlyMap<string, string> = new Map(QUOTA_WINDOWS.flatMap((w) => (w.header === null ? [] : [[w.header, w.kind] as const])));
 const KIND_ORDER: readonly string[] = QUOTA_WINDOWS.map((w) => w.kind);
 const WINDOW_MS: ReadonlyMap<string, number> = new Map(QUOTA_WINDOWS.map((w) => [w.kind, w.ms] as const));
+const WITHIN: ReadonlyMap<string, string> = new Map(QUOTA_WINDOWS.flatMap((w) => (w.within === null ? [] : [[w.kind, w.within] as const])));
 /** Under this share of a window gone, pace has too little to project from. */
 const PACE_TOO_EARLY = 5;
 
@@ -162,13 +167,38 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
     status: deriveStatus([freshness('cpa', s.cpa, now), freshness('strategy', s.strategy, now), freshness('serving', s.serving, now)]),
     cpa,
     limitColumns: limitColumns(views),
+    extraUsageColumn: views.some((a) => a.spend?.poll?.state === 'budget'),
   };
 }
 
+const sameMoment = (x: Instant | null, y: Instant | null) => x !== null && y !== null && Math.abs(x - y) <= SAME_MOMENT_MS;
+
 function limitColumns(views: readonly AccountView[]): LimitColumn[] {
-  const columns = new Map(views.flatMap((a) => a.limits.map((l) => [l.key, { key: l.key, label: l.label, gloss: l.gloss }] as const)));
-  return [...columns.values()]
-    .sort((x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key));
+  const windows = [...new Map(views.flatMap((a) => a.limits.map((l) => [l.key, l] as const))).values()].sort(
+    (x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key),
+  );
+  const parentOf = (key: string): string | null => {
+    const within = WITHIN.get(key.split(':')[0]!);
+    if (within === undefined) return null;
+    const rides = views.every((a) => {
+      const l = a.limits.find((x) => x.key === key);
+      return l === undefined || sameMoment(l.resetsAt, a.limits.find((x) => x.key === within)?.resetsAt ?? null);
+    });
+    return rides ? within : null;
+  };
+  const parents = new Map(windows.map((l) => [l.key, parentOf(l.key)]));
+  return windows.flatMap((l) =>
+    parents.get(l.key) !== null
+      ? []
+      : [
+          {
+            key: l.key,
+            label: l.label,
+            gloss: l.gloss,
+            nested: windows.filter((n) => parents.get(n.key) === l.key).map((n) => ({ key: n.key, name: n.scope ?? n.label, label: n.label, gloss: n.gloss })),
+          },
+        ],
+  );
 }
 
 const PROBLEM_ORDER: readonly FreshnessView['state'][] = ['failing', 'stale', 'never', 'aging'];
@@ -201,7 +231,7 @@ export function deriveAccount(
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
   const read = deriveRead(feeds, now, cpa);
-  const { offers, offersClear } = deriveOffers(a.id, feeds, atWall, mine, now, limits);
+  const offers = deriveOffers(a.id, feeds, atWall, mine, now, limits);
   return {
     id: a.id,
     email: a.email,
@@ -214,7 +244,6 @@ export function deriveAccount(
     limits,
     spend: deriveSpend(feeds.spend, a.headers),
     offers,
-    offersClear,
     quietOffers: quietOffers(offers),
     activity: a.activity,
     freshness: [
@@ -460,6 +489,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       key: rowKey(draw.kind, draw.scopeModel),
       label: limitLabel(draw.kind, draw.scopeModel),
       gloss: draw.kind === 'weekly_scoped' && draw.scopeModel !== null ? `${draw.scopeModel} models only` : null,
+      scope: draw.scopeModel,
       phase: lapsed ? 'lapsed' : 'open',
       percent: lapsed ? null : draw.percent,
       left,
@@ -477,6 +507,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       key: rowKey('session', null),
       label: limitLabel('session', null),
       gloss: null,
+      scope: null,
       phase: 'idle',
       percent: null,
       left: 100 as PercentLeft,
@@ -630,9 +661,12 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
-function limitsNamed(clears: readonly string[]): string {
-  const windows = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase());
-  return windows.length === 0 ? 'limit' : `${windows.join(' and ')} ${windows.length === 1 ? 'limit' : 'limits'}`;
+/** A reset named by the limits it clears, then by its program: "Session reset · weekly". One that names nothing goes by its program alone. */
+function resetNames(clears: readonly string[], short: string): Pick<OfferView, 'what' | 'name'> {
+  const limits = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase()).join(' and ');
+  const named = `${limits || short} reset`;
+  const what = named.charAt(0).toUpperCase() + named.slice(1);
+  return { what, name: limits ? `${what} · ${short}` : what };
 }
 
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
@@ -649,7 +683,7 @@ export function deriveOffers(
   claims: readonly ClaimRecord[],
   now: Instant,
   limits: readonly LimitView[],
-): Pick<AccountView, 'offers' | 'offersClear'> {
+): OfferView[] {
   const j = feeds.juniper;
   const c = feeds.cedar;
   const jHolding = holdingClaim(claims, account, 'juniper_tide', programReadAt(feeds, 'juniper_tide'));
@@ -675,48 +709,41 @@ export function deriveOffers(
   const defaultGrant = cedar.kind === 'claimable' ? cv?.grants.find((g) => g.id === cedar.grant) : undefined;
   const grants = cv?.grants ?? [];
   const cedarClears = defaultGrant?.clears ?? [...new Set(grants.flatMap((g) => g.clears))];
-  const offersClear =
-    cedarClears.length === JUNIPER_CLEARS.length && JUNIPER_CLEARS.every((w) => cedarClears.includes(w))
-      ? { limits: `the ${limitsNamed(JUNIPER_CLEARS)}`, selfResets: selfResets(JUNIPER_CLEARS, limits) }
-      : null;
-  const clearsTerm = (clears: readonly string[]) => (offersClear === null && clears.length > 0 ? [`clears the ${limitsNamed(clears)}`] : []);
+  const bonus = resetNames(cedarClears, 'bonus');
+  const lone = grants.length === 1 ? grants[0]! : null;
 
-  return {
-    offersClear,
-    offers: [
-      {
-        program: 'juniper_tide',
-        name: 'Weekly reset',
-        short: 'weekly',
-        terms: [...clearsTerm(JUNIPER_CLEARS), 'one per week'],
-        effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
-        selfResets: selfResets(JUNIPER_CLEARS, limits),
-        state: juniper,
-        dataAt: j.last?.at ?? null,
-        grants: [],
-      },
-      {
-        program: 'cedar_ember',
-        name: 'Bonus reset',
-        short: 'bonus',
-        terms: clearsTerm(cedarClears),
-        effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
-        selfResets: selfResets(cedarClears, limits),
-        state: cedar,
-        dataAt: c.last?.at ?? null,
-        grants: grants.map((g) => ({
-          id: g.id,
-          label: g.label,
-          resetsLeft: g.resetsLeft,
-          resetsTotal: g.resetsTotal,
-          endsAt: g.endsAt,
-          clears: g.clears,
-          clearsText: clearsText(g.clears),
-          usable: cv !== null && usableGrant(cv, g),
-        })),
-      },
-    ],
-  };
+  return [
+    {
+      program: 'juniper_tide',
+      ...resetNames(JUNIPER_CLEARS, 'weekly'),
+      short: 'weekly',
+      effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
+      selfResets: selfResets(JUNIPER_CLEARS, limits),
+      state: juniper,
+      dataAt: j.last?.at ?? null,
+      grants: [],
+    },
+    {
+      program: 'cedar_ember',
+      what: bonus.what,
+      name: lone ? `${bonus.name}, ${lone.resetsLeft} of ${lone.resetsTotal} left` : bonus.name,
+      short: 'bonus',
+      effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
+      selfResets: selfResets(cedarClears, limits),
+      state: cedar,
+      dataAt: c.last?.at ?? null,
+      grants: grants.map((g) => ({
+        id: g.id,
+        label: g.label,
+        resetsLeft: g.resetsLeft,
+        resetsTotal: g.resetsTotal,
+        endsAt: g.endsAt,
+        clears: g.clears,
+        clearsText: clearsText(g.clears),
+        usable: cv !== null && usableGrant(cv, g),
+      })),
+    },
+  ];
 }
 
 const PROGRAM_SHORT: Readonly<Record<ProgramId, string>> = {
@@ -834,17 +861,26 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
       }
     }
   }
+  const order = deriveServeOrder(accounts, strategy === 'round-robin');
+  const inLine = order.lines.filter((l) => l.kind === 'in_line');
+  const atWall = new Set(accounts.filter((a) => a.atWall).map((a) => a.id));
+  const verdict = (a: AccountView, offers: readonly OfferView[]): ClaimVerdict => {
+    const line = order.lines.find((l) => l.account === a.id);
+    const selfAt = offers.flatMap((o) => o.selfResets.map((r) => r.at));
+    const backAt = line?.kind === 'blocked' ? line.until : selfAt.length === 0 ? null : (Math.max(...selfAt) as Instant);
+    const room = inLine.filter((l) => l.account !== a.id && !atWall.has(l.account)).map((l) => ({ account: l.account, email: l.email }));
+    return room.length > 0 ? { kind: 'not_needed', room, backAt } : { kind: 'worth_claiming', backAt };
+  };
   const claimable: ClaimableView[] = accounts.flatMap((a) => {
-    const resets = a.offers.flatMap((o) => {
+    const offers = a.offers.filter((o) => o.state.kind === 'claimable');
+    const resets = offers.flatMap((o) => {
       if (o.state.kind !== 'claimable') return [];
       const grant = o.state.grant;
       const g = o.grants.find((x) => x.id === grant);
       return [{ program: o.program, grant, name: o.name, detail: g ? `${g.resetsLeft} of ${g.resetsTotal} left` : null }];
     });
-    return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets }];
+    return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets, verdict: verdict(a, offers) }];
   });
-  const order = deriveServeOrder(accounts, strategy === 'round-robin');
-  const inLine = order.lines.filter((l) => l.kind === 'in_line');
   const after = (id: AccountId): RunOutView['after'] => {
     if (order.rotates || inLine[0]?.account !== id) return null;
     const next = inLine[1];

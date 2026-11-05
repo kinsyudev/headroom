@@ -1,11 +1,11 @@
 import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
-import type { AccountView, LimitColumn, RoutingView, ServingWhy } from '../../shared/view';
+import type { AccountView, ClaimableView, ClaimVerdict, LimitColumn, RoutingView, ServingWhy } from '../../shared/view';
 import { leftLabel, PACE_TICK_HELP, reasonTitle } from '../format';
 import { ActionButton } from './ActionButton';
-import { ActivityCell } from './ActivitySparkline';
+import { activitySpan, ActivityCell } from './ActivitySparkline';
 import { ModeLine } from './Freshness';
-import { LimitCell, SpendCell } from './LimitRow';
+import { LimitCell, SpendCell, SpendNote } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers, resetsAnchor } from './ResetOffers';
 import { Trouble } from './Trouble';
@@ -32,29 +32,44 @@ function serveFirstTitle(r: RoutingView, can: boolean): string {
 export function Accounts(props: {
   readonly accounts: readonly AccountView[];
   readonly columns: readonly LimitColumn[];
+  readonly extraUsage: boolean;
+  readonly claimable: readonly ClaimableView[];
   readonly colors: ReadonlyMap<AccountId, string>;
   readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
 }) {
   const style = { '--limit-cols': Math.max(1, props.columns.length) } as CSSProperties;
+  const longest = props.accounts.reduce<AccountView['activity']>((x, a) => (a.activity.length > x.length ? a.activity : x), []);
   return (
-    <section className="panel accounts" aria-label="Accounts" style={style}>
+    <section className={props.extraUsage ? 'panel accounts has-spend' : 'panel accounts'} aria-label="Accounts" style={style}>
       <div className="ledger-head" aria-hidden>
         <span>Account</span>
         {props.columns.length === 0 ? (
           <span>Room left</span>
         ) : (
           props.columns.map((c) => (
-            <span key={c.key} title={[c.gloss && `${c.label}: ${c.gloss}`, PACE_TICK_HELP].filter(Boolean).join('\n')}>
+            <span key={c.key} className={c.gloss ? 'help' : undefined} title={[c.gloss && `${c.label}: ${c.gloss}`, PACE_TICK_HELP].filter(Boolean).join('\n')}>
               {leftLabel(c.label)}
             </span>
           ))
         )}
-        <span title={EXTRA_USAGE_HELP}>Extra usage</span>
-        <span title={REQUESTS_HELP}>Requests</span>
+        {props.extraUsage && (
+          <span className="help" title={EXTRA_USAGE_HELP}>
+            Extra usage
+          </span>
+        )}
+        <span title={REQUESTS_HELP}>{longest.length === 0 ? 'Requests' : `Requests · last ${activitySpan(longest)}`}</span>
       </div>
       {props.accounts.length === 0 && <p className="acct-none muted">No Claude accounts in CPA yet.</p>}
       {props.accounts.map((a) => (
-        <AccountRow key={a.id} account={a} columns={props.columns} color={props.colors.get(a.id)!} onClaim={(program, grant) => props.onClaim(a.id, program, grant)} />
+        <AccountRow
+          key={a.id}
+          account={a}
+          columns={props.columns}
+          extraUsage={props.extraUsage}
+          verdict={props.claimable.find((c) => c.account === a.id)?.verdict ?? null}
+          color={props.colors.get(a.id)!}
+          onClaim={(program, grant) => props.onClaim(a.id, program, grant)}
+        />
       ))}
     </section>
   );
@@ -63,12 +78,15 @@ export function Accounts(props: {
 function AccountRow(props: {
   readonly account: AccountView;
   readonly columns: readonly LimitColumn[];
+  readonly extraUsage: boolean;
+  readonly verdict: ClaimVerdict | null;
   readonly color: string;
   readonly onClaim: (program: ProgramId, grant: GrantId | null) => void;
 }) {
   const a = props.account;
   const r = a.routing;
   const offersOpen = a.quietOffers === null;
+  const limitOf = (key: string) => a.limits.find((x) => x.key === key);
   return (
     <article className={`acct role-${r.role.kind}`} data-testid={`card-${a.email}`} data-account={a.id}>
       <header className="acct-id">
@@ -80,6 +98,7 @@ function AccountRow(props: {
           <div className="who-sub">
             <RoutingBadge routing={r} />
             <span className="plan">{a.plan?.label ?? 'plan unknown'}</span>
+            {!props.extraUsage && <SpendNote spend={a.spend} atWall={a.atWall} help={EXTRA_USAGE_HELP} />}
           </div>
         </div>
       </header>
@@ -88,17 +107,21 @@ function AccountRow(props: {
         <p className="cell acct-empty muted">No quota data yet. The first read is on its way.</p>
       ) : props.columns.length === 0 ? null : (
         props.columns.map((c) => {
-          const l = a.limits.find((x) => x.key === c.key);
-          return l ? <LimitCell key={c.key} account={a.id} limit={l} /> : <EmptyCell key={c.key} label={c.label} />;
+          const l = limitOf(c.key);
+          const nested = c.nested.flatMap((n) => {
+            const inner = limitOf(n.key);
+            return inner ? [{ name: n.name, limit: inner }] : [];
+          });
+          return l ? <LimitCell key={c.key} account={a.id} limit={l} nested={nested} /> : <EmptyCell key={c.key} label={c.label} />;
         })
       )}
-      <SpendCell spend={a.spend} atWall={a.atWall} help={EXTRA_USAGE_HELP} />
+      {props.extraUsage && <SpendCell spend={a.spend} atWall={a.atWall} help={EXTRA_USAGE_HELP} />}
       <ActivityCell buckets={a.activity} color={props.color} help={REQUESTS_HELP} />
 
       {(a.trouble !== null || offersOpen) && (
         <section className="acct-attention" aria-label={a.trouble === null ? 'Resets you can claim' : 'Trouble and fixes'} id={resetsAnchor(a.id)} tabIndex={-1}>
           <Trouble account={a} />
-          {offersOpen && <ResetOffers account={a} onClaim={props.onClaim} />}
+          {offersOpen && <ResetOffers account={a} verdict={props.verdict} onClaim={props.onClaim} />}
         </section>
       )}
 

@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react';
 import type { AccountId, PercentLeft } from '../../shared/domain';
 import type { LimitView, MeterTone, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
-import { age, clockTime, duration, leftLabel, money, percent, reasonText } from '../format';
+import { age, clockTime, duration, leftLabel, money, percent, reasonText, runOutWhen } from '../format';
 import { paceAnchor, usageLink } from '../route';
 
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
@@ -27,7 +26,7 @@ function paceTitle(p: NonNullable<LimitView['pace']>, now: number): string {
   const even = `${Math.round(100 - p.elapsed)}% left would be an even pace by now`;
   switch (p.outlook.kind) {
     case 'hits':
-      return `${even}; at this rate it runs out in ${duration(p.outlook.at - now)}, before the reset`;
+      return `${even}; at this rate it runs out ${runOutWhen(p.outlook.at, now)}, before the reset`;
     case 'lasts':
       return `${even}; at this rate it lasts to the reset`;
     case 'at_limit':
@@ -46,33 +45,45 @@ function resetNote(l: LimitView, now: number): { readonly text: string; readonly
   return { text: `${left} · ${at}`, title: `resets ${at}, in ${left}` };
 }
 
-export function LimitCell(props: { readonly account: AccountId; readonly limit: LimitView }) {
-  const now = useNow();
-  const l = props.limit;
-  const note = resetNote(l, now);
-  const pace = l.pace;
-  const runsOut = pace?.outlook.kind === 'hits' ? pace.outlook : null;
-  const title = [
+function limitTitle(l: LimitView, now: number): string {
+  return [
     l.gloss && `${l.label}: ${l.gloss}`,
-    note?.title,
-    pace && paceTitle(pace, now),
+    resetNote(l, now)?.title,
+    l.pace && paceTitle(l.pace, now),
     l.limiting && 'the limit holding this account back right now',
     `${SOURCE[l.source.kind]} ${age(now - l.source.at)} ago`,
     l.other && `Second reading: ${SOURCE[l.other.kind]} ${percent(l.other.left)} left, ${age(now - l.other.at)} ago`,
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+const TONE_ICON: Readonly<Record<MeterTone, string | null>> = { normal: null, warning: '!', critical: '✕' };
+
+/** nested: scoped windows that reset with this one, each said on a second line by name and percent left. */
+export function LimitCell(props: { readonly account: AccountId; readonly limit: LimitView; readonly nested: readonly { readonly name: string; readonly limit: LimitView }[] }) {
+  const now = useNow();
+  const l = props.limit;
+  const note = resetNote(l, now);
+  const pace = l.pace;
+  const runsOut = pace?.outlook.kind === 'hits' ? pace.outlook : null;
   return (
-    <div className={`cell limit phase-${l.phase} sev-${l.severity}`} data-testid={`limit-${l.key}`} title={title}>
+    <div className={`cell limit phase-${l.phase} sev-${l.severity}`} data-testid={`limit-${l.key}`} title={limitTitle(l, now)}>
       <span className="cell-label">{leftLabel(l.label)}</span>
       <span className="cell-value num" data-testid="percent">
         {percent(l.left)}
       </span>
       <span className="cell-note num">{note?.text}</span>
       <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} steady={pace === null ? null : 100 - pace.elapsed} />
+      {props.nested.map((n) => (
+        <span key={n.limit.key} className={`cell-nested num tone-${n.limit.tone}`} data-testid={`limit-${n.limit.key}`} title={limitTitle(n.limit, now)}>
+          {TONE_ICON[n.limit.tone] && <span aria-hidden>{TONE_ICON[n.limit.tone]} </span>}
+          <span className="help">{n.name}</span> {percent(n.limit.left)}
+        </span>
+      ))}
       {runsOut && pace && (
         <a className="cell-pace num" href={usageLink(paceAnchor(props.account, l.key))} title="See this window's pace in Usage" data-testid="pace-note">
-          <span aria-hidden>! </span>Runs out in {duration(runsOut.at - now)}
+          <span aria-hidden>! </span>Runs out {runOutWhen(runsOut.at, now)}
         </a>
       )}
     </div>
@@ -87,7 +98,7 @@ const overageText = (o: Overage) =>
   [o.left !== null && `${percent(o.left)} left`, o.status && (OVERAGE_STATUS[o.status] ?? o.status), o.reason && `(${reasonText(o.reason)})`].filter(Boolean).join(' ');
 
 interface SpendFace {
-  readonly value: ReactNode;
+  readonly value: string;
   readonly note: string | null;
   readonly tone: 'quiet' | 'warning' | 'critical' | 'metered';
   readonly says: string;
@@ -120,6 +131,37 @@ function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
   return { value: 'Not read', note: atWall ? 'skipped at the limit' : null, tone: 'quiet', says: atWall ? 'amounts are not read while the account is at its limit' : 'not read yet' };
 }
 
+function spendTitle(s: SpendView, face: SpendFace, now: number): string {
+  const codes = [...new Set([s.poll?.disabledReason, s.live?.reason].filter(Boolean))];
+  return [
+    `Extra usage: ${face.says}`,
+    face.note,
+    s.poll ? `poll ${age(now - s.poll.at)} ago` : null,
+    s.live && `${overageText(s.live)}, live ${age(now - s.live.at)} ago`,
+    codes.length > 0 && `reason code: ${codes.join(', ')}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** Extra usage said on the account's plan line while it has no column: in words when off, as a chip when a cap stops it. */
+export function SpendNote(props: { readonly spend: SpendView | null; readonly atWall: boolean; readonly help: string }) {
+  const now = useNow();
+  if (!props.spend) return null;
+  const face = spendFace(props.spend, props.atWall, now);
+  const icon = face.tone === 'critical' || face.tone === 'warning' ? TONE_ICON[face.tone] : null;
+  return (
+    <span className={icon ? `chip spend-chip tone-${face.tone}` : 'spend-note'} data-testid="spend" title={`${props.help}\n${spendTitle(props.spend, face, now)}`}>
+      {icon && (
+        <span className="chip-icon" aria-hidden>
+          {icon}
+        </span>
+      )}
+      <span className="help">Extra usage</span> {face.value.toLowerCase()}
+    </span>
+  );
+}
+
 export function SpendCell(props: { readonly spend: SpendView | null; readonly atWall: boolean; readonly help: string }) {
   const now = useNow();
   const s = props.spend;
@@ -133,17 +175,8 @@ export function SpendCell(props: { readonly spend: SpendView | null; readonly at
   }
   const face = spendFace(s, props.atWall, now);
   const p = s.poll;
-  const codes = [...new Set([p?.disabledReason, s.live?.reason].filter(Boolean))];
-  const title = [
-    `Extra usage: ${face.says}`,
-    p ? `poll ${age(now - p.at)} ago` : null,
-    s.live && `${overageText(s.live)}, live ${age(now - s.live.at)} ago`,
-    codes.length > 0 && `reason code: ${codes.join(', ')}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
   return (
-    <div className={`cell spend tone-${face.tone}`} data-testid="spend" title={title}>
+    <div className={`cell spend tone-${face.tone}`} data-testid="spend" title={spendTitle(s, face, now)}>
       <span className="cell-label">Extra usage</span>
       <span className="cell-value num">
         {face.tone === 'critical' && (

@@ -30,10 +30,22 @@ export interface DeckView {
   readonly cpa: CpaView;
   /** Every usage window any account reports, in display order: the columns of the accounts table. */
   readonly limitColumns: readonly LimitColumn[];
+  /** Extra usage takes a column only while some account has it on with room to spend; otherwise each account's plan line says it in words. */
+  readonly extraUsageColumn: boolean;
 }
 
 export interface LimitColumn {
   readonly key: string;
+  readonly label: string;
+  readonly gloss: string | null;
+  /** Scoped windows that reset with this one on every account that has them, so its cell says each on a second line and they take no column. */
+  readonly nested: readonly NestedLimit[];
+}
+
+/** name: what the second line calls the window inside its parent's cell ("Fable"). */
+export interface NestedLimit {
+  readonly key: string;
+  readonly name: string;
   readonly label: string;
   readonly gloss: string | null;
 }
@@ -81,7 +93,17 @@ export interface ClaimableView {
   readonly account: AccountId;
   readonly email: string;
   readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: string; readonly detail: string | null }[];
+  readonly verdict: ClaimVerdict;
 }
+
+/**
+ * Whether claiming helps now. not_needed: some other account CPA can send new sessions to is not at a limit, so new sessions
+ * have somewhere to go. worth_claiming: none is. backAt: when the account is back without a claim, as the serve order says for
+ * a blocked one, else when the limits its resets clear reset on their own; null when that is unknown.
+ */
+export type ClaimVerdict =
+  | { readonly kind: 'not_needed'; readonly room: readonly { readonly account: AccountId; readonly email: string }[]; readonly backAt: Instant | null }
+  | { readonly kind: 'worth_claiming'; readonly backAt: Instant | null };
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
 
@@ -117,11 +139,6 @@ export interface AccountView {
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
   readonly offers: readonly OfferView[];
-  /**
-   * What every reset clears ("the session limit") when they all clear the same limits, said once for all of them, with when
-   * each of those limits resets on its own without a claim; null when they differ, so each row names its own.
-   */
-  readonly offersClear: { readonly limits: string; readonly selfResets: OfferView['selfResets'] } | null;
   /** Phrases for one line standing in for the offers when none is claimable, waiting, in flight or unreadable; null when any is. */
   readonly quietOffers: readonly string[] | null;
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
@@ -211,6 +228,8 @@ export interface LimitView {
   readonly label: string;
   /** What the label leaves unsaid: a scoped weekly window counts only its model's requests ("Fable models only"). */
   readonly gloss: string | null;
+  /** The model a scoped window counts ("Fable"); null for a window that counts every model. */
+  readonly scope: string | null;
   readonly phase: WindowPhase;
   /** Used. What the wall and trouble are judged on; the page draws `left`. */
   readonly percent: Percent | null;
@@ -303,16 +322,15 @@ export interface GrantView {
 
 export interface OfferView {
   readonly program: ProgramId;
-  /** The reset's one name, from the card row and its Claim button to the claim dialog: its source ("Weekly reset"). */
+  /** The reset named by what it clears ("Session reset"), so it is never read as clearing the window its program is named for. */
+  readonly what: string;
+  /**
+   * The reset's one name, from the card row to the claim dialog: what it clears, then which program, then what is left of a lone
+   * grant ("Session reset · weekly", "Session reset · bonus, 2 of 3 left").
+   */
   readonly name: string;
   /** The name on its Claim button ("weekly"). */
   readonly short: string;
-  /**
-   * The standing terms that follow the name on the card row: how often it comes ("one per week"), and what it clears
-   * ("clears the session limit") only when the account's resets differ in that (see AccountView.offersClear). A grant's
-   * count and end come from grants.
-   */
-  readonly terms: readonly string[];
   readonly effect: string;
   /** When each limit the reset clears would reset without it; limits with no open window are left out. */
   readonly selfResets: readonly { readonly what: string; readonly at: Instant }[];

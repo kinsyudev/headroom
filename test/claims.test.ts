@@ -113,7 +113,7 @@ describe('claims against the fake CPA', () => {
     expect(r.resetQuotas()).toHaveLength(0);
 
     const feeds = r.poller.feeds()[ACC3]!;
-    const offer = deriveOffers(ACC3, feeds, true, r.claims.list(), realClock.now(), []).offers.find((o) => o.program === 'juniper_tide')!;
+    const offer = deriveOffers(ACC3, feeds, true, r.claims.list(), realClock.now(), []).find((o) => o.program === 'juniper_tide')!;
     expect(offer.state).toEqual({ kind: 'in_flight', claim: rec.id, phase: 'maybe_sent', result: null });
   });
 

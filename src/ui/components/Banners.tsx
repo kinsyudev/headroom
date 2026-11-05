@@ -36,12 +36,11 @@ function BannerText(props: { readonly banner: Banner }) {
               'CPA has not answered yet.'
             ) : (
               <>
-                CPA is not answering. CPA last answered at <Clock at={b.lastAt} /> (<Age at={b.lastAt} /> ago).
+                CPA is not answering. Quota, resets and history below are as of <Clock at={b.lastAt} /> (<Age at={b.lastAt} /> ago) and keep counting down.
               </>
             )}
           </strong>
-          {b.lastAt !== null && <span className="banner-line">Quota, resets and history below are the last known values and keep counting down.</span>}
-          <span className="banner-line">Routing and account actions are paused until CPA answers. Check that CPA is running.</span>
+          <span className="banner-line">Routing and account actions are paused until CPA answers. Check that CPA is running at the address in Headroom's CPA_BASE_URL.</span>
         </>
       );
     case 'claim_unknown':

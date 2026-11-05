@@ -1,6 +1,6 @@
 import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
-import type { Grain } from '../shared/view';
+import type { ClaimVerdict, Grain } from '../shared/view';
 
 const CLAIM_RESULT: Readonly<Record<string, string>> = {
   already_used: 'already used this week',
@@ -48,6 +48,19 @@ export function clockTime(at: number, now: number): string {
   if (d.toDateString() === new Date(now).toDateString()) return hm;
   if (Math.abs(at - now) < 6 * 86_400_000) return `${d.toLocaleDateString([], { weekday: 'short' })} ${hm}`;
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
+}
+
+/** When a window runs out, in the one form the strip, the account row and the Usage pace row use: "~19:49 · in 3h 18m". */
+export const runOutWhen = (at: number, now: number): string => `~${clockTime(at, now)} · in ${duration(at - now)}`;
+
+const listed = (names: readonly string[]): string => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
+
+/** Whether a claim helps now, in the one sentence the claim panel says; the Claimable resets tile leaves out when the account is back, which the serve order beside it says. */
+export function claimVerdictText(v: ClaimVerdict, email: string, now: number, withBack: boolean): { readonly lead: string; readonly rest: string } {
+  const back = v.backAt === null || !withBack ? '' : `; ${shortName(email)} is back at ${clockTime(v.backAt, now)}`;
+  return v.kind === 'not_needed'
+    ? { lead: 'Not needed now', rest: `${listed(v.room.map((r) => shortName(r.email)))} ${v.room.length === 1 ? 'has' : 'have'} room${back}` }
+    : { lead: 'Worth claiming', rest: `no other account has room${back}` };
 }
 
 /** The one place a column says which way its figures run: the header, the narrow row label and the meter's name. */

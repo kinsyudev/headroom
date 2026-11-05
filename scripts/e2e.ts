@@ -85,12 +85,18 @@ try {
   );
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
+  const verdict = await text(page.getByTestId('tile-claimable').getByTestId('claim-verdict'));
+  const panelVerdict = await text(card('account3@example.com').getByTestId('claim-verdict'));
+  assert(
+    verdict === 'Not needed now: account1 and account2 have room' && new RegExp(`^${verdict}; account3 is back at \\d\\d:\\d\\d$`).test(panelVerdict),
+    `the Claimable tile and account3's claim panel say in one line why a claim is not needed now, and the panel when account3 is back: "${verdict}" / "${panelVerdict}"`,
+  );
   const nextReset = await text(page.getByTestId('tile-next-reset').getByTestId('next-reset'));
   assert(/^account3 session resets \d\d:\d\d$/.test(nextReset) && !(await text(page.getByTestId('tile-next-reset'))).includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
   const runOut = page.getByTestId('tile-next-reset').getByTestId('run-out');
   const runOutTitle = (await runOut.getAttribute('title')) ?? '';
   assert(
-    /^! account1 session runs out ~\d\d:\d\d$/.test(await text(runOut)) &&
+    /^! account1 session runs out ~\d\d:\d\d · in (\d+h )?\d+m$/.test(await text(runOut)) &&
       /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before its \d\d:\d\d reset\. New sessions then go to account2\./.test(runOutTitle),
     `the strip warns in one line that account1's session runs out, and its tooltip says how long before the reset and that account2 takes over: "${await text(runOut)}" / "${runOutTitle}"`,
   );
@@ -99,16 +105,23 @@ try {
     'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
   );
   const runsOut = await text(card('account1@example.com').getByTestId('limit-session').getByTestId('pace-note'));
-  assert(/^! Runs out in (\d+h )?\d+m$/.test(runsOut), `account1's session cell warns it runs out before its reset: "${runsOut}"`);
-  const tabBadge = page.getByTestId('nav-analytics').locator('.tab-badge');
-  const tabBadgeTitle = (await tabBadge.getAttribute('title')) ?? '';
   assert(
-    (await text(tabBadge)) === '1 running out' && /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before it resets$/.test(tabBadgeTitle),
-    `the Usage tab says one window is running out, and its tooltip names account1's session and how long before its reset: "${tabBadgeTitle}"`,
+    /^! Runs out ~\d\d:\d\d · in (\d+h )?\d+m$/.test(runsOut) && runsOut.slice('! Runs out '.length) === (await text(runOut)).slice('! account1 session runs out '.length),
+    `account1's session cell warns it runs out before its reset, in the strip's own words: "${runsOut}"`,
+  );
+  assert((await text(page.getByTestId('nav-analytics'))) === 'Usage', 'the Usage tab carries no badge, since the strip says what runs out');
+  const ledgerHeads = (await page.locator('.ledger-head > span').allTextContents()).join('|');
+  assert(
+    /^Account\|Session left\|Weekly left\|Requests · last (\d+h )?\d+m$/.test(ledgerHeads),
+    `each quota column says once, in its header, that it counts what is left, and Requests names its window there: "${ledgerHeads}"`,
   );
   assert(
-    (await page.locator('.ledger-head > span').allTextContents()).join('|') === 'Account|Session left|Weekly left|Weekly · Fable left|Extra usage|Requests',
-    'each quota column says once, in its header, that it counts what is left',
+    (await text(card('account1@example.com').getByTestId('limit-weekly_all').getByTestId('limit-weekly_scoped:Fable'))) === 'Fable 92%',
+    "Fable's weekly window resets with Weekly, so it is a second line in the Weekly cell instead of a column",
+  );
+  assert(
+    (await text(card('account1@example.com').getByTestId('spend'))) === 'Extra usage off' && (await text(card('account2@example.com').getByTestId('spend'))) === 'Extra usage off',
+    'with no account spending extra usage it takes no column, and each plan line says it is off',
   );
   const pct = async (email: string, key: string) => text(card(email).getByTestId(`limit-${key}`).getByTestId('percent'));
   assert((await pct('account1@example.com', 'session')) === '88%', 'account1 session 88% left from the poll');
@@ -190,12 +203,12 @@ try {
   const dialog = page.getByTestId('claim-dialog');
   await dialog.waitFor();
   const facts = await text(dialog);
-  for (const s of ['account3@example.com', 'Team · Max 5x', 'Weekly reset', 'Clears the session (5h) limit now', 'This cannot be undone']) {
+  for (const s of ['account3@example.com', 'Team · Max 5x', 'Session reset · weekly', 'Clears the session (5h) limit now', 'This cannot be undone']) {
     assert(facts.includes(s), `claim dialog names "${s}"`);
   }
   assert(!facts.includes('juniper_tide'), 'claim dialog shows no raw program code');
   assert((await dialog.locator('#claim-name').getAttribute('title')) === 'juniper_tide', 'claim dialog keeps the program code in the name title');
-  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim weekly reset on account3@example.com', 'confirm button names the reset picked and the account');
+  assert((await text(dialog.getByTestId('claim-confirm'))) === 'Claim session reset on account3@example.com', 'confirm button names what the reset clears and the account');
   await page.screenshot({ path: join(SHOTS, 'e2e-2-claim-dialog.png') });
   pass('claim dialog names account, program and effect');
   await step(
@@ -257,7 +270,7 @@ try {
   assert(page.url().endsWith(`#usage/pace-${ACC1}-session`), "the run-out note links to its window's row in Usage");
   assert(
     (await paceRow.evaluate((el) => el.classList.contains('targeted') && el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().bottom <= window.innerHeight)) &&
-      (await text(paceRow)).includes('Runs out in'),
+      /Runs out ~\d\d:\d\d · in (\d+h )?\d+m/.test(await text(paceRow)),
     "the run-out note opens Usage scrolled to account1's session pace row, marked, and saying it runs out",
   );
   pass('the run-out note on a card opens its quota pace row in Usage');
@@ -269,7 +282,7 @@ try {
   assert((await text(page.getByTestId('kpi-top'))).includes('Opus 5.5'), 'the most used model is named in plain words');
   const paceRows = page.getByTestId('pace').locator('.pace-row');
   assert((await paceRows.count()) >= 3, 'the quota pace lists a row per open window');
-  assert(/Lasts to the reset|Runs out in|At its limit|Too early to say/.test(await text(paceRows.first())), 'every pace row ends in one of the four outlooks');
+  assert(/Lasts to the reset|Runs out ~|At its limit|Too early to say/.test(await text(paceRows.first())), 'every pace row ends in one of the four outlooks');
   assert(
     (await page.getByTestId('analytics').locator(':scope > *').evaluateAll((els) => els.slice(0, 3).map((el) => el.getAttribute('data-testid') ?? el.className))).join('|') === 'pace|toolbar|week-strip',
     'Usage opens on the quota pace, then the Explore bar, then the range-driven week strip',

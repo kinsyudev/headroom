@@ -247,19 +247,6 @@ code {
   font-weight: 500;
   text-decoration: none;
 }
-.tab-badge {
-  display: inline-block;
-  margin-left: 7px;
-  padding: 2px 7px;
-  border-radius: 9px;
-  background: var(--warning);
-  color: var(--page);
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 14px;
-  vertical-align: 1px;
-  white-space: nowrap;
-}
 .view-tab:hover {
   color: var(--ink);
   background: var(--surface-2);
@@ -570,16 +557,6 @@ span.banner-line {
 .stat p {
   margin: 0;
 }
-.summary-asof {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 6px 18px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
-  border-bottom: 1px solid var(--grid);
-}
 .page.cpa-down .stat :is(.hero:not(.muted), .order-left) {
   color: var(--ink-2);
 }
@@ -606,7 +583,7 @@ a.cell-pace {
   margin-block: -7px;
   color: var(--warning);
   font-weight: 500;
-  text-decoration: underline dotted color-mix(in srgb, var(--warning) 55%, transparent);
+  text-decoration: underline color-mix(in srgb, var(--warning) 40%, transparent);
   text-underline-offset: 3px;
 }
 a.cell-pace:hover {
@@ -717,9 +694,12 @@ a.cell-pace:hover {
 }
 
 .panel.accounts {
-  --cols: minmax(236px, 1.2fr) repeat(var(--limit-cols), minmax(0, 1fr)) minmax(120px, 0.6fr) minmax(160px, 0.7fr);
+  --cols: minmax(236px, 1.2fr) repeat(var(--limit-cols), minmax(0, 1fr)) minmax(160px, 0.7fr);
   padding: 0;
   gap: 0;
+}
+.panel.accounts.has-spend {
+  --cols: minmax(236px, 1.2fr) repeat(var(--limit-cols), minmax(0, 1fr)) minmax(120px, 0.6fr) minmax(160px, 0.7fr);
 }
 .ledger-head,
 .acct {
@@ -735,8 +715,8 @@ a.cell-pace:hover {
 }
 .ledger-head > * {
   cursor: default;
+  white-space: nowrap;
 }
-.ledger-head > [title],
 .help {
   cursor: help;
   text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent);
@@ -859,6 +839,32 @@ a.cell-pace:hover {
   grid-row: 3;
   justify-self: start;
   font-size: 12.5px;
+}
+.cell > .cell-nested {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: -2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.cell-nested.tone-warning {
+  color: var(--warning);
+}
+.cell-nested.tone-critical {
+  color: var(--critical-ink);
+}
+.spend-note {
+  color: var(--muted);
+}
+.spend-chip.tone-critical .chip-icon {
+  color: var(--critical-ink);
+}
+.spend-chip.tone-warning .chip-icon {
+  color: var(--warning);
+}
+.verdict strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 .cell-unit {
   font-size: 12.5px;
@@ -1191,6 +1197,14 @@ a.cell-pace:hover {
 .menu-item.destructive:is(:hover, :focus-visible):not([aria-disabled]) {
   background: color-mix(in srgb, var(--critical) 18%, transparent);
   color: var(--ink);
+}
+.menu-paused {
+  margin-left: auto;
+  padding-left: 16px;
+  font-size: 12px;
+}
+.upkeep-menu > .btn[data-paused] {
+  cursor: pointer;
 }
 .mode {
   font-size: 13px;
@@ -1587,6 +1601,9 @@ table.errors td.message {
 }
 
 @media (min-width: 1251px) {
+  .cell-span {
+    display: none;
+  }
   .spend:has(.meter) > .cell-note {
     grid-column: 1 / -1;
     grid-row: 3;
@@ -1601,7 +1618,7 @@ table.errors td.message {
     display: none;
   }
   .acct {
-    grid-template-columns: max-content minmax(60px, 1fr) max-content minmax(124px, max-content);
+    grid-template-columns: max-content minmax(60px, 1fr) 42px 150px;
     column-gap: 14px;
     row-gap: 10px;
   }
@@ -1635,6 +1652,10 @@ table.errors td.message {
   .cell > .cell-pace {
     grid-column: 2 / -1;
     grid-row: 2;
+  }
+  .cell > .cell-nested {
+    grid-column: 2 / -1;
+    margin-top: -4px;
   }
   .cell > .cell-value {
     grid-column: 3;
@@ -2127,11 +2148,7 @@ table.errors td.message {
   gap: 7px;
   max-width: 62ch;
 }
-.pace-headline.warn {
-  color: var(--warning);
-  font-weight: 500;
-}
-.pace-headline.ok > span {
+.pace-headline > span {
   color: var(--brand);
 }
 .pace-key {

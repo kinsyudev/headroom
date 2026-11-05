@@ -143,8 +143,9 @@ export function UpkeepMenu(props: { readonly account: AccountView }) {
         aria-expanded={open !== null}
         aria-controls={open !== null ? id : undefined}
         aria-label={`More actions for ${a.email}`}
-        title="Check now, refresh token, disable"
+        title={paused === null ? 'Check now, refresh token, disable' : `${paused}: check now, refresh token, disable`}
         data-testid="more-actions"
+        data-paused={paused !== null || undefined}
         onClick={() => (open === null ? setOpen('first') : setOpen(null))}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -171,6 +172,7 @@ export function UpkeepMenu(props: { readonly account: AccountView }) {
               onClick={() => void choose(item)}
             >
               {item.label}
+              {paused !== null && <span className="menu-paused">paused</span>}
             </button>
           ))}
         </div>

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { AccountId } from '../../../shared/domain';
 import type { MeterTone, PaceAccountView, PaceView } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { clockTime, compact, count, duration, foldedPaceSays, PACE_TICK_HELP, shortName } from '../../format';
+import { clockTime, compact, count, duration, foldedPaceSays, PACE_TICK_HELP, runOutWhen, shortName } from '../../format';
 import { paceAnchor, useJumpTarget } from '../../route';
 import { Meter } from '../LimitRow';
 
@@ -23,7 +23,7 @@ const LOOKS: Readonly<Record<PaceView['pace']['outlook']['kind'], Look>> = {
     cls: 'warn',
     main: (p, now) => {
       const o = p.pace.outlook;
-      return o.kind === 'hits' ? `Runs out in ${duration(o.at - now)}` : null;
+      return o.kind === 'hits' ? `Runs out ${runOutWhen(o.at, now)}` : null;
     },
     sub: (p, now) => {
       const o = p.pace.outlook;
@@ -138,19 +138,7 @@ export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; re
   const now = useNow();
   const target = useJumpTarget();
   const attention = props.pace.flatMap((a) => a.attention);
-  const hits = attention.filter((p) => p.pace.outlook.kind === 'hits');
-  const headline =
-    hits.length === 0
-      ? attention.length === 0
-        ? 'No window is on course to run out before it resets.'
-        : 'Nothing else is on course to run out before it resets.'
-      : hits
-          .map((p) => {
-            const o = p.pace.outlook;
-            return o.kind === 'hits' ? `${shortName(p.email)} ${p.limit.label.toLowerCase()} runs out in ${duration(o.at - now)}, before it resets at ${clockTime(p.pace.endsAt, now)}` : '';
-          })
-          .join(' · ');
-  const warn = hits.length > 0;
+  const anyHits = attention.some((p) => p.pace.outlook.kind === 'hits');
 
   return (
     <section className="card" aria-label="Quota pace" data-testid="pace">
@@ -159,9 +147,11 @@ export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; re
           <h2>Quota pace</h2>
           <p>Will each quota window last until it resets, at the pace so far?</p>
         </div>
-        <p className={`card-note pace-headline ${warn ? 'warn' : 'ok'}`} role="status">
-          <span aria-hidden>{warn ? '!' : '✓'}</span> {headline}
-        </p>
+        {!anyHits && (
+          <p className="card-note pace-headline" role="status">
+            <span aria-hidden>✓</span> {attention.length === 0 ? 'No window is on course to run out before it resets.' : 'Nothing else is on course to run out before it resets.'}
+          </p>
+        )}
       </div>
       {props.pace.length === 0 ? (
         <p className="muted">No quota window is running. One opens with the next request.</p>

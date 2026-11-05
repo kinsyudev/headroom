@@ -8,6 +8,9 @@ const H = 22;
 const TICK = 3;
 const TEN_MIN = 600_000;
 
+/** How far back an account's request bars reach: "3h 20m". */
+export const activitySpan = (buckets: AccountView['activity']): string => duration(buckets.length * TEN_MIN);
+
 export function ActivityCell(props: { readonly buckets: AccountView['activity']; readonly color: string; readonly help: string }) {
   const now = useNow();
   const [hover, setHover] = useState<number | null>(null);
@@ -26,7 +29,7 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
   const total = b.reduce((n, x) => n + x.success + x.failed, 0);
   const failed = b.reduce((n, x) => n + x.failed, 0);
   const since = clockTime(b[0]!.start, now);
-  const span = duration(b.length * TEN_MIN);
+  const span = activitySpan(b);
   const h = hover === null ? null : b[hover]!;
   return (
     <figure className="cell activity" title={`${props.help} The bars start at ${since}. A red tick under a bar marks failed requests.`}>
@@ -42,7 +45,7 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
         ) : (
           <>
             {total}
-            <span className="cell-unit"> in the last {span}</span>
+            <span className="cell-unit cell-span"> in the last {span}</span>
           </>
         )}
         {failed > 0 && (

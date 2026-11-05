@@ -1,10 +1,10 @@
 import { Fragment } from 'react';
 import type { AccountId, Instant } from '../../shared/domain';
 import type { DeckView, RunOutView, ServeLine } from '../../shared/view';
-import { clockTime, duration, leftLabel, percent, reasonTitle, SERVE_ORDER_HELP, shortName } from '../format';
+import { clockTime, duration, leftLabel, percent, reasonTitle, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
 import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
-import { resetsAnchor } from './ResetOffers';
+import { resetsAnchor, VerdictLine } from './ResetOffers';
 import { Segments } from './Segments';
 
 /** One window running out, said in full for the strip line's tooltip. */
@@ -48,23 +48,6 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
   const runOut = o.runningOut[0];
   return (
     <section className="summary" aria-label="Overview" data-testid="overview">
-      {cpa.kind === 'down' && (
-        <p className="summary-asof">
-          {cpa.lastAt === null ? (
-            'CPA has not answered yet'
-          ) : (
-            <Segments
-              parts={[
-                'Last known values',
-                <>
-                  CPA last answered <Clock at={cpa.lastAt} />
-                </>,
-              ]}
-            />
-          )}
-        </p>
-      )}
-
       <div
         className="stat serving"
         data-testid="tile-serving"
@@ -147,7 +130,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         {runOut && (
           <a className="stat-sub cell-pace" href={usageLink(paceAnchor(runOut.account, runOut.limit.key))} title={`${o.runningOut.map((r) => runOutText(r, props.deck.now)).join('\n')}\nOpen its pace in Usage`} data-testid="run-out">
             <span aria-hidden>! </span>
-            {who(runOut.account, runOut.email)} {runOut.limit.label.toLowerCase()} runs out ~<Clock at={runOut.at} />
+            {who(runOut.account, runOut.email)} {runOut.limit.label.toLowerCase()} runs out <span className="nowrap">{runOutWhen(runOut.at, props.deck.now)}</span>
           </a>
         )}
       </div>
@@ -155,6 +138,11 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
       <div className={o.claimableCount > 0 && !down ? 'stat claims has-claims' : 'stat claims'} data-testid="tile-claimable">
         <h2>Claimable resets</h2>
         <p className="hero num">{o.claimableCount}</p>
+        {!down && claimAccounts[0] && (
+          <p className="stat-sub">
+            <VerdictLine verdict={claimAccounts[0].verdict} email={claimAccounts[0].email} back={false} />
+          </p>
+        )}
         <p className="stat-sub">
           {down ? (
             'Claims are paused until CPA answers.'
@@ -173,7 +161,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
       </div>
 
       <div className="stat order" data-testid="tile-headroom">
-        <h2 className="help" title={SERVE_ORDER_HELP}>
+        <h2 title={SERVE_ORDER_HELP}>
           {o.order.rotates ? 'Serve order · rotates' : 'Serve order'}
         </h2>{' '}
         {o.order.lines.length === 0 ? (

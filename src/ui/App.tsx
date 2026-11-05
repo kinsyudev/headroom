@@ -39,7 +39,14 @@ export function App() {
           {view === 'monitor' ? (
             <>
               <OverviewStrip deck={deck} colors={colors} />
-              <Accounts accounts={deck.accounts} columns={deck.limitColumns} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
+              <Accounts
+                accounts={deck.accounts}
+                columns={deck.limitColumns}
+                extraUsage={deck.extraUsageColumn}
+                claimable={deck.overview.claimable}
+                colors={colors}
+                onClaim={(account, program, grant) => setClaim({ account, program, grant })}
+              />
               <HistoryPanel accounts={deck.accounts} colors={colors} />
             </>
           ) : (

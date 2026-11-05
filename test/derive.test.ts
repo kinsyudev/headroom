@@ -346,7 +346,7 @@ describe('offers and claimability', () => {
     id: 'c1' as ClaimId, account: ACC3, program, grant: null, startedAt: T0, state,
   });
   const limitsOf = (feeds: AccountFeeds) => mergeLimits(feeds.limits.last, null, T0);
-  const offersOf = (feeds: AccountFeeds, atWall = true, claims: ClaimRecord[] = []) => deriveOffers(ACC3, feeds, atWall, claims, T0, limitsOf(feeds)).offers;
+  const offersOf = (feeds: AccountFeeds, atWall = true, claims: ClaimRecord[] = []) => deriveOffers(ACC3, feeds, atWall, claims, T0, limitsOf(feeds));
   const offers = (feeds = feedsFrom(synthetic, T0), atWall = true, claims: ClaimRecord[] = []) =>
     Object.fromEntries(offersOf(feeds, atWall, claims).map((o) => [o.program, o.state])) as Record<ClaimRecord['program'], OfferState>;
 
@@ -395,30 +395,19 @@ describe('offers and claimability', () => {
     expect(d.banners).toContainEqual({ kind: 'claim_unknown', claim: 'c1' as ClaimId, email: 'account3@example.com', program: 'juniper_tide', label: 'Weekly session reset' });
   });
 
-  describe('naming a reset once and saying what it clears once', () => {
+  describe('naming a reset by what it clears', () => {
     const withGrants = (grants: CedarEmber['grants']): AccountFeeds => {
       const f = feedsFrom(synthetic, T0);
       return { ...f, cedar: { ...f.cedar, last: { value: c({ grants }), at: T0 } } };
     };
-    const panel = (feeds: AccountFeeds) => {
-      const a = deriveDeck(snapshot({ feeds: { [ACC3]: feeds } }), T0).accounts.find((x) => x.id === ACC3)!;
-      return { offersClear: a.offersClear?.limits ?? null, rows: Object.fromEntries(a.offers.map((o) => [o.program, [o.name, ...o.terms]])) };
-    };
-    const eachRowSaysItsOwn = (bonus: string[]) => ({
-      offersClear: null,
-      rows: { juniper_tide: ['Weekly reset', 'clears the session limit', 'one per week'], cedar_ember: ['Bonus reset', ...bonus] },
-    });
+    const names = (feeds: AccountFeeds) =>
+      Object.fromEntries(deriveDeck(snapshot({ feeds: { [ACC3]: feeds } }), T0).accounts.find((x) => x.id === ACC3)!.offers.map((o) => [o.program, [o.what, o.name]]));
 
-    test('resets that clear the same limit say it once, and each row keeps its one name and what sets it apart', () => {
-      expect(panel(feedsFrom(synthetic, T0))).toEqual({
-        offersClear: 'the session limit',
-        rows: { juniper_tide: ['Weekly reset', 'one per week'], cedar_ember: ['Bonus reset'] },
+    test('both resets clear the session limit, so each is a session reset, told apart by its program and a lone grant by what is left of it', () => {
+      expect(names(feedsFrom(synthetic, T0))).toEqual({
+        juniper_tide: ['Session reset', 'Session reset · weekly'],
+        cedar_ember: ['Session reset', 'Session reset · bonus, 2 of 3 left'],
       });
-    });
-
-    test('the line said once for every reset names when the limit they clear resets on its own', () => {
-      const a = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0).accounts.find((x) => x.id === ACC3)!;
-      expect(a.offersClear?.selfResets).toEqual([{ what: 'the session limit', at: at('2026-11-04T14:20:00.412Z') }]);
     });
 
     test('each Claim button names its reset in a word', () => {
@@ -429,25 +418,26 @@ describe('offers and claimability', () => {
     });
 
     test.each([
-      ['a weekly bonus', ['seven_day'], 'clears the weekly limit'],
-      ['a bonus clearing both', ['five_hour', 'seven_day'], 'clears the session and weekly limits'],
-    ] as const)('%s clears something else, so each row names what it clears', (_label, clears, bonus) => {
-      expect(panel(withGrants([{ ...grant, clears: [...clears] }]))).toEqual(eachRowSaysItsOwn([bonus]));
+      ['a weekly bonus', ['seven_day'], ['Weekly reset', 'Weekly reset · bonus, 2 of 3 left']],
+      ['a bonus clearing both', ['five_hour', 'seven_day'], ['Session and weekly reset', 'Session and weekly reset · bonus, 2 of 3 left']],
+      ['a bonus naming nothing', [], ['Bonus reset', 'Bonus reset, 2 of 3 left']],
+    ] as const)('%s is named by what it clears, and the weekly one stays a session reset', (_label, clears, bonus) => {
+      expect(names(withGrants([{ ...grant, clears: [...clears] }]))).toEqual({ juniper_tide: ['Session reset', 'Session reset · weekly'], cedar_ember: [...bonus] });
     });
 
-    test('a bonus naming nothing claims nothing, and the weekly reset still says what it clears', () => {
-      expect(panel(withGrants([{ ...grant, clears: [] }]))).toEqual(eachRowSaysItsOwn([]));
-      expect(panel(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0))).toEqual(eachRowSaysItsOwn([]));
+    test('several grants say what is left of each in their own list, so the name leaves the count out', () => {
+      const second = { ...grant, id: 'grant_example_2' as GrantId, label: 'Second', resetsLeft: 1 };
+      expect(names(withGrants([grant, second])).cedar_ember).toEqual(['Session reset', 'Session reset · bonus']);
     });
 
-    test('with no usable grant the panel still says what the grants clear', () => {
-      expect(panel(withGrants([{ ...grant, resetsLeft: 0 }])).offersClear).toBe('the session limit');
+    test('an account with no grants names its bonus reset by its program alone', () => {
+      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toEqual(['Bonus reset', 'Bonus reset']);
     });
 
     test('the overview and the card name a claimable reset identically, and the overview groups them by account', () => {
       const d = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) } }), T0);
       const cardNames = d.accounts.find((a) => a.id === ACC3)!.offers.map((o) => o.name);
-      expect(d.overview.claimable).toEqual([
+      expect(d.overview.claimable).toMatchObject([
         {
           account: ACC3,
           email: 'account3@example.com',
@@ -464,6 +454,41 @@ describe('offers and claimability', () => {
       const d = deriveDeck(snapshot({ feeds: { [ACC1]: feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0) } }), T0);
       expect(d.overview.claimable).toEqual([]);
       expect(d.overview.claimableCount).toBe(0);
+    });
+  });
+
+  describe('whether a claim helps now', () => {
+    const sessionResets = at('2026-11-04T14:20:00.412Z');
+    const verdictOf = (s: Parameters<typeof snapshot>[0]) => {
+      const o = deriveDeck(snapshot({ feeds: { [ACC3]: feedsFrom(synthetic, T0) }, ...s }), T0).overview;
+      return { verdict: o.claimable.find((x) => x.account === ACC3)!.verdict, order: o.order };
+    };
+    const change = (f: (a: CpaAccount) => CpaAccount, ids: readonly AccountId[]) => cpaAccounts().map((a) => (ids.includes(a.id) ? f(a) : a));
+
+    test('other accounts in line and not at a limit have room, so it is not needed now, and the blocked account is back when the serve order says', () => {
+      const { verdict, order } = verdictOf({});
+      expect(verdict).toEqual({
+        kind: 'not_needed',
+        room: [
+          { account: ACC1, email: 'account1@example.com' },
+          { account: ACC2, email: 'account2@example.com' },
+        ],
+        backAt: sessionResets,
+      });
+      expect(order.lines.find((l) => l.account === ACC3)).toMatchObject({ kind: 'blocked', until: verdict.backAt });
+    });
+
+    test('an account in line but at its limit has no room, so with the rest disabled a claim is worth it', () => {
+      const accounts = change((a) => ({ ...a, disabled: true }), [ACC1]);
+      const feeds = { [ACC3]: feedsFrom(synthetic, T0), [ACC2]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0) };
+      expect(verdictOf({ accounts, feeds }).verdict).toEqual({ kind: 'worth_claiming', backAt: sessionResets });
+    });
+
+    test('an account CPA does not block is back when the limit its resets clear resets on its own, and is never its own room', () => {
+      const accounts = change((a) => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null }), [ACC3]);
+      const { verdict } = verdictOf({ accounts });
+      expect(verdict).toMatchObject({ kind: 'not_needed', backAt: sessionResets });
+      expect(verdict.kind === 'not_needed' && verdict.room.map((r) => r.account)).toEqual([ACC1, ACC2]);
     });
   });
 
@@ -672,30 +697,69 @@ describe('the accounts table columns', () => {
       [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
       [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
     };
-    const keys = columns(feeds).map((c) => c.key);
+    const keys = columns(feeds).flatMap((c) => [c.key, ...c.nested.map((n) => n.key)]);
     expect(keys.slice(0, 2)).toEqual(['session', 'weekly_all']);
     expect(new Set(keys).size).toBe(keys.length);
     for (const a of deriveDeck(snapshot({ feeds }), T0).accounts) for (const l of a.limits) expect(keys).toContain(l.key);
   });
 
-  test('a scoped window only one account reports still gets its column, labelled as the card labels it', () => {
-    const f = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
-    const opus: Limit = { kind: 'weekly_scoped', scopeModel: 'Opus', percent: 40 as never, severity: 'normal', resetsAt: plus(T0, 60 * MIN), isActive: false };
-    const withOpus = { ...f, limits: { ...f.limits, last: { value: [...f.limits.last!.value, opus], at: T0 } } };
-    expect(columns({ [ACC1]: withOpus, [ACC2]: f })).toContainEqual({ key: 'weekly_scoped:Opus', label: 'Weekly · Opus', gloss: 'Opus models only' });
+  const fable = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
+  const shiftFable = (f: AccountFeeds, ms: number): AccountFeeds => ({
+    ...f,
+    limits: { ...f.limits, last: { value: f.limits.last!.value.map((l) => (l.kind === 'weekly_scoped' ? { ...l, resetsAt: plus(l.resetsAt!, ms) } : l)), at: T0 } },
   });
 
-  test('only a scoped window carries a gloss, because its label alone does not say it counts one model', () => {
-    const f = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
-    expect(columns({ [ACC1]: f }).map((c) => [c.key, c.gloss])).toEqual([
-      ['session', null],
-      ['weekly_all', null],
-      ['weekly_scoped:Fable', 'Fable models only'],
+  test('a scoped window that resets with Weekly on every account rides in the Weekly cell, named by its model and glossed, and takes no column', () => {
+    expect(columns({ [ACC1]: fable, [ACC2]: fable })).toEqual([
+      { key: 'session', label: 'Session', gloss: null, nested: [] },
+      { key: 'weekly_all', label: 'Weekly', gloss: null, nested: [{ key: 'weekly_scoped:Fable', name: 'Fable', label: 'Weekly · Fable', gloss: 'Fable models only' }] },
     ]);
+  });
+
+  test('a scoped window whose reset differs from Weekly on any one account gets a column of its own, after Weekly', () => {
+    expect(columns({ [ACC1]: fable, [ACC2]: shiftFable(fable, 2 * MIN) })).toEqual([
+      { key: 'session', label: 'Session', gloss: null, nested: [] },
+      { key: 'weekly_all', label: 'Weekly', gloss: null, nested: [] },
+      { key: 'weekly_scoped:Fable', label: 'Weekly · Fable', gloss: 'Fable models only', nested: [] },
+    ]);
+  });
+
+  test('resets that the page shows as the same minute count as the same moment', () => {
+    expect(columns({ [ACC1]: shiftFable(fable, 40_000) }).map((c) => c.key)).toEqual(['session', 'weekly_all']);
+  });
+
+  test('a scoped window only one account reports, on an account with no Weekly window, still gets its column', () => {
+    const opus: Limit = { kind: 'weekly_scoped', scopeModel: 'Opus', percent: 40 as never, severity: 'normal', resetsAt: plus(T0, 60 * MIN), isActive: false };
+    const onlyOpus = { ...fable, limits: { ...fable.limits, last: { value: [opus], at: T0 } } };
+    expect(columns({ [ACC1]: onlyOpus, [ACC2]: fable })).toContainEqual({ key: 'weekly_scoped:Opus', label: 'Weekly · Opus', gloss: 'Opus models only', nested: [] });
   });
 
   test('no account read yet and no traffic: no columns', () => {
     expect(columns({}, cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null })))).toEqual([]);
+  });
+
+  describe('extra usage', () => {
+    const threeRead = {
+      [ACC1]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
+      [ACC2]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
+      [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
+    };
+    const withSpend = (f: AccountFeeds, over: Partial<Spend>): AccountFeeds => ({ ...f, spend: { ...f.spend, last: { value: { ...f.spend.last!.value!, ...over }, at: T0 } } });
+    const hasColumn = (feeds: Record<string, AccountFeeds>) => deriveDeck(snapshot({ feeds }), T0).extraUsageColumn;
+    const usd = (minor: number) => ({ minor, currency: 'USD', exponent: 2 }) as Spend['used'];
+
+    test('off, a zero budget and a used-up cap say nothing a meter could, so no account gets a column', () => {
+      const d = deriveDeck(snapshot({ feeds: threeRead }), T0);
+      expect(d.accounts.map((a) => a.spend?.poll?.state)).toEqual(['off', 'no_budget', 'cap_used']);
+      expect(d.extraUsageColumn).toBe(false);
+    });
+
+    test.each([
+      ['on with room under a cap', { enabled: true, used: usd(2_500), limit: usd(10_000) }],
+      ['on with no cap', { enabled: true, used: usd(2_500), limit: null }],
+    ] as const)('one account %s gives every account the column', (_label, over) => {
+      expect(hasColumn({ ...threeRead, [ACC1]: withSpend(threeRead[ACC1]!, over) })).toBe(true);
+    });
   });
 });
 

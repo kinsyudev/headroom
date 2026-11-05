@@ -21,7 +21,7 @@ export function ClaimDialog(props: {
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
   const stillClaimable = offer.state.kind === 'claimable';
-  const confirmLabel = `Claim ${offer.name.toLowerCase()} on ${a.email}`;
+  const confirmLabel = `Claim ${offer.what.toLowerCase()} on ${a.email}`;
 
   useEffect(() => {
     const opener = document.activeElement;

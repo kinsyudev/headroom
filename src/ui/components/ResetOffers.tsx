@@ -1,36 +1,34 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { GrantId, ProgramId } from '../../shared/domain';
-import type { AccountView, GrantView, OfferView } from '../../shared/view';
-import { claimResultText } from '../format';
+import type { AccountView, ClaimVerdict, GrantView, OfferView } from '../../shared/view';
+import { useNow } from '../deck';
+import { claimResultText, claimVerdictText } from '../format';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
 
 export const resetsAnchor = (account: string) => `resets-${account}`;
 
-export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
+export function VerdictLine(props: { readonly verdict: ClaimVerdict; readonly email: string; readonly back: boolean }) {
+  const { lead, rest } = claimVerdictText(props.verdict, props.email, useNow(), props.back);
+  return (
+    <span className="verdict" data-testid="claim-verdict">
+      <strong>{lead}:</strong> {rest}
+    </span>
+  );
+}
+
+export function ResetOffers(props: { readonly account: AccountView; readonly verdict: ClaimVerdict | null; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const a = props.account;
   const claimable = a.offers.some((o) => o.state.kind === 'claimable');
-  const clear = a.offersClear;
   return (
     <div className={claimable ? 'offers claimable' : 'offers'}>
       <h4>
         Resets you can claim
-        {clear !== null && (
+        {props.verdict && (
           <span className="offers-note">
             {' '}
-            each clears {clear.limits}
-            {clear.selfResets.length > 0 && (
-              <>
-                , which {clear.selfResets.length === 1 ? 'resets on its own' : 'reset on their own'} in{' '}
-                {clear.selfResets.map((r, i) => (
-                  <Fragment key={r.what}>
-                    {i > 0 && ' and '}
-                    <Countdown at={r.at} />
-                  </Fragment>
-                ))}
-              </>
-            )}
+            <VerdictLine verdict={props.verdict} email={a.email} back />
           </span>
         )}
       </h4>
@@ -52,7 +50,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
         {o.name}
       </strong>
       <div className="offer-text">
-        <Segments parts={[...o.terms, ...(o.grants.length === 1 ? grantTerms(o.grants[0]!, false) : [])]} />
+        {o.grants.length === 1 && <Segments parts={grantTerms(o.grants[0]!, false)} />}
         {several && (
           <ul className="grants">
             {o.grants.map((g) => (
@@ -74,12 +72,14 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
   );
 }
 
+/** A lone grant's count is in the offer's name, so only a list of several says each one's. */
 function grantTerms(g: GrantView, several: boolean): ReactNode[] {
   return [
-    <>
-      {several && <>“{g.label}” </>}
-      <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
-    </>,
+    several && (
+      <>
+        “{g.label}” <span className="num">{g.resetsLeft}</span> of <span className="num">{g.resetsTotal}</span> left
+      </>
+    ),
     several && g.clears.length > 0 && (
       <>
         clears <span title={g.clears.join(', ')}>{g.clearsText}</span>
