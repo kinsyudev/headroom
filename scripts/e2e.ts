@@ -232,6 +232,22 @@ try {
   assert(narrowed.includes('account2@example.com') && narrowed.includes('Same day last week'), 'the one account left in the legend is account2, beside the same day last week');
   await page.getByTestId('over-time').getByRole('button', { name: 'Table' }).click();
   assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
+  const cache = await text(page.getByTestId('cache'));
+  assert(cache.includes('of input served from cache') && cache.includes('scale 0 to 10%') && !cache.includes('per request'), 'the cache panel leads with the cache-read share and names the 0 to 10% scale of the misses it draws');
+  const mix = await text(page.getByTestId('mix'));
+  assert(mix.includes('output tokens per request') && mix.includes('output tokens per session'), 'output per request and per session sit in What you use');
+  const speed = page.getByTestId('speed');
+  assert((await text(speed)).includes('How long until Claude starts answering') && (await page.getByTestId('speed').locator('.chart').count()) === 1, 'one Speed panel opens on the first token');
+  await speed.getByRole('button', { name: 'Finish' }).click();
+  assert((await text(speed)).includes('9 in 10 finish within'), 'the Finish toggle turns the Speed panel to the whole answer, with its 9 in 10 line');
+  const heads = await page.getByTestId('by-model').locator('thead th').allTextContents();
+  assert(['Rate-limited', 'Cancelled', 'Server errors'].every((h) => heads.includes(h)) && !heads.some((h) => /^(429|499|5xx)$/.test(h)), 'the account and model table names its failure columns in words');
+  assert(((await page.getByTestId('by-model').locator('thead th', { hasText: 'Rate-limited' }).getAttribute('title')) ?? '').includes('429'), 'the rate-limited header keeps the 429 code in its tooltip');
+  const errorHeads = await page.getByTestId('errors').locator('thead th').allTextContents();
+  for (const [i, head] of errorHeads.entries()) {
+    const cells = await page.getByTestId('errors').locator(`tbody tr td:nth-child(${i + 1})`).allTextContents();
+    assert(cells.some((c) => c.trim() !== '—'), `the recent errors table shows ${head} only when something fills it`);
+  }
   await page.getByTestId('analytics').screenshot({ path: join(SHOTS, 'e2e-4b-usage.png') });
   await page.getByTestId('nav-monitor').click();
   await card('account1@example.com').waitFor();
