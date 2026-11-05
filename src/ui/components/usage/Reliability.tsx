@@ -113,7 +113,7 @@ export function FailuresPanel(props: { readonly view: AnalyticsView; readonly sl
 
 const LOG_SHOWN = 3;
 
-/** One line a run of the same error: "500 Internal server error ×5 · account2 · last 16:50", with its quota reason and recovery when CPA gave them. */
+/** One line a run of the same error: "500 Internal server error ×5 · account2 · last today 16:50", with its quota reason and recovery when CPA gave them. */
 function logLine(g: ErrorGroupView, slots: ReadonlyMap<AccountId, Slot>, now: number) {
   const reason = g.quotaReason === null ? null : reasonText(g.quotaReason);
   const what = g.message || reason || 'No message';
