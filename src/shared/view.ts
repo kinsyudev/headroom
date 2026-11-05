@@ -50,11 +50,8 @@ export interface OverviewView {
   readonly serving: readonly { readonly account: AccountId; readonly email: string; readonly why: ServingWhy; readonly lastAt: Instant; readonly takesNext: boolean }[];
   readonly target: { readonly account: AccountId; readonly email: string } | null;
   readonly servingEvidence: 'keeper' | 'cpa_headers';
-  readonly room: RoomView;
-  /** unblocks: the same account is blocked until within a minute of this reset, so the tile says it on the reset line. */
-  readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant; readonly unblocks: boolean } | null;
-  /** Null when nextReset already says it. */
-  readonly nextUnblock: { readonly account: AccountId; readonly email: string; readonly at: Instant } | null;
+  readonly order: ServeOrderView;
+  readonly nextReset: { readonly account: AccountId; readonly email: string; readonly label: string; readonly at: Instant } | null;
   readonly claimable: readonly ClaimableView[];
   readonly claimableCount: number;
 }
@@ -69,14 +66,24 @@ export interface ClaimableView {
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
 
 /**
- * Where the room is. of: the enabled accounts. open: those CPA can send a request to now, neither blocked nor at a limit,
- * in the order traffic reaches them: the serving ones newest first, then by priority, so the account a new session would
- * land on comes next. session and weekly are what the account's row draws as left; null where it has no reading of that window.
+ * Every account in the order CPA's routing reaches it. In line: the accounts CPA can send to, highest priority first,
+ * so rank 1 is where a new session lands. Then the blocked ones, soonest back first, then the disabled ones.
+ * rotates: round-robin takes turns through the accounts in line, so their rank is only the order they are listed in.
  */
-export interface RoomView {
-  readonly of: number;
-  readonly open: readonly { readonly account: AccountId; readonly email: string; readonly serving: boolean; readonly session: PercentLeft | null; readonly weekly: PercentLeft | null }[];
+export interface ServeOrderView {
+  readonly rotates: boolean;
+  readonly lines: readonly ServeLine[];
 }
+
+/**
+ * session and weekly are what the account's row draws as left; null where it has no reading of that window.
+ * until: when a blocked account is back, said as the reset of the window holding it when that reset is what frees it, as its row says.
+ */
+export type ServeLine = { readonly account: AccountId; readonly email: string } & (
+  | { readonly kind: 'in_line'; readonly rank: number; readonly session: PercentLeft | null; readonly weekly: PercentLeft | null }
+  | { readonly kind: 'blocked'; readonly until: Instant | null; readonly reason: string }
+  | { readonly kind: 'disabled' }
+);
 
 export interface AccountView {
   readonly id: AccountId;

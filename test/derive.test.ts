@@ -33,7 +33,7 @@ import {
   type SourceError,
   type Spend,
 } from '../src/shared/domain';
-import type { OfferState } from '../src/shared/view';
+import type { OfferState, ServeOrderView } from '../src/shared/view';
 import { ACC1, ACC2, ACC3, MIN, T0, account, at, cpaAccounts, feedsFrom, plus, snapshot, usage } from './support';
 
 const AFTER_COOLDOWN = at('2026-11-04T14:20:18Z');
@@ -518,67 +518,112 @@ describe('make primary', () => {
   });
 });
 
-describe('where the room is', () => {
+describe('the serve order', () => {
   const threeRead = {
     [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
     [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
     [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
   };
-  const keeperSaw = (account: AccountId) => [{ account, lastAt: plus(T0, -10_000), recent: 3 }];
-  const room = (s: Parameters<typeof snapshot>[0]) => deriveDeck(snapshot({ feeds: threeRead, ...s }), T0).overview.room;
+  const seen = (account: AccountId, ago = 10_000) => ({ account, lastAt: plus(T0, -ago), recent: 3 });
+  const overview = (s: Parameters<typeof snapshot>[0]) => deriveDeck(snapshot({ feeds: threeRead, ...s }), T0).overview;
+  const places = (o: { readonly order: ServeOrderView }) => o.order.lines.map((l) => [l.account, l.kind === 'in_line' ? l.rank : l.kind]);
+  const change = (id: AccountId, f: (a: CpaAccount) => CpaAccount) => cpaAccounts().map((a) => (a.id === id ? f(a) : a));
   const quiet = (a: CpaAccount): CpaAccount => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null });
-  const account1 = { account: ACC1, email: 'account1@example.com', serving: true, session: 88, weekly: 73 };
-  const account2 = { account: ACC2, email: 'account2@example.com', serving: false, session: 100, weekly: 99 };
 
-  test('the blocked account is not open; the serving one leads and the standby one follows, each with the room its row draws', () => {
-    const d = deriveDeck(snapshot({ feeds: threeRead, serving: keeperSaw(ACC1) }), T0);
+  test('fill-first: the accounts in line by priority with the room their rows draw, then the blocked one, back when its session resets', () => {
+    const d = deriveDeck(snapshot({ feeds: threeRead, serving: [seen(ACC1)] }), T0);
     const column = (key: string) => d.accounts.map((a) => a.limits.find((l) => l.key === key)!.left as number | null);
     expect(column('session')).toEqual([88, 100, 0]);
     expect(column('weekly_all')).toEqual([73, 99, 40]);
-    expect(d.overview.room).toEqual({ of: 3, open: [account1, account2] } as never);
+    expect(d.overview.order).toEqual({
+      rotates: false,
+      lines: [
+        { account: ACC1, email: 'account1@example.com', kind: 'in_line', rank: 1, session: 88, weekly: 73 },
+        { account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, session: 100, weekly: 99 },
+        { account: ACC3, email: 'account3@example.com', kind: 'blocked', until: at('2026-11-04T14:20:00.412Z'), reason: 'credential_quota' },
+      ],
+    } as never);
   });
 
-  test('an account at its limit is not open even once CPA stops blocking it', () => {
-    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? quiet(a) : a));
-    expect(room({ accounts, serving: keeperSaw(ACC1) }).open.map((o) => o.account)).toEqual([ACC1, ACC2]);
+  test('a blocked account whose cooldown ends 17 s after its session reset is back at the one time the next reset and its row both say', () => {
+    const d = deriveDeck(snapshot({ feeds: threeRead, serving: [seen(ACC1)] }), T0);
+    const account3 = d.accounts.find((a) => a.id === ACC3)!;
+    expect(account3.routing.role).toMatchObject({ kind: 'blocked', until: at('2026-11-04T14:20:17.000Z') });
+    expect(d.overview.order.lines[2]).toMatchObject({ until: d.overview.nextReset!.at });
+    expect(account3.trouble?.limit?.liftsAt).toBe(d.overview.nextReset!.at);
   });
 
-  test('the serving account leads whatever its priority, then the rest by priority', () => {
-    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? { ...quiet(a), headers: null, priority: 60 } : a));
-    const feeds = { ...threeRead, [ACC3]: threeRead[ACC2]! };
-    expect(room({ accounts, feeds, serving: keeperSaw(ACC2) }).open.map((o) => [o.account, o.serving])).toEqual([
-      [ACC2, true],
-      [ACC3, false],
-      [ACC1, false],
+  test('a blocked account with no window read from a poll or headers is back when CPA says', () => {
+    const o = overview({ accounts: change(ACC3, (a) => ({ ...a, headers: null })), feeds: {}, serving: [seen(ACC1)] });
+    expect(o.order.lines[2]).toMatchObject({ kind: 'blocked', until: at('2026-11-04T14:20:17.000Z') });
+  });
+
+  test('rank 1 is where the Serving tile says a new session lands, even while another account serves by affinity', () => {
+    const o = overview({ serving: [seen(ACC2)] });
+    expect(o.serving.map((s) => [s.account, s.takesNext])).toEqual([[ACC2, false]]);
+    expect(o.target?.account).toBe(ACC1);
+    expect(places(o)).toEqual([
+      [ACC1, 1],
+      [ACC2, 2],
+      [ACC3, 'blocked'],
     ]);
   });
 
-  test('with nothing serving, the account the Serving tile says a new session lands on leads, ties included', () => {
-    const accounts = cpaAccounts().map((a) => (a.id === ACC3 ? { ...quiet(a), headers: null } : a));
-    const feeds = { ...threeRead, [ACC3]: threeRead[ACC2]! };
-    const serving = [
-      { account: ACC1, lastAt: plus(T0, -10 * MIN), recent: 0 },
-      { account: ACC3, lastAt: plus(T0, -5 * MIN), recent: 0 },
-    ];
-    const o = deriveDeck(snapshot({ accounts, feeds, serving }), T0).overview;
-    expect(o.serving).toEqual([]);
+  test('a higher priority moves an account up the line', () => {
+    const o = overview({ accounts: change(ACC2, (a) => ({ ...a, priority: 60 })), serving: [seen(ACC1)] });
+    expect(places(o)).toEqual([
+      [ACC2, 1],
+      [ACC1, 2],
+      [ACC3, 'blocked'],
+    ]);
+    expect(o.target?.account).toBe(ACC2);
+  });
+
+  test('among equal priorities the account answered from most recently goes first, as the Serving tile predicts', () => {
+    const accounts = change(ACC3, (a) => ({ ...quiet(a), headers: null }));
+    const o = overview({ accounts, feeds: { ...threeRead, [ACC3]: threeRead[ACC2]! }, serving: [seen(ACC1, 10 * MIN), seen(ACC3, 5 * MIN)] });
     expect(o.target?.account).toBe(ACC3);
-    expect(o.room.open.map((r) => [r.account, r.serving])).toEqual([
-      [ACC3, false],
-      [ACC1, false],
-      [ACC2, false],
+    expect(places(o)).toEqual([
+      [ACC3, 1],
+      [ACC1, 2],
+      [ACC2, 3],
     ]);
   });
 
-  test('a disabled account is neither open nor counted', () => {
-    const accounts = cpaAccounts().map((a) => (a.id === ACC2 ? { ...a, disabled: true } : a));
-    expect(room({ accounts, serving: keeperSaw(ACC1) })).toEqual({ of: 2, open: [account1] } as never);
+  test('an account at its limit that CPA no longer blocks is in line where its priority puts it, with nothing left', () => {
+    const o = overview({ accounts: change(ACC3, quiet), serving: [seen(ACC1)] });
+    expect(places(o)).toEqual([
+      [ACC1, 1],
+      [ACC3, 2],
+      [ACC2, 3],
+    ]);
+    expect(o.order.lines[1]).toMatchObject({ kind: 'in_line', session: 0, weekly: 40 });
   });
 
-  test('an account with no limits read yet still takes requests, so it is open with no figures', () => {
-    const accounts = cpaAccounts().map((a) => (a.id === ACC2 ? { ...a, headers: null } : a));
-    const open = room({ accounts, feeds: { [ACC1]: threeRead[ACC1]! }, serving: keeperSaw(ACC1) }).open;
-    expect(open[1]).toEqual({ ...account2, session: null, weekly: null } as never);
+  test('blocked accounts follow the line, soonest back first, and disabled ones come last', () => {
+    const later = at('2026-11-04T15:00:00.000Z');
+    const accounts = cpaAccounts().map((a): CpaAccount =>
+      a.id === ACC1 ? { ...a, cooldowns: [{ scope: 'credential', reason: 'quota', retryAt: later, httpStatus: null }] } : a.id === ACC2 ? { ...a, disabled: true } : a,
+    );
+    const o = overview({ accounts, serving: [seen(ACC1)] });
+    expect(places(o)).toEqual([
+      [ACC3, 'blocked'],
+      [ACC1, 'blocked'],
+      [ACC2, 'disabled'],
+    ]);
+    expect(o.order.lines[1]).toMatchObject({ until: later });
+    expect(o.target).toBeNull();
+  });
+
+  test('round-robin keeps the same list and says the order rotates', () => {
+    const fillFirst = overview({ serving: [seen(ACC1)] }).order;
+    expect(fillFirst.rotates).toBe(false);
+    expect(overview({ serving: [seen(ACC1)], strategy: 'round-robin' }).order).toEqual({ ...fillFirst, rotates: true });
+  });
+
+  test('an account with no limits read yet still takes requests, so it is in line with no figures', () => {
+    const o = overview({ accounts: change(ACC2, (a) => ({ ...a, headers: null })), feeds: { [ACC1]: threeRead[ACC1]! }, serving: [seen(ACC1)] });
+    expect(o.order.lines[1]).toEqual({ account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, session: null, weekly: null } as never);
   });
 });
 
@@ -609,52 +654,19 @@ describe('the accounts table columns', () => {
   });
 });
 
-describe('the next reset and the unblock it may repeat', () => {
-  const feeds = {
-    [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
-    [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
-    [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
-  };
-  const overview = (change: (a: CpaAccount) => CpaAccount) => deriveDeck(snapshot({ accounts: cpaAccounts().map(change), feeds }), T0).overview;
-  const unblock = (a: CpaAccount, retryAt: Instant): CpaAccount => ({
-    ...a,
-    cooldowns: a.cooldowns.map((c) => ({ ...c, retryAt })),
-    nextRetryAfter: retryAt,
-    unavailable: true,
-  });
-  const quiet = (a: CpaAccount): CpaAccount => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null });
-
-  test('the same account unblocking within a minute of its reset is said once, on the reset', () => {
-    const o = overview((a) => a);
-    expect(o.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z'), unblocks: true });
-    expect(o.nextUnblock).toBeNull();
-  });
-
-  test('a minute boundary between the two clock times does not split them', () => {
-    const o = overview((a) => (a.id === ACC3 ? unblock(a, at('2026-11-04T14:19:50.000Z')) : a));
-    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: true });
-    expect(o.nextUnblock).toBeNull();
-  });
-
-  test.each([
-    ['half an hour after', '2026-11-04T14:50:17.000Z'],
-    ['70 s before', '2026-11-04T14:18:50.000Z'],
-  ])('an unblock %s the reset stays its own line', (_label, when) => {
-    const o = overview((a) => (a.id === ACC3 ? unblock(a, at(when)) : a));
-    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: false });
-    expect(o.nextUnblock).toEqual({ account: ACC3, email: 'account3@example.com', at: at(when) });
-  });
-
-  test("another account's unblock at the same time is a different event and stays its own line", () => {
-    const o = overview((a) => (a.id === ACC3 ? quiet(a) : a.id === ACC2 ? unblock(a, at('2026-11-04T14:20:30.000Z')) : a));
-    expect(o.nextReset).toMatchObject({ account: ACC3, unblocks: false });
-    expect(o.nextUnblock).toEqual({ account: ACC2, email: 'account2@example.com', at: at('2026-11-04T14:20:30.000Z') });
-  });
-
-  test('with no blocked account the reset says nothing about unblocking', () => {
-    const o = overview(quiet);
-    expect(o.nextReset?.unblocks).toBe(false);
-    expect(o.nextUnblock).toBeNull();
+describe('the next reset', () => {
+  test('is the soonest reset of any open window, on whichever account it falls', () => {
+    const feeds = {
+      [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
+      [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
+      [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
+    };
+    expect(deriveDeck(snapshot({ feeds }), T0).overview.nextReset).toEqual({
+      account: ACC3,
+      email: 'account3@example.com',
+      label: 'Session',
+      at: at('2026-11-04T14:20:00.412Z'),
+    } as never);
   });
 });
 

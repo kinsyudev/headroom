@@ -68,10 +68,11 @@ try {
   assert((await text(page.getByTestId('tile-serving'))).includes('account1@example.com'), 'overview names account1 as serving');
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
-  assert(/■ Blocked account3 session limit unblocks \d\d:\d\d$/.test(await text(page.getByTestId('tile-next-reset'))), 'next reset leads with the Blocked chip on account3, which the session reset unblocks');
+  const nextReset = await text(page.getByTestId('tile-next-reset'));
+  assert(/account3 session resets \d\d:\d\d$/.test(nextReset) && !nextReset.includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
   assert(
-    /2 of 3 accounts open\s*serving account1 88% session 73% weekly\s*next account2 100% session 99% weekly$/.test(await text(page.getByTestId('tile-headroom'))),
-    'room left: 2 of 3 accounts open, account1 serving and account2 next, each with the room its row shows',
+    /^Serve order Session left Weekly left 1 account1 88% 73%\s*2 account2 100% 99%\s*– account3 blocked until \d\d:\d\d$/.test(await text(page.getByTestId('tile-headroom'))),
+    'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
   );
   assert(
     (await page.locator('.ledger-head > span').allTextContents()).join('|') === 'Account|Session left|Weekly left|Weekly · Fable left|Extra usage|Requests',

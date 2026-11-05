@@ -40,8 +40,9 @@ import type {
   OverviewView,
   PlanView,
   ReadView,
-  RoomView,
   RoutingView,
+  ServeLine,
+  ServeOrderView,
   SpendView,
   StatusView,
   TroubleView,
@@ -128,14 +129,15 @@ const SAME_MOMENT_MS = MINUTE_MS;
 export function deriveDeck(s: Snapshot, now: Instant): DeckView {
   const accounts = s.cpa.last?.value ?? [];
   const evidence = servingEvidence(s, accounts);
-  const routing = deriveRouting(accounts, s.strategy.last?.value ?? null, evidence.seen, now);
+  const strategy = s.strategy.last?.value ?? null;
+  const routing = deriveRouting(accounts, strategy, evidence.seen, now);
   const cpa = deriveCpa(s);
   const views = accounts
     .map((a) => deriveAccount(a, s.feeds[a.id] ?? emptyFeeds(), routing.get(a.id)!, s.claims, now, cpa))
     .sort((x, y) => x.email.localeCompare(y.email));
   return {
     now,
-    overview: deriveOverview(views, evidence.kind),
+    overview: deriveOverview(views, evidence.kind, strategy),
     accounts: views,
     banners: deriveBanners(s, views, cpa),
     flows: s.flows,
@@ -741,10 +743,11 @@ export function headerFreshness(headers: HeaderQuota | null, now: Instant): Fres
   };
 }
 
-export function deriveOverview(accounts: readonly AccountView[], evidence: 'keeper' | 'cpa_headers'): OverviewView {
-  const target = accounts
-    .filter((a) => a.routing.isTarget)
-    .sort((x, y) => (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) || x.email.localeCompare(y.email))[0];
+/** Among accounts CPA ranks alike, the one it answered from most recently goes first, then by email. */
+const byRecent = (x: AccountView, y: AccountView) => (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) || x.email.localeCompare(y.email);
+
+export function deriveOverview(accounts: readonly AccountView[], evidence: 'keeper' | 'cpa_headers', strategy: RoutingStrategy | null): OverviewView {
+  const target = accounts.filter((a) => a.routing.isTarget).sort(byRecent)[0];
   const serving = accounts
     .flatMap((a) =>
       a.routing.role.kind === 'serving' && a.routing.lastSeenAt !== null
@@ -752,9 +755,8 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
         : [],
     )
     .sort((x, y) => y.lastAt - x.lastAt);
-  const enabled = accounts.filter((a) => a.routing.role.kind !== 'disabled');
 
-  let nextReset: Omit<NonNullable<OverviewView['nextReset']>, 'unblocks'> | null = null;
+  let nextReset: OverviewView['nextReset'] = null;
   for (const a of accounts) {
     for (const l of a.limits) {
       if (l.phase === 'open' && l.resetsAt !== null && (nextReset === null || l.resetsAt < nextReset.at)) {
@@ -762,15 +764,6 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
       }
     }
   }
-  let nextUnblock: OverviewView['nextUnblock'] = null;
-  for (const a of accounts) {
-    const r = a.routing.role;
-    if (r.kind === 'blocked' && r.until !== null && (nextUnblock === null || r.until < nextUnblock.at)) {
-      nextUnblock = { account: a.id, email: a.email, at: r.until };
-    }
-  }
-  const unblocksWithReset =
-    nextReset !== null && nextUnblock !== null && nextUnblock.account === nextReset.account && Math.abs(nextUnblock.at - nextReset.at) <= SAME_MOMENT_MS;
   const claimable: ClaimableView[] = accounts.flatMap((a) => {
     const resets = a.offers.flatMap((o) => {
       if (o.state.kind !== 'claimable') return [];
@@ -784,9 +777,8 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
     serving,
     target: target ? { account: target.id, email: target.email } : null,
     servingEvidence: evidence,
-    room: deriveRoom(enabled),
-    nextReset: nextReset && { ...nextReset, unblocks: unblocksWithReset },
-    nextUnblock: unblocksWithReset ? null : nextUnblock,
+    order: deriveServeOrder(accounts, strategy === 'round-robin'),
+    nextReset,
     claimable,
     claimableCount: claimable.reduce((n, g) => n + g.resets.length, 0),
   };
@@ -794,25 +786,20 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
 
 const windowLeft = (limits: readonly LimitView[], key: string) => limits.find((l) => l.key === key)?.left ?? null;
 
-function deriveRoom(enabled: readonly AccountView[]): RoomView {
-  const servedAt = (a: AccountView) => (a.routing.role.kind === 'serving' ? (a.routing.lastSeenAt ?? 0) : 0);
-  const open = enabled
-    .filter((a) => a.routing.role.kind !== 'blocked' && !a.atWall)
-    .sort(
-      (x, y) =>
-        servedAt(y) - servedAt(x) ||
-        y.routing.priority - x.routing.priority ||
-        (y.routing.lastSeenAt ?? 0) - (x.routing.lastSeenAt ?? 0) ||
-        x.email.localeCompare(y.email),
+/** Fill-first's rule, as routing and Make primary read it: the highest priority CPA can send to goes first. */
+function deriveServeOrder(accounts: readonly AccountView[], rotates: boolean): ServeOrderView {
+  const who = (a: AccountView) => ({ account: a.id, email: a.email });
+  const inLine = accounts
+    .filter((a) => a.routing.role.kind === 'serving' || a.routing.role.kind === 'standby')
+    .sort((x, y) => y.routing.priority - x.routing.priority || byRecent(x, y))
+    .map((a, i): ServeLine => ({ ...who(a), kind: 'in_line', rank: i + 1, session: windowLeft(a.limits, 'session'), weekly: windowLeft(a.limits, 'weekly_all') }));
+  const blocked = accounts
+    .flatMap((a) =>
+      a.routing.role.kind === 'blocked' ? [{ ...who(a), kind: 'blocked' as const, until: a.trouble?.limit?.liftsAt ?? a.routing.role.until, reason: a.routing.role.reason }] : [],
     )
-    .map((a) => ({
-      account: a.id,
-      email: a.email,
-      serving: a.routing.role.kind === 'serving',
-      session: windowLeft(a.limits, 'session'),
-      weekly: windowLeft(a.limits, 'weekly_all'),
-    }));
-  return { of: enabled.length, open };
+    .sort((x, y) => (x.until ?? Infinity) - (y.until ?? Infinity) || x.email.localeCompare(y.email));
+  const disabled = accounts.filter((a) => a.routing.role.kind === 'disabled').map((a): ServeLine => ({ ...who(a), kind: 'disabled' }));
+  return { rotates, lines: [...inLine, ...blocked, ...disabled] };
 }
 
 function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView): Banner[] {
