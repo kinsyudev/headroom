@@ -12,7 +12,7 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
   const now = useNow();
   const paused = usePaused();
   const [clicked, setClicked] = useState<string | null>(null);
-  const { priority, step, stepTo } = props.routing;
+  const { priority, step, stepTo, ranksByPriority } = props.routing;
   const saved = set.status.phase === 'ok' && now - set.status.at < DONE_SHOWN_MS;
   const button = (testId: string, glyph: string, to: number | null, label: string, atBound: string) => (
     <button
@@ -43,6 +43,7 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
           </span>
           {button('priority-up', `+${step}`, stepTo.up, `Raise priority to ${stepTo.up}`, 'Already at the highest priority')}
         </span>
+        <span className="stepper-note">{ranksByPriority ? 'higher serves first' : 'unused in round-robin'}</span>
       </span>
       {saved && (
         <span className="feedback ok" role="status">

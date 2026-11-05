@@ -22,22 +22,28 @@ export function ActionButton<K extends ActionKind>(props: {
   const [doneText, setDoneText] = useState('Done');
   return (
     <span className="action">
-      <button
-        type="button"
-        className={`btn ${props.variant ?? 'quiet'}`}
-        disabled={props.disabled || a.pending || paused !== null}
-        title={paused ?? props.title}
-        aria-busy={a.pending}
-        data-testid={props.testId}
-        data-state={a.status.phase}
-        onClick={async () => {
-          const out = await a.run(props.input);
-          if (out !== undefined) setDoneText(typeof props.done === 'function' ? props.done(out) : (props.done ?? 'Done'));
-        }}
-      >
-        {a.pending && <span className="spinner" aria-hidden />}
-        {a.pending ? (props.pendingLabel ?? props.children) : props.children}
-      </button>
+      {props.variant === 'state' ? (
+        <span className="badge neutral" title={props.title} data-testid={props.testId}>
+          {props.children}
+        </span>
+      ) : (
+        <button
+          type="button"
+          className={`btn ${props.variant ?? 'quiet'}`}
+          disabled={props.disabled || a.pending || paused !== null}
+          title={paused ?? props.title}
+          aria-busy={a.pending}
+          data-testid={props.testId}
+          data-state={a.status.phase}
+          onClick={async () => {
+            const out = await a.run(props.input);
+            if (out !== undefined) setDoneText(typeof props.done === 'function' ? props.done(out) : (props.done ?? 'Done'));
+          }}
+        >
+          {a.pending && <span className="spinner" aria-hidden />}
+          {a.pending ? (props.pendingLabel ?? props.children) : props.children}
+        </button>
+      )}
       {a.status.phase === 'ok' && now - a.status.at < DONE_SHOWN_MS && (
         <span className="feedback ok" role="status">
           ✓ {doneText}

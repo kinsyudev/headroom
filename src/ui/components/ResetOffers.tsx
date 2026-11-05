@@ -14,7 +14,7 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
   return (
     <div className={claimable ? 'offers claimable' : 'offers'}>
       <h4>
-        Claude resets{a.offersClear !== null && <span className="offers-note"> each clears {a.offersClear}</span>}
+        Resets you can claim{a.offersClear !== null && <span className="offers-note"> each clears {a.offersClear}</span>}
       </h4>
       <div className="offer-list">
         {a.offers.map((o) => (

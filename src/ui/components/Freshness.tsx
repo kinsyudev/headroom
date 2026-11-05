@@ -11,7 +11,7 @@ const LABEL: Readonly<Record<FeedName, string>> = {
   headers: 'headers',
   limits: 'limits',
   spend: 'spend',
-  cedar: 'grants',
+  cedar: 'bonus resets',
   juniper: 'weekly reset',
   profile: 'profile',
 };
@@ -99,7 +99,7 @@ export function ModeLine(props: { readonly account: AccountView }) {
   if (read.capUntil !== null) clauses.push(`check cap full, next check allowed ${clockTime(read.capUntil, now)}`);
 
   const cadence = atWall ? 'At limit: limits and claimable resets are checked every 3 min' : 'Normal: usage is checked every 5 min';
-  const resets = quietOffers === null ? [] : [`Claude resets: ${quietOffers.join(' · ')}`];
+  const resets = quietOffers === null ? [] : [`Resets you can claim: ${quietOffers.join(' · ')}`];
   return (
     <div className="mode num" data-testid="freshness" title={[cadence, ...resets, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
       {atWall && routing.role.kind !== 'blocked' && <span className="badge warning">At limit</span>}

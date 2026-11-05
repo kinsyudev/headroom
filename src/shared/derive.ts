@@ -346,6 +346,7 @@ export function deriveRouting(
       role,
       isTarget,
       primary: strategy !== 'round-robin' && atTop.length === 1 && atTop[0] === a,
+      ranksByPriority: strategy !== 'round-robin',
       lastSeenAt: s?.lastAt ?? null,
       recent: s?.recent ?? null,
       outranksAll: accounts.every((o) => o.id === a.id || a.priority > o.priority),
@@ -518,7 +519,7 @@ export function derivePlan(profile: Source<Profile>): PlanView | null {
 
 export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = {
   juniper_tide: 'Weekly session reset',
-  cedar_ember: 'Reset grant',
+  cedar_ember: 'Bonus reset',
 };
 
 export function juniperState(j: JuniperTide | null): OfferState {
@@ -615,8 +616,8 @@ export function deriveOffers(
     offers: [
       {
         program: 'juniper_tide',
-        name: 'Weekly allowance',
-        terms: [...clearsTerm(JUNIPER_CLEARS), 'once a week'],
+        name: 'Weekly reset',
+        terms: clearsTerm(JUNIPER_CLEARS),
         effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
         selfResets: selfResets(JUNIPER_CLEARS, limits),
         state: juniper,
@@ -625,7 +626,7 @@ export function deriveOffers(
       },
       {
         program: 'cedar_ember',
-        name: 'Bonus grant',
+        name: 'Bonus reset',
         terms: clearsTerm(cedarClears),
         effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
         selfResets: selfResets(cedarClears, limits),
@@ -648,13 +649,13 @@ export function deriveOffers(
 
 const PROGRAM_SHORT: Readonly<Record<ProgramId, string>> = {
   juniper_tide: 'weekly reset',
-  cedar_ember: 'reset grants',
+  cedar_ember: 'bonus resets',
 };
 
 const QUIET_REASON: Readonly<Record<string, string>> = {
-  no_grant: 'no grants',
-  exhausted: 'grants used up',
-  not_usable_now: 'no grant usable now',
+  no_grant: 'no bonus resets',
+  exhausted: 'bonus resets used up',
+  not_usable_now: 'no bonus reset usable now',
 };
 /** Reasons that mean Headroom's own requests are wrong, so the operator has something to fix. */
 const LOUD_REASONS = new Set(['surface', 'cli_version']);
@@ -679,7 +680,7 @@ function quietOffer(o: OfferView): string | null {
 
 export function quietOffers(offers: readonly OfferView[]): readonly string[] | null {
   const parts = offers.map(quietOffer);
-  return parts.every((p) => p !== null) ? ['none to claim', ...parts] : null;
+  return parts.every((p) => p !== null) ? ['none', ...parts] : null;
 }
 
 export function clearsText(clears: readonly string[]): string {

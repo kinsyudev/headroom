@@ -99,6 +99,11 @@ describe('routing and serving', () => {
     expect(view(d, ACC3).routing.isTarget).toBe(false);
   });
 
+  test('priority ranks the accounts under fill-first and is ignored under round-robin', () => {
+    expect(view(deck({}), ACC1).routing.ranksByPriority).toBe(true);
+    expect(view(deck({ strategy: 'round-robin' }), ACC1).routing.ranksByPriority).toBe(false);
+  });
+
   test('a disabled account is never a target, and the next eligible tier takes over', () => {
     const accounts = cpaAccounts().map((a): CpaAccount => (a.id === ACC1 ? { ...a, disabled: true } : a));
     const v = view(deck({ accounts }), ACC1);
@@ -377,13 +382,13 @@ describe('offers and claimability', () => {
     };
     const eachRowSaysItsOwn = (bonus: string[]) => ({
       offersClear: null,
-      rows: { juniper_tide: ['Weekly allowance', 'clears the session limit', 'once a week'], cedar_ember: ['Bonus grant', ...bonus] },
+      rows: { juniper_tide: ['Weekly reset', 'clears the session limit'], cedar_ember: ['Bonus reset', ...bonus] },
     });
 
     test('resets that clear the same limit say it once, and each row keeps its one name and what sets it apart', () => {
       expect(panel(feedsFrom(synthetic, T0))).toEqual({
         offersClear: 'the session limit',
-        rows: { juniper_tide: ['Weekly allowance', 'once a week'], cedar_ember: ['Bonus grant'] },
+        rows: { juniper_tide: ['Weekly reset'], cedar_ember: ['Bonus reset'] },
       });
     });
 
@@ -394,7 +399,7 @@ describe('offers and claimability', () => {
       expect(panel(withGrants([{ ...grant, clears: [...clears] }]))).toEqual(eachRowSaysItsOwn([bonus]));
     });
 
-    test('a bonus naming nothing claims nothing, and the weekly allowance still says what it clears', () => {
+    test('a bonus naming nothing claims nothing, and the weekly reset still says what it clears', () => {
       expect(panel(withGrants([{ ...grant, clears: [] }]))).toEqual(eachRowSaysItsOwn([]));
       expect(panel(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0))).toEqual(eachRowSaysItsOwn([]));
     });
@@ -431,7 +436,7 @@ describe('offers and claimability', () => {
     const sessionAt = at('2026-11-04T14:20:00.412Z');
     const weeklyAt = at('2026-11-04T19:00:00.412Z');
 
-    test('the weekly allowance names when the session limit would reset on its own', () => {
+    test('the weekly reset names when the session limit would reset on its own', () => {
       expect(selfResetsOf(feedsFrom(synthetic, T0), 'juniper_tide')).toEqual([{ what: 'the session limit', at: sessionAt }]);
     });
 
@@ -463,13 +468,13 @@ describe('offers and claimability', () => {
     };
 
     test('held and ineligible offers collapse to a few phrases that say why', () => {
-      expect(quiet(feedsFrom(noGrants, T0), false)).toEqual(['none to claim', 'weekly reset offered at limit', 'no grants']);
-      expect(quiet(enrolledNowhere())).toEqual(['none to claim', 'weekly reset not enrolled', 'reset grants not enrolled']);
+      expect(quiet(feedsFrom(noGrants, T0), false)).toEqual(['none', 'weekly reset offered at limit', 'no bonus resets']);
+      expect(quiet(enrolledNowhere())).toEqual(['none', 'weekly reset not enrolled', 'bonus resets not enrolled']);
     });
 
     test('a reason without a short form falls back to its plain-words explanation', () => {
       const controlArm = { ...noGrants, juniper: j({ arm: 'control' }) };
-      expect(quiet(feedsFrom(controlArm, T0))).toEqual(['none to claim', 'in the experiment, but in the arm that is not offered resets', 'no grants']);
+      expect(quiet(feedsFrom(controlArm, T0))).toEqual(['none', 'in the experiment, but in the arm that is not offered resets', 'no bonus resets']);
     });
 
     test.each([
@@ -494,7 +499,7 @@ describe('offers and claimability', () => {
     test('reaches the card, and a claimable card keeps its full block', () => {
       const d = deriveDeck(snapshot({ feeds: { [ACC1]: feedsFrom(noGrants, T0), [ACC3]: feedsFrom(synthetic, T0) } }), T0);
       const card = (id: typeof ACC1) => d.accounts.find((a) => a.id === id)!;
-      expect(card(ACC1).quietOffers?.[0]).toBe('none to claim');
+      expect(card(ACC1).quietOffers?.[0]).toBe('none');
       expect(card(ACC3).quietOffers).toBeNull();
       expect(card(ACC2).quietOffers).toBeNull();
     });

@@ -136,6 +136,8 @@ export interface RoutingView {
   readonly isTarget: boolean;
   /** Fill-first's first in line on its own: enabled, not blocked, and above every other such account. Round-robin has no line. */
   readonly primary: boolean;
+  /** Whether priority decides who serves first. Fill-first reads it, round-robin ignores it. */
+  readonly ranksByPriority: boolean;
   readonly outranksAll: boolean;
   readonly lastSeenAt: Instant | null;
   readonly recent: number | null;
@@ -237,10 +239,10 @@ export interface GrantView {
 
 export interface OfferView {
   readonly program: ProgramId;
-  /** The reset's one name, from the card row and its Claim button to the claim dialog: its source ("Weekly allowance"). */
+  /** The reset's one name, from the card row and its Claim button to the claim dialog: its source ("Weekly reset"). */
   readonly name: string;
   /**
-   * The standing terms that follow the name on the card row ("once a week"), with what it clears only when the account's
+   * The standing terms that follow the name on the card row ("clears the session limit"), only when the account's
    * resets differ in that (see AccountView.offersClear). A grant's count and end come from grants.
    */
   readonly terms: readonly string[];

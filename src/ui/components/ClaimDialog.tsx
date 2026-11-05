@@ -22,7 +22,7 @@ export function ClaimDialog(props: {
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
   const stillClaimable = offer.state.kind === 'claimable';
   const confirmLabel =
-    props.program === 'juniper_tide' ? `Reset session limit on ${a.email}` : `Use 1 “${grant?.label ?? 'grant'}” reset on ${a.email}`;
+    props.program === 'juniper_tide' ? `Reset session limit on ${a.email}` : `Use 1 “${grant?.label ?? 'bonus'}” reset on ${a.email}`;
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -62,13 +62,13 @@ export function ClaimDialog(props: {
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="claim-title claim-name" data-testid="claim-dialog" ref={dialog}>
-        <h2 id="claim-title">Claim a Claude reset</h2>
+        <h2 id="claim-title">Claim a reset</h2>
         <dl className="facts">
           <dt>Account</dt>
           <dd>
             {a.email} <span className="muted">· {a.plan?.label ?? 'plan unknown'}</span>
           </dd>
-          <dt>Offer</dt>
+          <dt>Reset type</dt>
           <dd>
             <span id="claim-name" title={props.program}>
               {offer.name}

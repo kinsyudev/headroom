@@ -84,7 +84,7 @@ function AccountRow(props: {
       <ActivityCell buckets={a.activity} color={props.color} help={REQUESTS_HELP} />
 
       {(a.trouble !== null || offersOpen) && (
-        <section className="acct-attention" aria-label={a.trouble === null ? 'Claude resets' : 'Trouble and fixes'} id={resetsAnchor(a.id)} tabIndex={-1}>
+        <section className="acct-attention" aria-label={a.trouble === null ? 'Resets you can claim' : 'Trouble and fixes'} id={resetsAnchor(a.id)} tabIndex={-1}>
           <Trouble account={a} />
           {offersOpen && <ResetOffers account={a} onClaim={props.onClaim} />}
         </section>
@@ -97,12 +97,12 @@ function AccountRow(props: {
             input={{ account: a.id }}
             disabled={!a.can.makePrimary}
             title={r.primary ? PRIMARY_HELP : a.can.makePrimary ? 'Set priority above every other account' : 'Already first in priority, outranking every other account'}
-            pendingLabel="Making primary…"
+            pendingLabel="Saving…"
             done={(o) => (o.changed ? `priority ${o.priority}` : 'already primary')}
             variant={r.primary ? 'state' : 'quiet'}
             testId="make-primary"
           >
-            {r.primary ? 'Primary' : 'Make primary'}
+            {r.primary ? '★ Primary' : 'Make primary'}
           </ActionButton>
           <PriorityStepper account={a.id} routing={r} />
         </div>
