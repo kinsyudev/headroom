@@ -26,8 +26,12 @@ const pageErrors: string[] = [];
 const stack = await startStack({ port, log: join(out, 'app.log') });
 if (stack.fake.url.endsWith(':8317')) throw new Error('never the real CPA');
 const browser = await chromium.launch();
-const context: BrowserContext = await browser.newContext({ deviceScaleFactor: 1 });
-if (extraCss) await context.addInitScript((css) => document.addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: css }))), extraCss);
+async function newContext(deviceScaleFactor: number): Promise<BrowserContext> {
+  const ctx = await browser.newContext({ deviceScaleFactor });
+  if (extraCss) await ctx.addInitScript((css) => document.addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: css }))), extraCss);
+  return ctx;
+}
+const context = await newContext(1);
 
 async function until(cond: () => Promise<boolean>, what: string, timeoutMs: number): Promise<boolean> {
   const end = Date.now() + timeoutMs;
@@ -87,7 +91,7 @@ try {
   await tiles(desk, 'desktop', 'Whole page at 1480px wide, scrolled top to bottom');
 
   await shot('brand', 'The page header at 1480px wide, captured at 2x pixel density so the name and mark are crisp', async (path) => {
-    const sharp = await browser.newContext({ deviceScaleFactor: 2 });
+    const sharp = await newContext(2);
     const page = await open(1480, TILE, sharp);
     await page.screenshot({ path, clip: { x: 0, y: 0, width: 1480, height: 140 } });
     await sharp.close();
