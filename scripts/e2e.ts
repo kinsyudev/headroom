@@ -123,6 +123,8 @@ try {
     (await text(card('account1@example.com').getByTestId('spend'))) === 'Extra usage off' && (await text(card('account2@example.com').getByTestId('spend'))) === 'Extra usage off',
     'with no account spending extra usage it takes no column, and each plan line says it is off',
   );
+  const capChip = await text(card('account3@example.com').getByTestId('spend'));
+  assert(/^✕\s*Extra usage cap reached · resets (.+ )?\d\d:\d\d$/.test(capChip), `account3's plan line says its extra-usage cap is reached and when it resets: "${capChip}"`);
   const pct = async (email: string, key: string) => text(card(email).getByTestId(`limit-${key}`).getByTestId('percent'));
   assert((await pct('account1@example.com', 'session')) === '88%', 'account1 session 88% left from the poll');
   assert((await pct('account1@example.com', 'weekly_all')) === '73%', 'account1 weekly 73% left');

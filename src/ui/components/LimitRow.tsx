@@ -144,12 +144,13 @@ function spendTitle(s: SpendView, face: SpendFace, now: number): string {
     .join(' · ');
 }
 
-/** Extra usage said on the account's plan line while it has no column: in words when off, as a chip when a cap stops it. */
+/** Extra usage said on the account's plan line while it has no column: in words when off, as a chip with its reset when a cap stops it. */
 export function SpendNote(props: { readonly spend: SpendView | null; readonly atWall: boolean; readonly help: string }) {
   const now = useNow();
   if (!props.spend) return null;
   const face = spendFace(props.spend, props.atWall, now);
   const icon = face.tone === 'critical' || face.tone === 'warning' ? TONE_ICON[face.tone] : null;
+  const resets = icon ? resetsText(props.spend.live, now) : null;
   return (
     <span className={icon ? `chip spend-chip tone-${face.tone}` : 'spend-note'} data-testid="spend" title={`${props.help}\n${spendTitle(props.spend, face, now)}`}>
       {icon && (
@@ -158,6 +159,7 @@ export function SpendNote(props: { readonly spend: SpendView | null; readonly at
         </span>
       )}
       <span className="help">Extra usage</span> {face.value.toLowerCase()}
+      {resets && <span className="nowrap"> · {resets}</span>}
     </span>
   );
 }
