@@ -71,7 +71,7 @@ export function Headline(props: { readonly view: AnalyticsView; readonly week: W
           <div className="ceilbar" role="meter" aria-label="Share of input served from cache" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((t.cacheReadShare ?? 0) * 100)}>
             <span className="ceilbar-fill" style={{ width: `${(t.cacheReadShare ?? 0) * 100}%` }} />
           </div>
-          <p className="kpi-sub">of the input Claude read came from cache</p>
+          <p className="kpi-sub">of input served from cache</p>
         </div>
         <div className="kpi" data-testid="kpi-top">
           <h3>Most used</h3>

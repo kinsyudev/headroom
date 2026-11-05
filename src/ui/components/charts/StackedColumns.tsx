@@ -47,6 +47,8 @@ export const StackedColumns = memo(function StackedColumns(props: {
   readonly buckets: readonly Bucket[];
   readonly series: readonly Series[];
   readonly format: (n: number) => string;
+  /** How the axis writes a tick, where it should differ from a value, such as one decimal on every tick or none. */
+  readonly tickFormat?: (n: number) => string;
   readonly bucketLabel: (bucket: Bucket) => string;
   readonly tooltipTitle: (bucket: Bucket) => string;
   readonly label: string;
@@ -93,7 +95,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
           <g key={t}>
             <line x1={PAD.left} x2={PAD.left + plotW} y1={y(t)} y2={y(t)} className={t === 0 ? 'axis' : 'grid'} />
             <text x={PAD.left - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tick">
-              {props.format(t)}
+              {(props.tickFormat ?? props.format)(t)}
             </text>
           </g>
         ))}

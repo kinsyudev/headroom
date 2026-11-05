@@ -322,9 +322,16 @@ try {
   assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
   const cache = await text(page.getByTestId('cache'));
   assert(
-    cache.includes('Cache misses') && /\d%\s*of input missed the cache/.test(cache) && cache.includes('scale 0 to 10%') && !cache.includes('served from cache') && !cache.includes('per request'),
-    'the cache panel is titled for what it plots, leads with the miss share it draws, names the 0 to 10% scale, and leaves the hit rate to the tile',
+    cache.includes('Cache misses by day') && cache.includes('scale 0 to 10%') && !cache.includes('served from cache') && !cache.includes('per request') && (await page.getByTestId('cache').locator('.figure').count()) === 0,
+    'the cache panel is a plain chart titled for what it plots, names the 0 to 10% scale, and states no cache number of its own',
   );
+  assert(/^Cache hit\s*\d+(\.\d)?%.*of input served from cache$/.test(await text(page.getByTestId('kpi-cache'))), 'the Cache hit tile holds the one cache number, as a hit rate');
+  await page.getByTestId('cache').getByRole('button', { name: 'Table' }).click();
+  assert(
+    (await page.getByTestId('cache').locator('table.data thead th').allTextContents()).includes('Missed the cache') && (await page.getByTestId('cache').locator('table.data tbody tr').count()) === 7,
+    'the cache panel keeps its table twin, one row per day with the miss share',
+  );
+  await page.getByTestId('cache').getByRole('button', { name: 'Chart' }).click();
   const mix = await text(page.getByTestId('mix'));
   assert(mix.includes('output tokens per request') && mix.includes('output tokens per session'), 'output per request and per session sit in What you use');
   const speed = page.getByTestId('speed');
