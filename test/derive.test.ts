@@ -299,7 +299,7 @@ describe('offers and claimability', () => {
     id: 'c1' as ClaimId, account: ACC3, program, grant: null, startedAt: T0, state,
   });
   const limitsOf = (feeds: AccountFeeds) => mergeLimits(feeds.limits.last, null, T0);
-  const offersOf = (feeds: AccountFeeds, atWall = true, claims: ClaimRecord[] = []) => deriveOffers(ACC3, feeds, atWall, claims, T0, limitsOf(feeds));
+  const offersOf = (feeds: AccountFeeds, atWall = true, claims: ClaimRecord[] = []) => deriveOffers(ACC3, feeds, atWall, claims, T0, limitsOf(feeds)).offers;
   const offers = (feeds = feedsFrom(synthetic, T0), atWall = true, claims: ClaimRecord[] = []) =>
     Object.fromEntries(offersOf(feeds, atWall, claims).map((o) => [o.program, o.state])) as Record<ClaimRecord['program'], OfferState>;
 
@@ -348,39 +348,41 @@ describe('offers and claimability', () => {
     expect(d.banners).toContainEqual({ kind: 'claim_unknown', claim: 'c1' as ClaimId, email: 'account3@example.com', program: 'juniper_tide', label: 'Weekly session reset' });
   });
 
-  describe('naming a reset by its effect and its source', () => {
+  describe('naming a reset once and saying what it clears once', () => {
     const withGrants = (grants: CedarEmber['grants']): AccountFeeds => {
       const f = feedsFrom(synthetic, T0);
       return { ...f, cedar: { ...f.cedar, last: { value: c({ grants }), at: T0 } } };
     };
-    const names = (feeds: AccountFeeds) => Object.fromEntries(offersOf(feeds).map((o) => [o.program, o.name]));
-
-    test('the weekly reset and a bonus clearing the session limit read as one pattern', () => {
-      expect(names(feedsFrom(synthetic, T0))).toEqual({
-        juniper_tide: { what: 'Reset session limit', source: 'weekly allowance' },
-        cedar_ember: { what: 'Reset session limit', source: 'bonus grant' },
-      });
+    const panel = (feeds: AccountFeeds) => {
+      const a = deriveDeck(snapshot({ feeds: { [ACC3]: feeds } }), T0).accounts.find((x) => x.id === ACC3)!;
+      return { offersClear: a.offersClear, rows: Object.fromEntries(a.offers.map((o) => [o.program, [o.name, ...o.terms]])) };
+    };
+    const eachRowSaysItsOwn = (bonus: string[]) => ({
+      offersClear: null,
+      rows: { juniper_tide: ['Weekly allowance', 'clears the session limit', 'once a week'], cedar_ember: ['Bonus grant', ...bonus] },
     });
 
-    test('each row leads with what sets the reset apart: its source, then what it clears and how often', () => {
-      const rows = Object.fromEntries(offersOf(feedsFrom(synthetic, T0)).map((o) => [o.program, { lead: o.lead, terms: o.terms }]));
-      expect(rows).toEqual({
-        juniper_tide: { lead: 'Weekly allowance', terms: ['clears the session limit', 'once a week'] },
-        cedar_ember: { lead: 'Bonus grant', terms: [] },
+    test('resets that clear the same limit say it once, and each row keeps its one name and what sets it apart', () => {
+      expect(panel(feedsFrom(synthetic, T0))).toEqual({
+        offersClear: 'the session limit',
+        rows: { juniper_tide: ['Weekly allowance', 'once a week'], cedar_ember: ['Bonus grant'] },
       });
     });
 
     test.each([
-      ['a weekly bonus', ['seven_day'], 'Reset weekly limit'],
-      ['a bonus clearing both', ['five_hour', 'seven_day'], 'Reset session and weekly limits'],
-      ['a bonus naming nothing', [], 'Reset limit'],
-    ] as const)('%s', (_label, clears, what) => {
-      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toEqual({ what, source: 'bonus grant' });
+      ['a weekly bonus', ['seven_day'], 'clears the weekly limit'],
+      ['a bonus clearing both', ['five_hour', 'seven_day'], 'clears the session and weekly limits'],
+    ] as const)('%s clears something else, so each row names what it clears', (_label, clears, bonus) => {
+      expect(panel(withGrants([{ ...grant, clears: [...clears] }]))).toEqual(eachRowSaysItsOwn([bonus]));
     });
 
-    test('with no usable grant the name still says what the grants clear, or that nothing is named', () => {
-      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toEqual({ what: 'Reset session limit', source: 'bonus grant' });
-      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toEqual({ what: 'Reset limit', source: 'bonus grant' });
+    test('a bonus naming nothing claims nothing, and the weekly allowance still says what it clears', () => {
+      expect(panel(withGrants([{ ...grant, clears: [] }]))).toEqual(eachRowSaysItsOwn([]));
+      expect(panel(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0))).toEqual(eachRowSaysItsOwn([]));
+    });
+
+    test('with no usable grant the panel still says what the grants clear', () => {
+      expect(panel(withGrants([{ ...grant, resetsLeft: 0 }])).offersClear).toBe('the session limit');
     });
 
     test('the overview and the card name a claimable reset identically, and the overview groups them by account', () => {

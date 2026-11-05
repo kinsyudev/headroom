@@ -39,7 +39,6 @@ import type {
   OverviewView,
   PlanView,
   ReadView,
-  ResetName,
   RoutingView,
   SpendView,
   StatusView,
@@ -182,7 +181,7 @@ export function deriveAccount(
   const atWall = isAtWall(a, feeds.limits.last, now);
   const mine = claims.filter((c) => c.account === a.id);
   const read = deriveRead(feeds, now, cpa);
-  const offers = deriveOffers(a.id, feeds, atWall, mine, now, limits);
+  const { offers, offersClear } = deriveOffers(a.id, feeds, atWall, mine, now, limits);
   return {
     id: a.id,
     email: a.email,
@@ -195,6 +194,7 @@ export function deriveAccount(
     limits,
     spend: deriveSpend(feeds.spend, a.headers),
     offers,
+    offersClear,
     quietOffers: quietOffers(offers),
     activity: a.activity,
     freshness: [
@@ -547,10 +547,6 @@ function limitsNamed(clears: readonly string[]): string {
   return windows.length === 0 ? 'limit' : `${windows.join(' and ')} ${windows.length === 1 ? 'limit' : 'limits'}`;
 }
 
-function resetName(clears: readonly string[], source: string): ResetName {
-  return { what: `Reset ${limitsNamed(clears)}`, source };
-}
-
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
   return clears.flatMap((w) => {
     const l = limits.find((x) => x.key === WINDOW_LIMIT[w]);
@@ -565,7 +561,7 @@ export function deriveOffers(
   claims: readonly ClaimRecord[],
   now: Instant,
   limits: readonly LimitView[],
-): OfferView[] {
+): Pick<AccountView, 'offers' | 'offersClear'> {
   const j = feeds.juniper;
   const c = feeds.cedar;
   const jHolding = holdingClaim(claims, account, 'juniper_tide', programReadAt(feeds, 'juniper_tide'));
@@ -591,40 +587,44 @@ export function deriveOffers(
   const defaultGrant = cedar.kind === 'claimable' ? cv?.grants.find((g) => g.id === cedar.grant) : undefined;
   const grants = cv?.grants ?? [];
   const cedarClears = defaultGrant?.clears ?? [...new Set(grants.flatMap((g) => g.clears))];
+  const offersClear =
+    cedarClears.length === JUNIPER_CLEARS.length && JUNIPER_CLEARS.every((w) => cedarClears.includes(w)) ? `the ${limitsNamed(JUNIPER_CLEARS)}` : null;
+  const clearsTerm = (clears: readonly string[]) => (offersClear === null && clears.length > 0 ? [`clears the ${limitsNamed(clears)}`] : []);
 
-  return [
-    {
-      program: 'juniper_tide',
-      name: resetName(JUNIPER_CLEARS, 'weekly allowance'),
-      lead: 'Weekly allowance',
-      terms: [`clears the ${limitsNamed(JUNIPER_CLEARS)}`, 'once a week'],
-      effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
-      selfResets: selfResets(JUNIPER_CLEARS, limits),
-      state: juniper,
-      dataAt: j.last?.at ?? null,
-      grants: [],
-    },
-    {
-      program: 'cedar_ember',
-      name: resetName(cedarClears, 'bonus grant'),
-      lead: 'Bonus grant',
-      terms: [],
-      effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
-      selfResets: selfResets(cedarClears, limits),
-      state: cedar,
-      dataAt: c.last?.at ?? null,
-      grants: grants.map((g) => ({
-        id: g.id,
-        label: g.label,
-        resetsLeft: g.resetsLeft,
-        resetsTotal: g.resetsTotal,
-        endsAt: g.endsAt,
-        clears: g.clears,
-        clearsText: clearsText(g.clears),
-        usable: cv !== null && usableGrant(cv, g),
-      })),
-    },
-  ];
+  return {
+    offersClear,
+    offers: [
+      {
+        program: 'juniper_tide',
+        name: 'Weekly allowance',
+        terms: [...clearsTerm(JUNIPER_CLEARS), 'once a week'],
+        effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
+        selfResets: selfResets(JUNIPER_CLEARS, limits),
+        state: juniper,
+        dataAt: j.last?.at ?? null,
+        grants: [],
+      },
+      {
+        program: 'cedar_ember',
+        name: 'Bonus grant',
+        terms: clearsTerm(cedarClears),
+        effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
+        selfResets: selfResets(cedarClears, limits),
+        state: cedar,
+        dataAt: c.last?.at ?? null,
+        grants: grants.map((g) => ({
+          id: g.id,
+          label: g.label,
+          resetsLeft: g.resetsLeft,
+          resetsTotal: g.resetsTotal,
+          endsAt: g.endsAt,
+          clears: g.clears,
+          clearsText: clearsText(g.clears),
+          usable: cv !== null && usableGrant(cv, g),
+        })),
+      },
+    ],
+  };
 }
 
 const PROGRAM_SHORT: Readonly<Record<ProgramId, string>> = {

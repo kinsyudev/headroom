@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, GrantView, OfferView } from '../../shared/view';
-import { claimResultText, resetNameText } from '../format';
+import { claimResultText } from '../format';
 import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
@@ -13,7 +13,9 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
   const claimable = a.offers.some((o) => o.state.kind === 'claimable');
   return (
     <div className={claimable ? 'offers claimable' : 'offers'}>
-      <h4 style={{ gridRow: `span ${a.offers.length}` }}>Claude resets</h4>
+      <h4>
+        Claude resets{a.offersClear !== null && <span className="offers-note"> each clears {a.offersClear}</span>}
+      </h4>
       {a.offers.map((o) => (
         <OfferRow key={o.program} email={a.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
       ))}
@@ -29,7 +31,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
       <div className="offer-text">
         <Segments
           parts={[
-            <strong title={o.program}>{o.lead}</strong>,
+            <strong title={o.program}>{o.name}</strong>,
             ...o.terms,
             ...(o.grants.length === 1 ? grantTerms(o.grants[0]!, false) : []),
           ]}
@@ -45,7 +47,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
         )}
       </div>
       {o.state.kind === 'claimable' ? (
-        <ClaimButton name={resetNameText(o.name)} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />
+        <ClaimButton name={o.name} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />
       ) : (
         <div className="offer-state">
           <OfferState offer={o} />

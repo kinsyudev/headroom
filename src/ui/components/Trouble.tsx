@@ -3,7 +3,7 @@ import type { Instant } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { reasonText } from '../format';
 import { ActionButton } from './ActionButton';
-import { Clock, Countdown } from './Countdown';
+import { Clock } from './Countdown';
 import { Segments } from './Segments';
 
 export function Trouble(props: { readonly account: AccountView }) {
@@ -16,13 +16,10 @@ export function Trouble(props: { readonly account: AccountView }) {
   return (
     <div className="trouble">
       <p className="cooldown">
-        <span className="trouble-icon" aria-hidden>
-          ■
-        </span>
+        <strong>{limit ? `${limit.label} limit reached` : trouble.cause}</strong>{' '}
         <Segments
-          parts={[
-            <strong>{limit ? `${limit.label} limit reached` : trouble.cause}</strong>,
-            ...(trouble.holds.length === 0
+          parts={
+            trouble.holds.length === 0
               ? [<span className="muted">CPA&apos;s last error, no cooldown running</span>]
               : trouble.holds.map((h) => (
                   <>
@@ -32,15 +29,15 @@ export function Trouble(props: { readonly account: AccountView }) {
                         {' '}
                         until the {limit.label.toLowerCase()} resets{' '}
                         <span className="nowrap">
-                          at <Clock at={limit.liftsAt} /> <span className="muted">(in <Countdown at={limit.liftsAt} />)</span>
+                          at <Clock at={limit.liftsAt} />
                         </span>
                       </>
                     ) : (
                       <Until at={h.until} />
                     )}
                   </>
-                ))),
-          ]}
+                ))
+          }
         />
       </p>
       <div className="trouble-actions">

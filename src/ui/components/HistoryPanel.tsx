@@ -119,32 +119,38 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
         <button type="button" className="btn quiet" aria-pressed={table} onClick={() => setTable((t) => !t)}>
           {table ? 'Chart' : 'Table'}
         </button>
-        <span className="muted keeper-age">
-          <Segments
-            parts={[
-              history?.keeperLatestAt && (
-                <>
-                  latest request <Age at={history.keeperLatestAt} /> ago
-                </>
-              ),
-              loading && 'loading',
-            ]}
-          />
-        </span>
       </div>
       {error && <p className="banner warning">History unavailable: {error}</p>}
+      {(folded || loading) && (
+        <div className="legend">
+          <span className="muted">
+            <Segments
+              parts={[
+                RANGE_LABEL[range],
+                folded && `per ${folded.bucket}`,
+                folded && 'local time',
+                history?.keeperLatestAt && (
+                  <>
+                    latest request <Age at={history.keeperLatestAt} /> ago
+                  </>
+                ),
+                loading && 'loading',
+              ]}
+            />
+          </span>
+          {series.length > 0 && (
+            <span className="legend-items">
+              {series.map((s) => (
+                <span key={s.key} className="legend-item">
+                  <span className="legend-swatch" style={{ background: s.color }} /> {s.label}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
       {folded && (
         <>
-          <div className="legend">
-            <span className="muted">
-              <Segments parts={[RANGE_LABEL[range], `per ${folded.bucket}`, 'local time']} />
-            </span>
-            {series.map((s) => (
-              <span key={s.key} className="legend-item">
-                <span className="legend-swatch" style={{ background: s.color }} /> {s.label}
-              </span>
-            ))}
-          </div>
           {table ? (
             <TableScroll label={`Usage per ${folded.bucket}`}>
               <table className="data">

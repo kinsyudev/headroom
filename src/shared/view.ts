@@ -62,13 +62,7 @@ export interface OverviewView {
 export interface ClaimableView {
   readonly account: AccountId;
   readonly email: string;
-  readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: ResetName; readonly detail: string | null }[];
-}
-
-/** A reset's name in two parts: what it does ("Reset session limit"), then where it comes from ("weekly", "bonus"). */
-export interface ResetName {
-  readonly what: string;
-  readonly source: string;
+  readonly resets: readonly { readonly program: ProgramId; readonly grant: GrantId | null; readonly name: string; readonly detail: string | null }[];
 }
 
 export type ServingWhy = 'fill_first_target' | 'affinity' | 'round_robin';
@@ -95,6 +89,8 @@ export interface AccountView {
   readonly limits: readonly LimitView[];
   readonly spend: SpendView | null;
   readonly offers: readonly OfferView[];
+  /** What every reset clears ("the session limit") when they all clear the same limits, said once for all of them; null when they differ, so each row names its own. */
+  readonly offersClear: string | null;
   /** Phrases for one line standing in for the offers when none is claimable, waiting, in flight or unreadable; null when any is. */
   readonly quietOffers: readonly string[] | null;
   readonly activity: readonly { readonly start: Instant; readonly success: number; readonly failed: number }[];
@@ -229,12 +225,12 @@ export interface GrantView {
 
 export interface OfferView {
   readonly program: ProgramId;
-  readonly name: ResetName;
+  /** The reset's one name, from the card row and its Claim button to the claim dialog: its source ("Weekly allowance"). */
+  readonly name: string;
   /**
-   * The reset's row on the account, led by what sets it apart from the other reset: its source ("Weekly allowance"),
-   * then its standing terms ("clears the session limit", "once a week"). A grant's count and end come from grants.
+   * The standing terms that follow the name on the card row ("once a week"), with what it clears only when the account's
+   * resets differ in that (see AccountView.offersClear). A grant's count and end come from grants.
    */
-  readonly lead: string;
   readonly terms: readonly string[];
   readonly effect: string;
   /** When each limit the reset clears would reset without it; limits with no open window are left out. */
