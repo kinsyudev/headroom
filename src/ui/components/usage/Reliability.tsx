@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AccountId, Outcome } from '../../../shared/domain';
 import type { AnalyticsView, ErrorGroupView, ErrorLogView } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { bucketText, clockTime, compact, count, modelName, reasonText, seconds, share, shortName } from '../../format';
+import { bucketText, compact, count, modelName, reasonText, seconds, share, shortName, stamp } from '../../format';
 import { Segments } from '../Segments';
 import { Swatch, type Slot } from '../Swatch';
 import { TableScroll } from '../TableScroll';
@@ -132,11 +132,11 @@ function logLine(g: ErrorGroupView, slots: ReadonlyMap<AccountId, Slot>, now: nu
     <>
       last{' '}
       <time className="num" dateTime={new Date(g.lastAt).toISOString()} title={new Date(g.lastAt).toLocaleString()}>
-        {clockTime(g.lastAt, now)}
+        {stamp(g.lastAt, now)}
       </time>
     </>,
     g.message && reason ? reason : null,
-    g.recoverAt === null ? null : <>recovers {clockTime(g.recoverAt, now)}</>,
+    g.recoverAt === null ? null : <>recovers {stamp(g.recoverAt, now)}</>,
   ];
 }
 

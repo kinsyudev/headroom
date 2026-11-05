@@ -96,8 +96,17 @@ describe('figures on the usage page', () => {
   });
 
   test('a moment is dated like a chart axis, with the day before the time', () => {
-    expect(stamp(new Date(2026, 10, 4, 19, 25).getTime())).toBe('Nov 4 19:25');
-    expect(stamp(new Date(2026, 10, 5, 0, 5).getTime())).toBe('Nov 5 00:05');
+    const now = new Date(2026, 10, 12, 9, 0).getTime();
+    expect(stamp(new Date(2026, 10, 4, 19, 25).getTime(), now)).toBe('Nov 4 19:25');
+    expect(stamp(new Date(2026, 10, 5, 0, 5).getTime(), now)).toBe('Nov 5 00:05');
+  });
+
+  test('a moment on the current day says today, and the day before it never reads as a weekday', () => {
+    const now = new Date(2026, 10, 5, 9, 0).getTime();
+    expect(stamp(new Date(2026, 10, 5, 0, 5).getTime(), now)).toBe('today 00:05');
+    expect(stamp(new Date(2026, 10, 5, 18, 40).getTime(), now)).toBe('today 18:40');
+    expect(stamp(new Date(2026, 10, 4, 19, 25).getTime(), now)).toBe('Nov 4 19:25');
+    expect(stamp(new Date(2026, 10, 6, 3, 0).getTime(), now)).toBe('Nov 6 03:00');
   });
 
   test('counts, times and changes', () => {

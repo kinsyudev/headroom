@@ -392,7 +392,8 @@ try {
   const errorLog = page.getByTestId('failures').getByTestId('errors');
   assert(/^\d+ of \d+ failures? (is|are) in CPA's log$/.test(await text(errorLog.locator('.fail-log-coverage'))), 'the log says how many of the failures it holds');
   const logLines = await errorLog.locator('.fail-lines li').allTextContents();
-  assert(logLines.length > 0 && logLines.every((l) => /^\S+\s+\d{3}\s.+\saccount\d\s+last\s(\d\d:\d\d|[A-Z][a-z]{2} \d\d:\d\d|[A-Z][a-z]{2} \d{1,2} \d\d:\d\d)/.test(l.trim())), `each log line reads status, message, account and the time of the last one: ${logLines.join(' | ')}`);
+  assert(logLines.length > 0 && logLines.every((l) => /^\S+\s+\d{3}\s.+\saccount\d\s+last\s(today \d\d:\d\d|[A-Z][a-z]{2} \d{1,2} \d\d:\d\d)/.test(l.trim())), `each log line reads status, message, account and the time of the last one, dated like the chart axes: ${logLines.join(' | ')}`);
+  assert(logLines.every((l) => !/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d\d:\d\d\b/.test(l)), 'no time in the log reads as a weekday, which looks a week old the day after');
   assert(logLines.every((l) => !l.includes('@') && !l.includes('—')), 'the log names accounts by their short names and shows no empty placeholder');
   assert(logLines.some((l) => /×\d+/.test(l)), 'identical errors on one account are one line with a count');
   assert((await page.getByTestId('analytics').getByText('Recent errors and rate limits', { exact: true }).count()) === 0, 'the error log is a section of Failures and no longer a panel of its own');

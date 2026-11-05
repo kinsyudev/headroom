@@ -99,10 +99,11 @@ export function compact(n: number): string {
 /** The name an account goes by in a table, a legend or a tooltip, with its colour square beside it: "account1" for account1@example.com. */
 export const shortName = (email: string): string => email.split('@')[0]!;
 
-/** A moment with its date, the way a chart axis dates it: "Nov 4 19:25". */
-export function stamp(at: number): string {
+/** A moment with its date, the way a chart axis dates it: "Nov 4 19:25", or "today 19:25" on the current day. It never says a weekday, which reads as last week the day after. */
+export function stamp(at: number, now: number): string {
   const d = new Date(at);
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
+  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return d.toDateString() === new Date(now).toDateString() ? `today ${hm}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
 }
 
 /** A whole amount drops its cents, so a cap and what is left of it fit the narrow Extra usage column. */
