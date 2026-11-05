@@ -243,6 +243,30 @@ export function emptyFeeds(): AccountFeeds {
   };
 }
 
+/**
+ * What became of one request, classified once from keeper's status_code and failed columns. Counts, rates and the
+ * fake's rows all key on this list.
+ *   ok             2xx and not failed
+ *   rate_limited   429
+ *   client_closed  499: the client hung up (Esc in Claude Code). It is not an upstream fault
+ *   server_error   5xx
+ *   other_error    any other 4xx, or failed with no usable status
+ */
+export const OUTCOMES = ['ok', 'rate_limited', 'client_closed', 'server_error', 'other_error'] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+
+/** freshInput is keeper's input_tokens less cache reads and cache creation, which it already includes. */
+export interface TokenSums {
+  readonly freshInput: number;
+  readonly cacheRead: number;
+  readonly cacheCreation: number;
+  readonly output: number;
+  readonly reasoning: number;
+}
+
+/** keeper's reasoning_effort as written ('' when the request set none). The vocabulary is keeper's, so it stays open. */
+export type Effort = string;
+
 export interface ServingSeen {
   readonly account: AccountId;
   readonly lastAt: Instant;

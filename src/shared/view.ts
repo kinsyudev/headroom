@@ -277,3 +277,7 @@ export type Banner =
   | { readonly kind: 'cpa_unreachable'; readonly lastAt: Instant | null }
   | { readonly kind: 'claim_unknown'; readonly claim: ClaimId; readonly email: string; readonly program: ProgramId; readonly label: string }
   | { readonly kind: 'keeper_unavailable'; readonly message: string };
+
+export const USAGE_RANGES = ['24h', '7d', '30d'] as const;
+export type UsageRange = (typeof USAGE_RANGES)[number];
+export type Grain = 'hour' | 'day';
