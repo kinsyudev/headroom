@@ -32,7 +32,7 @@ The shape has to respect three hazards:
 | --- | --- | --- |
 | GET | `/` | The app, a Bun HTML import |
 | GET | `/api/snapshot` | `Snapshot`. The UI polls this every 2 s and immediately after every action. |
-| GET | `/api/history?range=24h\|7d\|30d` | `HistoryView` |
+| GET | `/api/usage` | `UsageCube`: the last 31 days of usage in hourly cells, plus recent error events. The UI polls it every 60 s, or every 2 s while `catchingUp` is true. |
 | POST | `/api/act` | `{kind, input}` returns the typed output, or `{error: {code, message}}` |
 
 The UI runs `deriveDeck(snapshot, now)` once a second. The server calls the same exported functions when it needs a conclusion, such as whether a reset is claimable or what the make-primary priority should be.
@@ -132,15 +132,34 @@ There is nothing else. No SQLite of our own.
 - **Serving now comes from keeper.** Every 5 s, `keeper.ts` reads the most recent `usage_events` (newest 500 rows by `id`) grouped by `auth_index`, giving last-seen time and request count in the last 2 min. An account is serving if it was last seen under 120 s ago. The tile also says whether that account takes the next new session, or names the account that will, which is a prediction from the routing rule. CPA's `recent_requests` is the fallback when keeper is unavailable.
 - **Merging header and poll data.** Both sources map to the same rows (`5h` to session, `7d` to weekly_all). The newer observation is drawn, and the other is named with its age in the cell's tooltip. The meter carries no mark for it.
 
-### 7. History
+### 7. Usage history
 
-- `keeper.ts` is the only file that names `input_tokens`. It computes fresh input as `input - cache_read - cache_creation`.
-- Range filtering uses `julianday(timestamp)`.
-- The server returns sparse hourly rows bucketed in UTC (`strftime('%Y-%m-%dT%H:00:00Z', timestamp)`) for the range, per account and model.
-- The browser folds those rows into local hours or days. That keeps timezone and DST handling out of SQL.
-- `foldHistory` marks a bucket `partial` while its end is after the response's `generatedAt`. That is always the last bucket, and the chart draws it striped and labels it "now".
-- The response also carries per-model totals over the range and the 50 most recent `error_events` for the known accounts.
-- Results are memoized per range for 30 s.
+Every chart reads one shape, and the server never answers per range or time zone.
+
+**The server keeps an hourly ledger.** `src/server/ledger.ts` folds `usage_events` rows into cells keyed by UTC hour, account, model, and reasoning effort. Each cell holds counts per outcome (ok, 429, 499, 5xx, other), token sums, the sessions that started in it, and log-binned latency and time to first token of ok requests. The ledger is pure and has no SQLite in it. It owns the one cursor, the highest `usage_events` id folded, so a row counts once however its reads are sliced or replayed. A late row with an old timestamp still lands in its own hour.
+
+**`keeper.ts` reads by primary key only.**
+
+- `keeper.ts` is the only file that names `input_tokens`. Its SQL computes fresh input as `input - cache_read - cache_creation`.
+- At start, it finds the first id inside the horizon (31 days, the longest range plus a day) by binary search on the primary key, comparing instants in JS.
+- It reads 2,000 rows per slice, each slice in its own macrotask, so `/api/snapshot` answers between slices. On the live DB (107k rows in the horizon, 2026-11-05) the warm-up took 0.14 s, and the longest block of the event loop was 2.3 ms, or 6.5 ms on a cold first run.
+- After the warm-up, the 5 s tick and every `/api/usage` request read the tail first, so an answer is current to keeper's newest row.
+- If keeper's newest id falls below the cursor, the DB was replaced, and the ledger starts over.
+- Nothing is persisted. A restart reads the horizon again, and eviction leaves the same cells a fresh read gives.
+- `test/keeper.test.ts` runs `EXPLAIN QUERY PLAN` on every statement in `SQL` and fails on any `SCAN usage_events`. A `julianday(timestamp)` filter in a `WHERE` reads the whole table.
+
+**`GET /api/usage` returns the `UsageCube` as is.** It takes no parameters. While the warm-up runs, it answers 200 with what is folded so far and `catchingUp: true`. It returns 503 only when keeper can't be read. The body is about 0.6 MB for 31 days. It carries no session ids and no error bodies, only the message parsed out of each body.
+
+**The browser folds the cube.** `deriveAnalytics(cube, lens, accounts)` in `src/shared/usage.ts` is the only reader of the cube, and `useAnalytics(lens, accounts)` in `src/ui/api.ts` is the only caller. A lens is a range (24h, 7d, or 30d), a grain (hour or day), and an optional account and model. Changing it re-folds in memory with no request. The view holds:
+
+- Buckets in browser-local time. They are contiguous and zero-filled. Day buckets step by calendar date, so a DST day is 23 or 25 hours. The last bucket is `partial` because its end is after the cube's `generatedAt`, and the chart draws it striped and labels it "now".
+- Breakdowns by account, model, and effort that line up with fixed dimensions in every bucket. Accounts follow deck order, so colors stay stable.
+- A local weekday-by-hour grid, the account-and-model table, and the error events inside the span.
+- Rates per outcome, cache-read share of input, output per request and per session, and latency and TTFT percentiles. A percentile lies in the bin of the true value, within 19%, and is null under 20 samples.
+
+**Pace comes from the quota reading alone.** `QUOTA_WINDOWS` in `derive.ts` is the one list of window kinds, the header that reports each one, and its length. From it, `mergeLimits` gives every open `LimitView` a `pace`: when the window opened, how much of it is gone, used against elapsed, and whether a straight line at the burn so far reaches the limit before the reset. The analytics view adds what the window has cost so far, from the cube.
+
+**Not handled.** keeper's `usage_events_archive` is empty. If keeper ever moves rows younger than 31 days to the archive, the cube keeps counting the rows it already read until the next restart. The rebuild rule catches a deletion only when it removes the newest ids. Rows are treated as immutable once keeper writes them.
 
 ### 8. Stack and runtime
 
@@ -179,6 +198,9 @@ Three runners produced candidates: opus as candidate 1, fable as candidate 2, so
 - We accept that juniper_tide shows as `held` away from the wall, in exchange for reading `at_wall` only when Claude Code would.
 - We accept a 2 s poll of a local endpoint, in exchange for no SSE connection state or idle timeouts.
 - We accept no cost column, because keeper has no prices configured.
+- We accept about 0.6 MB of JSON per minute on localhost, in exchange for one shape that every chart reads and lens changes that make no request.
+- We accept UTC-hour cells, which misfold half-hour zones by 30 minutes, and pace costs that count whole hours from the hour the window opened.
+- We accept that the fake keeper's account1 keep-alive is about a fifth of its requests and lifts the overnight trough, so the e2e's serving check holds at any hour.
 - Delete account is out of scope. Use CPA's own panel for it.
 
 ## Alternatives considered

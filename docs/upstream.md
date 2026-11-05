@@ -122,9 +122,12 @@ This rarely changes, so cache it for hours.
 
 Open it with `file:/opt/homebrew/var/cpa-usage-keeper/app.db?mode=ro`. Never write. Keeper owns ingestion. It holds the CPA usage stream via `SUBSCRIBE usage`. Do not consume the CPA usage queue yourself, because `LPOP` and `/usage-queue` are destructive and would steal keeper's records.
 
-- `usage_events` has about 139k rows since 2026-09-25, one row per request. Columns: `timestamp` (RFC3339 text with a **`+08:00` offset**, keeper's TZ, not the Mac's), `auth_index`, `model`, `failed` (0/1), `status_code`, `latency_ms`, `ttft_ms`, `input_tokens`, `output_tokens`, `reasoning_tokens`, `cache_read_tokens`, `cache_creation_tokens`, `total_tokens`, `session_id`, `endpoint`.
-  - **For Claude, `input_tokens` already includes cache reads and cache creation.** Fresh input is `input_tokens - cache_read_tokens - cache_creation_tokens`.
-  - Compare times with `julianday(timestamp)`, which normalizes the offset. A 24 h full-scan aggregate takes about 0.1 s.
-- `error_events` holds 429s and other errors with `auth_index`, `status_code`, `auth_quota_reason`, `auth_quota_next_recover_at`.
+- `usage_events` has about 150k rows since 2026-09-25 (measured 2026-11-05), one row per request, about 4k a day. Columns: `timestamp` (RFC3339 text with a **`+08:00` offset**, keeper's TZ, not the Mac's, and a fraction of 0 to 6 digits), `auth_index`, `model`, `reasoning_effort`, `failed` (0/1), `status_code`, `latency_ms`, `ttft_ms`, `input_tokens`, `output_tokens`, `reasoning_tokens`, `cache_read_tokens`, `cache_creation_tokens`, `total_tokens`, `session_id` (a UUID), `endpoint`.
+  - **For Claude, `input_tokens` already includes cache reads and cache creation.** Fresh input is `input_tokens - cache_read_tokens - cache_creation_tokens`. Cache reads are about 97% of input.
+  - `reasoning_effort` holds `none`, `low`, `medium`, `high`, `xhigh`, `max`, or `''` when the request set none.
+  - `status_code` is 200 for 99.7% of rows. The rest are 499 (the client closed the request), 500, 503 and 529, 429, and a few 401, 404, and 400. Every non-200 row has `failed = 1`.
+  - Read rows by `id`, never by a timestamp range. A `WHERE` on `julianday(timestamp)` can't use an index and reads the whole table, about 136 ms for 30 days. The fraction length varies, so comparing timestamp text is wrong. Read `julianday(timestamp)` in the select list and compare instants in code.
+  - `SELECT MIN(id), MAX(id)` in one statement scans an index. Two scalar subqueries, `(SELECT MIN(id) …)` and `(SELECT MAX(id) …)`, each do one lookup.
+- `error_events` holds 429s and 5xx with `auth_index`, `status_code`, `body`, `auth_quota_reason` (`credential_quota` on a 429), and `auth_quota_next_recover_at`. It has rows only since 2026-11-04. A 429's event is written at the response, a fraction of a second after the request's `usage_events` timestamp.
 - Schema: `test/fixtures/keeper-schema.sql`.
 - Keeper has no model prices configured, so there is no cost data.
