@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { INELIGIBLE_EXPLAIN } from '../src/shared/derive';
 import type { ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
-import { bucketText, changeText, claimText, count, hourText, modelName, money, reasonText, reasonTitle, seconds, share, weekdayName } from '../src/ui/format';
+import { bucketText, changeText, claimText, compact, count, hourText, modelName, money, reasonText, reasonTitle, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
 
 describe('amounts', () => {
   test('a whole amount drops its cents and any other amount keeps them', () => {
@@ -63,6 +63,27 @@ describe('figures on the usage page', () => {
     expect(share(0.966)).toBe('96.6%');
     expect(share(1)).toBe('100%');
     expect(share(null)).toBe('—');
+  });
+
+  test('a compact number keeps one decimal above a thousand, so 2.0M reads beside 1.4M', () => {
+    expect(compact(2_000_000)).toBe('2.0M');
+    expect(compact(1_400_000)).toBe('1.4M');
+    expect(compact(348_100)).toBe('348.1K');
+    expect(compact(1_000)).toBe('1.0K');
+    expect(compact(999_950)).toBe('1.0M');
+    expect(compact(640)).toBe('640');
+    expect(compact(0)).toBe('0');
+    expect(count(20_000)).toBe('20.0K');
+  });
+
+  test('an account goes by the part of its email before the @', () => {
+    expect(shortName('account1@example.com')).toBe('account1');
+    expect(shortName('no-at-sign')).toBe('no-at-sign');
+  });
+
+  test('a moment is dated like a chart axis, with the day before the time', () => {
+    expect(stamp(new Date(2026, 10, 4, 19, 25).getTime())).toBe('Nov 4 19:25');
+    expect(stamp(new Date(2026, 10, 5, 0, 5).getTime())).toBe('Nov 5 00:05');
   });
 
   test('counts, times and changes', () => {

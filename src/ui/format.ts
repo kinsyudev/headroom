@@ -65,8 +65,21 @@ export function percent(p: PercentLeft | null): string {
   return `${Math.round(p)}%`;
 }
 
+const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+/** 640 below a thousand and one decimal above, 2.0M beside 1.4M, so a column of them reads at one precision. */
 export function compact(n: number): string {
-  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+  const whole = Math.round(n);
+  return Math.abs(whole) < 1000 ? String(whole) : COMPACT.format(whole);
+}
+
+/** The name an account goes by in a table, a legend or a tooltip, with its colour square beside it: "account1" for account1@example.com. */
+export const shortName = (email: string): string => email.split('@')[0]!;
+
+/** A moment with its date, the way a chart axis dates it: "Nov 4 19:25". */
+export function stamp(at: number): string {
+  const d = new Date(at);
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
 }
 
 /** A whole amount drops its cents, so a cap and what is left of it fit the narrow Extra usage column. */
