@@ -4,6 +4,7 @@ import type { AnalyticsView, Part, UsageStats, WeekGrid } from '../../../shared/
 import { useNow } from '../../deck';
 import { bucketText, changeText, compact, count, hourText, modelName, shortName, share, weekdayName } from '../../format';
 import { Age } from '../Countdown';
+import { Swatch, type Slot } from '../Swatch';
 import { Blocks, type Block } from '../charts/Blocks';
 import { Delta } from '../charts/Delta';
 import { RANGE_LABEL, RANGE_SPAN } from './Toolbar';
@@ -15,7 +16,7 @@ const change = (now: number, before: number | undefined): number | null => (befo
  * whether that is more or less than before, what carried it, and when it happens, with a figure and its context in each tile.
  * The busiest weekday needs a month of weeks, so it reads from the pattern lens and says so.
  */
-export function Headline(props: { readonly view: AnalyticsView; readonly week: WeekGrid; readonly colors: ReadonlyMap<AccountId, string>; readonly emailOf: (id: AccountId) => string }) {
+export function Headline(props: { readonly view: AnalyticsView; readonly week: WeekGrid; readonly slots: ReadonlyMap<AccountId, Slot>; readonly emailOf: (id: AccountId) => string }) {
   const now = useNow();
   const v = props.view;
   const span = RANGE_SPAN[v.lens.range];
@@ -79,7 +80,7 @@ export function Headline(props: { readonly view: AnalyticsView; readonly week: W
           <p className="kpi-sub">{topModel?.share ? `${share(topModel.share.requests)} of requests · ${share(topModel.share.output)} of output` : 'No requests'}</p>
           {topAccount && (
             <p className="kpi-line">
-              <span className="swatch small" style={{ background: props.colors.get(topAccount.key) }} aria-hidden />
+              <Swatch slot={props.slots.get(topAccount.key)} />
               <strong>{shortName(props.emailOf(topAccount.key))}</strong>
               <span className="muted">{share(topAccount.share?.requests ?? null)} of requests</span>
             </p>

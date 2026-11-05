@@ -8,11 +8,10 @@ import { ClaimDialog } from './components/ClaimDialog';
 import { Header } from './components/Header';
 import { HistoryPanel } from './components/HistoryPanel';
 import { OverviewStrip } from './components/OverviewStrip';
+import { slotsOf } from './components/Swatch';
 import { Usage } from './components/usage/Usage';
 import { CpaProvider, useDeck } from './deck';
 import { useView } from './route';
-
-const IDENTITY_HUES = 5;
 
 interface ClaimTarget {
   readonly account: AccountId;
@@ -27,7 +26,7 @@ export function App() {
   const view = useView();
   if (!deck) return <Splash connection={connection} />;
 
-  const colors = new Map(deck.accounts.map((a, i) => [a.id, `var(--id-${(i % IDENTITY_HUES) + 1})`]));
+  const slots = slotsOf(deck.accounts.map((a) => a.id));
   const claimAccount = claim ? deck.accounts.find((a) => a.id === claim.account) : undefined;
 
   return (
@@ -38,19 +37,19 @@ export function App() {
           <Banners banners={deck.banners} connection={connection} />
           {view === 'monitor' ? (
             <>
-              <OverviewStrip deck={deck} colors={colors} />
+              <OverviewStrip deck={deck} slots={slots} />
               <Accounts
                 accounts={deck.accounts}
                 columns={deck.limitColumns}
                 extraUsage={deck.extraUsageColumn}
                 claimable={deck.overview.claimable}
-                colors={colors}
+                slots={slots}
                 onClaim={(account, program, grant) => setClaim({ account, program, grant })}
               />
-              <HistoryPanel accounts={deck.accounts} colors={colors} />
+              <HistoryPanel accounts={deck.accounts} slots={slots} />
             </>
           ) : (
-            <Usage accounts={deck.accounts} colors={colors} />
+            <Usage accounts={deck.accounts} slots={slots} />
           )}
         </div>
         {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}

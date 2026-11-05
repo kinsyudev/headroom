@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Swatch, type Slot } from '../Swatch';
 
 export interface BarRow {
   readonly key: string;
@@ -10,7 +11,8 @@ export interface BarRow {
   readonly color: string;
   /** What the hover card says, as one line per figure. */
   readonly tip: readonly { readonly value: string; readonly label: string }[];
-  readonly swatch?: boolean;
+  /** A row that stands for an account leads with its marker. */
+  readonly slot?: Slot | undefined;
 }
 
 /**
@@ -25,7 +27,7 @@ export function BarList(props: { readonly label: string; readonly rows: readonly
         const body = (
           <>
             <span className="bar-label">
-              {r.swatch && <span className="swatch small" style={{ background: r.color }} aria-hidden />}
+              {r.slot && <Swatch slot={r.slot} />}
               <span className="bar-name">{r.label}</span>
               <span className="bar-text num">{r.text}</span>
             </span>

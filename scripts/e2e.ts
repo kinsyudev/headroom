@@ -132,6 +132,9 @@ try {
   assert((await pct('account3@example.com', 'session')) === '0%', 'account3 session at the wall has nothing left');
   assert((await text(card('account3@example.com').getByTestId('role'))).startsWith('■ Blocked'), 'account3 blocked');
   assert(((await card('account2@example.com').getByTestId('freshness').getAttribute('title')) ?? '').includes('weekly reset: held'), 'freshness tooltip names the held weekly reset read');
+  const marker = (scope: Locator) => scope.locator('.swatch').first().getAttribute('data-shape');
+  const shapes = await Promise.all(['account1', 'account2', 'account3'].map((n) => marker(card(`${n}@example.com`))));
+  assert(new Set(shapes).size === 3 && shapes.every(Boolean), `each account card marks the account with a shape of its own beside its colour: ${shapes.join(', ')}`);
   await page.screenshot({ path: join(SHOTS, 'e2e-1-loaded.png'), fullPage: true });
   pass('overview and three cards render with real numbers');
 
@@ -316,6 +319,8 @@ try {
     (await legend.locator('li').count()) === 4 && ['account1', 'account2', 'account3', 'Same day last week'].every((s) => legendText.includes(s)) && !legendText.includes('@'),
     'the over-time legend names the three accounts by their short names, with no email, and the same day last week',
   );
+  const legendShape = (name: string) => marker(legend.locator('li', { hasText: name }));
+  assert((await Promise.all(['account1', 'account2', 'account3'].map(legendShape))).join() === shapes.join(), 'the over-time legend marks each account with the shape its card wears');
   assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the opening 7 days draw seven days, the last one still filling');
   const levels = page.getByTestId('over-time').locator('.chart .prev-level');
   assert((await levels.count()) === 7, 'each of the seven days carries its same-day-last-week level mark');
@@ -333,6 +338,7 @@ try {
   await until(async () => (await legend.locator('li').count()) === 2, 'choosing account2 narrows the chart to it and keeps the same day last week');
   const narrowed = await text(legend);
   assert(narrowed.includes('account2') && narrowed.includes('Same day last week'), 'the one account left in the legend is account2, beside the same day last week');
+  assert((await legendShape('account2')) === shapes[1], 'narrowing the chart to account2 keeps its shape: the filter moves neither its colour nor its marker');
   await page.getByTestId('over-time').getByRole('button', { name: 'Table' }).click();
   assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
   const cache = await text(page.getByTestId('cache'));

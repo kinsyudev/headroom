@@ -3,6 +3,7 @@ import type { AccountId, Outcome } from '../../../shared/domain';
 import type { AnalyticsView, ErrorEventView } from '../../../shared/view';
 import { useNow } from '../../deck';
 import { bucketText, compact, count, modelName, reasonText, seconds, share, shortName, stamp } from '../../format';
+import { Swatch, type Slot } from '../Swatch';
 import { TableScroll } from '../TableScroll';
 import { ChartCard, Legend } from '../charts/ChartCard';
 import { StackedColumns } from '../charts/StackedColumns';
@@ -104,7 +105,7 @@ function FailedCell(props: { readonly outcomes: Readonly<Record<Outcome, number>
 
 const ROWS_SHOWN = 10;
 
-export function ByModelTable(props: { readonly view: AnalyticsView; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function ByModelTable(props: { readonly view: AnalyticsView; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const [all, setAll] = useState(false);
   const v = props.view;
   const shown = all ? v.byAccountModel : v.byAccountModel.slice(0, ROWS_SHOWN);
@@ -155,7 +156,7 @@ export function ByModelTable(props: { readonly view: AnalyticsView; readonly col
             {shown.map((r) => (
               <tr key={`${r.account}:${r.model}`}>
                 <td>
-                  <span className="swatch small" style={{ background: props.colors.get(r.account) }} aria-hidden /> {shortName(emails.get(r.account) ?? r.account)}
+                  <Swatch slot={props.slots.get(r.account)} /> {shortName(emails.get(r.account) ?? r.account)}
                 </td>
                 <td title={r.model}>{modelName(r.model)}</td>
                 <td className="num">{r.stats.requests.toLocaleString()}</td>
@@ -203,7 +204,7 @@ function Stamp(props: { readonly at: number }) {
   );
 }
 
-const errorColumns = (colors: ReadonlyMap<AccountId, string>): readonly ErrorColumn[] => [
+const errorColumns = (slots: ReadonlyMap<AccountId, Slot>): readonly ErrorColumn[] => [
   { head: 'When', cell: (e) => (e.at === null ? null : <Stamp at={e.at} />) },
   {
     head: 'Account',
@@ -212,7 +213,7 @@ const errorColumns = (colors: ReadonlyMap<AccountId, string>): readonly ErrorCol
       if (name === null) return null;
       return (
         <>
-          <span className="swatch small" style={{ background: e.account === null ? undefined : colors.get(e.account) }} aria-hidden /> {name}
+          <Swatch slot={e.account === null ? undefined : slots.get(e.account)} /> {name}
         </>
       );
     },
@@ -223,10 +224,10 @@ const errorColumns = (colors: ReadonlyMap<AccountId, string>): readonly ErrorCol
   { head: 'Message', className: 'message', cell: (e) => e.message || null, title: (e) => e.message },
 ];
 
-export function ErrorsTable(props: { readonly view: AnalyticsView; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function ErrorsTable(props: { readonly view: AnalyticsView; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const v = props.view;
   const shown = v.errors.slice(0, ERRORS_SHOWN);
-  const all = errorColumns(props.colors);
+  const all = errorColumns(props.slots);
   const columns = shown.length === 0 ? all : all.filter((c) => shown.some((e) => c.cell(e) !== null));
   return (
     <section className="card" aria-label="Recent errors and rate limits" data-testid="errors">

@@ -5,6 +5,7 @@ import { useNow } from '../../deck';
 import { clockTime, compact, count, duration, foldedPaceSays, PACE_TICK_HELP, runOutWhen, shortName } from '../../format';
 import { paceAnchor, useJumpTarget } from '../../route';
 import { Meter } from '../LimitRow';
+import { Swatch, type Slot } from '../Swatch';
 
 type Look = { readonly tone: MeterTone; readonly icon: string; readonly cls: string; readonly main: (p: PaceView, now: number) => ReactNode; readonly sub: (p: PaceView, now: number) => string };
 
@@ -44,10 +45,10 @@ function spentTitle(p: PaceView): string {
   ].join('\n');
 }
 
-function Who(props: { readonly account: PaceAccountView; readonly color: string | undefined }) {
+function Who(props: { readonly account: PaceAccountView; readonly slot: Slot | undefined }) {
   return (
     <>
-      <span className="swatch small" style={{ background: props.color }} aria-hidden />
+      <Swatch slot={props.slot} />
       <span className="pace-email" title={props.account.email}>
         {shortName(props.account.email)}
       </span>
@@ -134,7 +135,7 @@ function PaceFold(props: { readonly account: PaceAccountView; readonly who: Reac
  * windows that last fold into one line per account, so a healthy account costs one line and the page opens on what needs a look. It
  * reads the quota windows, not the range or the filters, so it leads the view and the Explore bar sits below it.
  */
-export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const now = useNow();
   const target = useJumpTarget();
   const attention = props.pace.flatMap((a) => a.attention);
@@ -158,7 +159,7 @@ export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; re
       ) : (
         <ul className="pace-list">
           {props.pace.map((a) => {
-            const who = <Who account={a} color={props.colors.get(a.account)} />;
+            const who = <Who account={a} slot={props.slots.get(a.account)} />;
             return (
               <li key={a.account} className="pace-account">
                 {a.attention.length > 0 && (

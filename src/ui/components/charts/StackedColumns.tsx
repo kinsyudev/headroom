@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type ReactNode } from 'react';
 import { changeText } from '../../format';
+import type { Slot } from '../Swatch';
 import { ChartTip } from './ChartTip';
 import { Key } from './Key';
 import { TOOLTIP_W, niceTicks, roundedTop, tooltipLeft, useHeight, useWidth } from './kit';
@@ -8,6 +9,7 @@ export interface Series {
   readonly key: string;
   readonly label: string;
   readonly color: string;
+  readonly slot?: Slot | undefined;
   readonly values: readonly number[];
 }
 
@@ -154,7 +156,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
           left={tooltipLeft(PAD.left + hover * band, band, PAD.left + plotW, tipW)}
           width={tipW}
           title={props.tooltipTitle(props.buckets[hover])}
-          rows={props.series.filter((s) => (s.values[hover] ?? 0) > 0).map((s) => ({ key: s.key, color: s.color, value: props.format(s.values[hover] ?? 0), label: s.label }))}
+          rows={props.series.filter((s) => (s.values[hover] ?? 0) > 0).map((s) => ({ key: s.key, color: s.color, slot: s.slot, value: props.format(s.values[hover] ?? 0), label: s.label }))}
           total={props.hideTotal ? undefined : { value: props.format(totals[hover] ?? 0), label: 'total' }}
         >
           {props.previous && prev[hover] != null && (

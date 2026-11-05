@@ -9,6 +9,7 @@ import { Mix } from './Mix';
 import { OverTime } from './OverTime';
 import { PacePanel } from './PacePanel';
 import { ByModelTable, ErrorsTable, FailuresPanel } from './Reliability';
+import type { Slot } from '../Swatch';
 import { Speed } from './Speed';
 import { Toolbar } from './Toolbar';
 import { WeekPattern } from './WeekPattern';
@@ -20,7 +21,7 @@ import { WeekPattern } from './WeekPattern';
  * compare best. Three lenses read one cube. `all` is the month with no filters: it feeds the pace and the model list. `explore`
  * follows the toolbar. `pattern` is the month with the toolbar's account and model, because a weekly rhythm needs a month to show.
  */
-export function Usage(props: { readonly accounts: readonly AccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function Usage(props: { readonly accounts: readonly AccountView[]; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const [range, setRange] = useState<UsageRange>('7d');
   const [account, setAccount] = useState<AccountId | null>(null);
   const [model, setModel] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
   return (
     <div className="usage" data-testid="analytics">
       {explore.error && <p className="banner warning">History could not be refreshed: {explore.error}. Showing the last reading.</p>}
-      <PacePanel pace={a.pace} colors={props.colors} />
+      <PacePanel pace={a.pace} slots={props.slots} />
       <Toolbar
         range={range}
         onRange={setRange}
@@ -62,20 +63,20 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
         model={model}
         onModel={setModel}
         accounts={props.accounts}
-        colors={props.colors}
+        slots={props.slots}
         models={a.dimensions.models}
       />
-      <Headline view={e} week={pattern.view.week} colors={props.colors} emailOf={emailOf} />
-      <OverTime view={e} colors={props.colors} dim={dim} />
+      <Headline view={e} week={pattern.view.week} slots={props.slots} emailOf={emailOf} />
+      <OverTime view={e} slots={props.slots} dim={dim} />
       <div className="grid-2 pattern">
         <WeekPattern view={pattern.view} />
         <CachePanel view={e} dim={dim} />
       </div>
-      <Mix view={e} colors={props.colors} account={account} model={model} onAccount={setAccount} onModel={setModel} />
+      <Mix view={e} slots={props.slots} account={account} model={model} onAccount={setAccount} onModel={setModel} />
       <Speed view={e} />
       <FailuresPanel view={e} dim={dim} />
-      <ByModelTable view={e} colors={props.colors} />
-      <ErrorsTable view={e} colors={props.colors} />
+      <ByModelTable view={e} slots={props.slots} />
+      <ErrorsTable view={e} slots={props.slots} />
     </div>
   );
 }

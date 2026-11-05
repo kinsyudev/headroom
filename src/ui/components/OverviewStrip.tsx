@@ -6,6 +6,7 @@ import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor, VerdictLine } from './ResetOffers';
 import { Segments } from './Segments';
+import { Swatch, type Slot } from './Swatch';
 
 /** One window running out, said in full for the strip line's tooltip. */
 function runOutText(r: RunOutView, now: number): string {
@@ -13,11 +14,11 @@ function runOutText(r: RunOutView, now: number): string {
   return `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, now)}, ${duration(r.resetsAt - r.at)} before its ${clockTime(r.resetsAt, now)} reset.${then}`;
 }
 
-export function OverviewStrip(props: { readonly deck: DeckView; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function OverviewStrip(props: { readonly deck: DeckView; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const o = props.deck.overview;
   const { cpa } = props.deck;
   const down = cpa.kind === 'down';
-  const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
+  const swatch = (id: AccountId) => <Swatch slot={props.slots.get(id)} />;
   const who = (id: AccountId, email: string) => (
     <span className="nowrap" title={email}>
       {swatch(id)} {shortName(email)}

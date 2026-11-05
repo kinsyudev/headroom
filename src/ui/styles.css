@@ -614,10 +614,9 @@ a.cell-pace:hover {
   font-size: clamp(20px, calc((100cqi - 22px) / 11.5), var(--hero-size));
   font-variant-numeric: normal;
 }
-.hero-id .swatch.small {
+.hero-id .swatch {
   width: 12px;
   height: 12px;
-  border-radius: 3px;
 }
 .hero-text {
   min-width: 0;
@@ -681,15 +680,18 @@ a.cell-pace:hover {
 .swatch {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
   display: inline-block;
   flex: none;
+  overflow: visible;
 }
-.swatch.small {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  vertical-align: 1px;
+.swatch > * {
+  stroke: var(--swatch-ring, none);
+  stroke-width: 2px;
+  paint-order: stroke;
+}
+/* On a tinted tile or a pressed control the marker keeps a ring of the surface, so its shape holds its edge against the colour behind it. */
+:is(.has-claims, .btn.selected, .bar-row.active, .pace-row.targeted) .swatch {
+  --swatch-ring: var(--surface);
 }
 
 .panel.accounts {

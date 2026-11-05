@@ -8,9 +8,10 @@ import { Age } from './Countdown';
 import { Legend } from './charts/ChartCard';
 import { StackedColumns } from './charts/StackedColumns';
 import { Segments } from './Segments';
+import { slotColor, type Slot } from './Swatch';
 
 /** The last 24 hours of requests by account, at a glance. Ranges, other measures, the table and the rest are in Usage. */
-export function HistoryPanel(props: { readonly accounts: readonly AccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function HistoryPanel(props: { readonly accounts: readonly AccountView[]; readonly slots: ReadonlyMap<AccountId, Slot> }) {
   const state = useAnalytics({ range: '24h' }, props.accounts);
   const usage = state.kind === 'ready' ? state.view : null;
   const loading = state.kind === 'loading' || (state.kind === 'ready' && (state.refreshing || state.view.catchingUp));
@@ -25,12 +26,13 @@ export function HistoryPanel(props: { readonly accounts: readonly AccountView[];
             key: a.id,
             label: shortName(a.email),
             email: a.email,
-            color: props.colors.get(a.id)!,
+            slot: props.slots.get(a.id)!,
+            color: slotColor(props.slots.get(a.id)!),
             values: usage.timeline.map((b) => b.byAccount[j]!.stats.requests),
           }))
         : [],
     // usage changes identity every second; its timeline does not
-    [timeline, props.colors],
+    [timeline, props.slots],
   );
   const limited = (i: number) => usage?.timeline[i]?.total.outcomes.rate_limited ?? 0;
   const { label, title } = bucketText('hour', now);
@@ -64,7 +66,7 @@ export function HistoryPanel(props: { readonly accounts: readonly AccountView[];
               ]}
             />
           </span>
-          {series.length > 0 && <Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color, title: s.email }))} />}
+          {series.length > 0 && <Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color, slot: s.slot, title: s.email }))} />}
         </div>
       )}
       {usage && (

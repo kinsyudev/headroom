@@ -5,6 +5,7 @@ import { compact, count, modelName, shortName, share } from '../../format';
 import { BarList, type BarRow } from '../charts/BarList';
 import { ChartCard } from '../charts/ChartCard';
 import { Switch } from '../charts/Switch';
+import { slotColor, type Slot } from '../Swatch';
 import { RANGE_LABEL } from './Toolbar';
 
 type Measure = 'requests' | 'output';
@@ -28,7 +29,7 @@ const effort = (e: Effort) => EFFORT[e] ?? { label: e, color: 'var(--ice-3)' };
 
 const NOMINAL = 'var(--ice-4)';
 
-function rows<K extends string>(parts: readonly Part<K>[], measure: Measure, name: (k: K) => string, color: (k: K) => string, swatch = false): BarRow[] {
+function rows<K extends string>(parts: readonly Part<K>[], measure: Measure, name: (k: K) => string, color: (k: K) => string, slot?: (k: K) => Slot | undefined): BarRow[] {
   return parts
     .filter((p) => p.stats.requests > 0)
     .map((p) => {
@@ -39,7 +40,7 @@ function rows<K extends string>(parts: readonly Part<K>[], measure: Measure, nam
         fill: s,
         text: share(s),
         color: color(p.key),
-        swatch,
+        slot: slot?.(p.key),
         tip: [
           { value: share(p.share?.requests ?? 0), label: 'of requests' },
           { value: count(p.stats.requests), label: 'requests' },
@@ -56,7 +57,7 @@ function rows<K extends string>(parts: readonly Part<K>[], measure: Measure, nam
  */
 export function Mix(props: {
   readonly view: AnalyticsView;
-  readonly colors: ReadonlyMap<AccountId, string>;
+  readonly slots: ReadonlyMap<AccountId, Slot>;
   readonly account: AccountId | null;
   readonly model: string | null;
   readonly onAccount: (a: AccountId | null) => void;
@@ -96,7 +97,7 @@ export function Mix(props: {
           <h3>Accounts</h3>
           <BarList
             label="Share by account"
-            rows={rows(v.byAccount, measure, (id) => shortName(emails.get(id) ?? id), (id) => props.colors.get(id) ?? NOMINAL, true)}
+            rows={rows(v.byAccount, measure, (id) => shortName(emails.get(id) ?? id), (id) => (props.slots.has(id) ? slotColor(props.slots.get(id)!) : NOMINAL), (id) => props.slots.get(id))}
             selected={props.account}
             onSelect={toggle(props.account, props.onAccount)}
           />

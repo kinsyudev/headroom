@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { Swatch, type Slot } from '../Swatch';
 import { Key, type KeyMark } from './Key';
 
 export interface TipRow {
@@ -6,6 +7,7 @@ export interface TipRow {
   /** The series' colour, drawn as a key beside the value, a square unless the series is a line. */
   readonly color?: string;
   readonly mark?: KeyMark;
+  readonly slot?: Slot | undefined;
   readonly value: string;
   readonly label: string;
 }
@@ -26,7 +28,7 @@ export function ChartTip(props: {
       <div className="tooltip-title">{props.title}</div>
       {props.rows.map((r) => (
         <div key={r.key} className="tooltip-row">
-          {r.color && <Key mark={r.mark ?? 'square'} color={r.color} />}
+          {r.slot ? <Swatch slot={r.slot} /> : r.color && <Key mark={r.mark ?? 'square'} color={r.color} />}
           <strong className="num">{r.value}</strong>
           <span className="muted">{r.label}</span>
         </div>

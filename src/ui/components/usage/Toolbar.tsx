@@ -2,6 +2,7 @@ import type { AccountId } from '../../../shared/domain';
 import { USAGE_RANGES, type AccountView, type UsageRange } from '../../../shared/view';
 import { modelName, shortName } from '../../format';
 import { Switch } from '../charts/Switch';
+import { Swatch, type Slot } from '../Swatch';
 
 const ALL = 'all';
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -20,7 +21,7 @@ export function Toolbar(props: {
   readonly model: string | null;
   readonly onModel: (m: string | null) => void;
   readonly accounts: readonly AccountView[];
-  readonly colors: ReadonlyMap<AccountId, string>;
+  readonly slots: ReadonlyMap<AccountId, Slot>;
   readonly models: readonly string[];
 }) {
   return (
@@ -38,7 +39,7 @@ export function Toolbar(props: {
               title: a.email,
               label: (
                 <>
-                  <span className="swatch small" style={{ background: props.colors.get(a.id) }} aria-hidden /> {shortName(a.email)}
+                  <Swatch slot={props.slots.get(a.id)} /> {shortName(a.email)}
                 </>
               ),
             })),

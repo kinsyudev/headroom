@@ -8,6 +8,7 @@ import { ModeLine } from './Freshness';
 import { LimitCell, SpendCell, SpendNote } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers, resetsAnchor } from './ResetOffers';
+import { slotColor, Swatch, type Slot } from './Swatch';
 import { Trouble } from './Trouble';
 import { UpkeepMenu } from './UpkeepMenu';
 
@@ -34,7 +35,7 @@ export function Accounts(props: {
   readonly columns: readonly LimitColumn[];
   readonly extraUsage: boolean;
   readonly claimable: readonly ClaimableView[];
-  readonly colors: ReadonlyMap<AccountId, string>;
+  readonly slots: ReadonlyMap<AccountId, Slot>;
   readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
 }) {
   const style = { '--limit-cols': Math.max(1, props.columns.length) } as CSSProperties;
@@ -67,7 +68,7 @@ export function Accounts(props: {
           columns={props.columns}
           extraUsage={props.extraUsage}
           verdict={props.claimable.find((c) => c.account === a.id)?.verdict ?? null}
-          color={props.colors.get(a.id)!}
+          slot={props.slots.get(a.id)!}
           onClaim={(program, grant) => props.onClaim(a.id, program, grant)}
         />
       ))}
@@ -80,7 +81,7 @@ function AccountRow(props: {
   readonly columns: readonly LimitColumn[];
   readonly extraUsage: boolean;
   readonly verdict: ClaimVerdict | null;
-  readonly color: string;
+  readonly slot: Slot;
   readonly onClaim: (program: ProgramId, grant: GrantId | null) => void;
 }) {
   const a = props.account;
@@ -90,7 +91,7 @@ function AccountRow(props: {
   return (
     <article className={`acct role-${r.role.kind}`} data-testid={`card-${a.email}`} data-account={a.id}>
       <header className="acct-id">
-        <span className="swatch" style={{ background: props.color }} aria-hidden />
+        <Swatch slot={props.slot} />
         <div className="who">
           <h3 className="email" title={a.email}>
             {a.email}
@@ -116,7 +117,7 @@ function AccountRow(props: {
         })
       )}
       {props.extraUsage && <SpendCell spend={a.spend} atWall={a.atWall} help={EXTRA_USAGE_HELP} />}
-      <ActivityCell buckets={a.activity} color={props.color} help={REQUESTS_HELP} />
+      <ActivityCell buckets={a.activity} color={slotColor(props.slot)} help={REQUESTS_HELP} />
 
       {(a.trouble !== null || offersOpen) && (
         <section className="acct-attention" aria-label={a.trouble === null ? 'Resets you can claim' : 'Trouble and fixes'} id={resetsAnchor(a.id)} tabIndex={-1}>

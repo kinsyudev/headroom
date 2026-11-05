@@ -6,6 +6,7 @@ import { bucketText, compact, count, shortName } from '../../format';
 import { ChartCard, Legend } from '../charts/ChartCard';
 import { PREVIOUS_COLOR, StackedColumns, type Bucket } from '../charts/StackedColumns';
 import { Switch } from '../charts/Switch';
+import { slotColor, type Slot } from '../Swatch';
 import { RANGE_LABEL } from './Toolbar';
 
 type Metric = 'requests' | 'sessions' | 'output';
@@ -24,7 +25,7 @@ const LAST_WEEK_NAME = 'Same day last week';
 const LAST_WEEK = (b: Bucket): string => (b.partial ? 'Last week, to this time' : LAST_WEEK_NAME);
 
 /** How much, over time, and by which account. Wide enough to read a week by the hour or a month by the day. */
-export function OverTime(props: { readonly view: AnalyticsView; readonly colors: ReadonlyMap<AccountId, string>; readonly dim: boolean }) {
+export function OverTime(props: { readonly view: AnalyticsView; readonly slots: ReadonlyMap<AccountId, Slot>; readonly dim: boolean }) {
   const [metric, setMetric] = useState<Metric>('requests');
   const now = useNow();
   const v = props.view;
@@ -36,11 +37,12 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
       v.dimensions.accounts.map((a, j) => ({
         key: a.id as string,
         label: shortName(a.email),
-        color: props.colors.get(a.id)!,
+        slot: props.slots.get(a.id)!,
+        color: slotColor(props.slots.get(a.id)!),
         values: v.timeline.map((b) => metricOf(b.byAccount[j]!.stats, metric)),
       })),
     // v changes identity every second; its timeline does not
-    [v.timeline, v.dimensions, props.colors, metric],
+    [v.timeline, v.dimensions, props.slots, metric],
   );
   const lastWeek = v.lens.range === '7d' && v.previous !== null;
   const previous = useMemo(
@@ -65,7 +67,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
       title={`${m.noun} over time`}
       sub={`${RANGE_LABEL[v.lens.range]} · per ${v.lens.grain} · by account`}
       actions={<Switch label="Measure" options={METRICS} value={metric} onChange={setMetric} />}
-      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: PREVIOUS_COLOR, mark: 'line' as const }] : [])]} />}
+      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color, slot: s.slot })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: PREVIOUS_COLOR, mark: 'line' as const }] : [])]} />}
       table={table}
       testId="over-time"
     >

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Swatch, type Slot } from '../Swatch';
 import { TableScroll } from '../TableScroll';
 import { Key, type KeyMark } from './Key';
 import { Switch } from './Switch';
@@ -84,6 +85,8 @@ export interface LegendItem {
   /** A glyph that says what the colour says, for series that carry a status. */
   readonly icon?: string;
   readonly mark?: KeyMark;
+  /** An account's series is keyed by its marker, so the legend shows the shape every other mention of the account wears. */
+  readonly slot?: Slot | undefined;
   /** What the short label stands for, shown on hover: the full email behind "account1". */
   readonly title?: string;
 }
@@ -93,7 +96,7 @@ export function Legend(props: { readonly items: readonly LegendItem[] }) {
     <ul className="legend-items" aria-label="Legend">
       {props.items.map((s) => (
         <li key={s.key} className="legend-item" title={s.title}>
-          <Key mark={s.mark ?? 'square'} color={s.color} />
+          {s.slot ? <Swatch slot={s.slot} /> : <Key mark={s.mark ?? 'square'} color={s.color} />}
           {s.icon && (
             <span className="legend-icon" aria-hidden>
               {s.icon}
