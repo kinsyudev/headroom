@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { AccountId } from '../../shared/domain';
-import { foldHistory, HISTORY_RANGES, ZERO_TOTALS, type HistoryRange, type ModelRow, type TokenTotals } from '../../shared/history';
-import { useHistory } from '../api';
+import { USAGE_RANGES, type AccountView, type AnalyticsView, type UsageRange, type UsageStats } from '../../shared/view';
+import { useAnalytics } from '../api';
 import { useNow } from '../deck';
 import { clockTime, compact, reasonText } from '../format';
 import { Age, Clock } from './Countdown';
@@ -22,12 +22,15 @@ const METRICS: readonly { readonly key: Metric; readonly label: string; readonly
   { key: 'output', label: 'Output', title: 'Output tokens' },
 ];
 
-const RANGE_LABEL: Readonly<Record<HistoryRange, string>> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' };
+const metricOf = (s: UsageStats, m: Metric) => (m === 'requests' ? s.requests : s.tokens[m]);
 
-export interface HistoryAccount {
-  readonly id: AccountId;
+const RANGE_LABEL: Readonly<Record<UsageRange, string>> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' };
+
+type ModelRow = AnalyticsView['byAccountModel'][number];
+
+interface RowAccount {
   readonly email: string;
-  readonly color: string;
+  readonly color: string | undefined;
 }
 
 type View = 'chart' | 'table';
@@ -67,7 +70,7 @@ interface ModelColumn {
   readonly title?: string;
   readonly group?: ColumnGroup;
   readonly num?: boolean;
-  readonly cell: (m: ModelRow, account: HistoryAccount | undefined) => ReactNode;
+  readonly cell: (m: ModelRow, account: RowAccount | undefined) => ReactNode;
 }
 
 const RATE_LIMITED_TITLE = 'Requests answered with HTTP 429';
@@ -85,55 +88,61 @@ const MODEL_COLUMNS: readonly ModelColumn[] = [
     ),
   },
   { label: 'Model', cell: (m) => m.model },
-  { label: 'Requests', group: 'usage', num: true, cell: (m) => m.totals.requests.toLocaleString() },
-  { label: 'Failed', group: 'usage', num: true, cell: (m) => m.totals.failed },
-  { label: 'Rate-limited', title: RATE_LIMITED_TITLE, group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
-  { label: 'Uncached in', title: METRICS[1]!.title, group: 'cache', num: true, cell: (m) => compact(m.totals.freshInput) },
-  { label: 'Cache read', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheRead) },
-  { label: 'Cache write', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheCreation) },
-  { label: 'Output', group: 'usage', num: true, cell: (m) => compact(m.totals.output) },
-  { label: 'Latency', group: 'cache', num: true, cell: (m) => seconds(m.avgLatencyMs) },
-  { label: 'First token', title: 'Average time to first token (TTFT)', group: 'cache', num: true, cell: (m) => seconds(m.avgTtftMs) },
+  { label: 'Requests', group: 'usage', num: true, cell: (m) => m.stats.requests.toLocaleString() },
+  { label: 'Failed', group: 'usage', num: true, cell: (m) => m.stats.requests - m.stats.outcomes.ok },
+  { label: 'Rate-limited', title: RATE_LIMITED_TITLE, group: 'usage', num: true, cell: (m) => m.stats.outcomes.rate_limited },
+  { label: 'Uncached in', title: METRICS[1]!.title, group: 'cache', num: true, cell: (m) => compact(m.stats.tokens.freshInput) },
+  { label: 'Cache read', group: 'cache', num: true, cell: (m) => compact(m.stats.tokens.cacheRead) },
+  { label: 'Cache write', group: 'cache', num: true, cell: (m) => compact(m.stats.tokens.cacheCreation) },
+  { label: 'Output', group: 'usage', num: true, cell: (m) => compact(m.stats.tokens.output) },
+  { label: 'Latency', title: 'Median latency of successful requests', group: 'cache', num: true, cell: (m) => seconds(m.stats.latencyMs?.p50 ?? null) },
+  { label: 'First token', title: 'Median time to first token (TTFT) of successful requests', group: 'cache', num: true, cell: (m) => seconds(m.stats.ttftMs?.p50 ?? null) },
 ];
 
-export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount[] }) {
-  const [range, setRange] = useState<HistoryRange>('24h');
+export function HistoryPanel(props: { readonly accounts: readonly AccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
+  const [range, setRange] = useState<UsageRange>('24h');
   const [metric, setMetric] = useState<Metric>('requests');
   const [view, setView] = useState<View>('chart');
   const [group, setGroup] = useState<ColumnGroup>('usage');
-  const { history, loading, error } = useHistory(range);
+  const state = useAnalytics({ range }, props.accounts);
+  const usage = state.kind === 'ready' ? state.view : null;
+  const loading = state.kind === 'loading' || (state.kind === 'ready' && (state.refreshing || state.view.catchingUp));
+  const error = state.kind === 'failed' || state.kind === 'ready' ? state.error : null;
   const now = useNow();
 
-  const folded = useMemo(() => (history ? foldHistory(history.hours, history.range, history.generatedAt) : null), [history]);
   const series = useMemo(
     () =>
-      folded
-        ? props.accounts.map((a) => ({
+      usage
+        ? usage.dimensions.accounts.map((a, j) => ({
             key: a.id,
             label: a.email,
-            color: a.color,
-            values: folded.buckets.map((b) => (b.byAccount.get(a.id) ?? ZERO_TOTALS)[metric]),
+            color: props.colors.get(a.id)!,
+            values: usage.timeline.map((b) => metricOf(b.byAccount[j]!.stats, metric)),
           }))
         : [],
-    [folded, props.accounts, metric],
+    [usage, props.colors, metric],
   );
-  const limited = (i: number) => [...(folded?.buckets[i]?.byAccount.values() ?? [])].reduce((n, t: TokenTotals) => n + t.rateLimited, 0);
+  const limited = (i: number) => usage?.timeline[i]?.total.outcomes.rate_limited ?? 0;
   const columns = MODEL_COLUMNS.filter((c) => !c.group || c.group === group);
+  const grain = usage?.lens.grain;
   const label = (b: Bucket) => {
     if (b.partial) return 'now';
-    return folded?.bucket === 'hour' ? new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date(b.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return grain === 'hour' ? new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date(b.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
   const span = (b: Bucket) =>
-    folded?.bucket === 'hour' ? `${clockTime(b.start, now)}–${clockTime(b.end, now)}` : new Date(b.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    grain === 'hour' ? `${clockTime(b.start, now)}–${clockTime(b.end, now)}` : new Date(b.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   const title = (b: Bucket) => (b.partial ? `${span(b)} · in progress` : span(b));
-  const emailOf = (id: AccountId | null) => props.accounts.find((a) => a.id === id);
+  const accountOf = (id: AccountId): RowAccount | undefined => {
+    const a = props.accounts.find((x) => x.id === id);
+    return a && { email: a.email, color: props.colors.get(id) };
+  };
 
   return (
     <section className="panel history" aria-label="History" data-testid="history">
       <div className="panel-head">
         <h2>History</h2>
         <div className="segmented" role="group" aria-label="Range">
-          {HISTORY_RANGES.map((r) => (
+          {USAGE_RANGES.map((r) => (
             <button key={r} type="button" className={`btn ${r === range ? 'selected' : 'quiet'}`} aria-pressed={r === range} onClick={() => setRange(r)} data-testid={`range-${r}`}>
               {r}
             </button>
@@ -149,17 +158,17 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
         <Switch className="view" label="View" options={VIEWS} value={view} onChange={setView} />
       </div>
       {error && <p className="banner warning">History unavailable: {error}</p>}
-      {(folded || loading) && (
+      {(usage || loading) && (
         <div className="legend">
           <span className="muted">
             <Segments
               parts={[
                 RANGE_LABEL[range],
-                folded && `per ${folded.bucket}`,
-                folded && 'local time',
-                history?.keeperLatestAt && (
+                usage && `per ${usage.lens.grain}`,
+                usage && 'local time',
+                usage?.keeperLatestAt && (
                   <>
-                    latest request <Age at={history.keeperLatestAt} /> ago
+                    latest request <Age at={usage.keeperLatestAt} /> ago
                   </>
                 ),
                 loading && 'loading',
@@ -177,14 +186,14 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
           )}
         </div>
       )}
-      {folded && (
+      {usage && (
         <>
           {view === 'table' ? (
-            <TableScroll label={`Usage per ${folded.bucket}`}>
+            <TableScroll label={`Usage per ${usage.lens.grain}`}>
               <table className="data">
                 <thead>
                   <tr>
-                    <th>{folded.bucket === 'hour' ? 'Hour' : 'Day'}</th>
+                    <th>{usage.lens.grain === 'hour' ? 'Hour' : 'Day'}</th>
                     {series.map((s) => (
                       <th key={s.key} className="num">
                         {s.label}
@@ -196,7 +205,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                   </tr>
                 </thead>
                 <tbody>
-                  {folded.buckets.map((b, i) => (
+                  {usage.timeline.map((b, i) => (
                     <tr key={b.start}>
                       <td>{b.partial ? `${span(b)} · now` : span(b)}</td>
                       {series.map((s) => (
@@ -212,7 +221,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
             </TableScroll>
           ) : (
             <StackedColumns
-              buckets={folded.buckets}
+              buckets={usage.timeline}
               series={series}
               format={compact}
               bucketLabel={label}
@@ -231,7 +240,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
         </>
       )}
 
-      {history && (
+      {usage && (
         <div className="history-tables">
           <div className="history-table">
             <div className="table-head">
@@ -250,18 +259,18 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                   </tr>
                 </thead>
                 <tbody>
-                  {history.models.length === 0 && (
+                  {usage.byAccountModel.length === 0 && (
                     <tr>
                       <td colSpan={columns.length} className="muted">
                         No requests in this range.
                       </td>
                     </tr>
                   )}
-                  {history.models.map((m) => (
+                  {usage.byAccountModel.map((m) => (
                     <tr key={`${m.account}:${m.model}`}>
                       {columns.map((c) => (
                         <td key={c.label} className={c.num ? 'num' : undefined}>
-                          {c.cell(m, emailOf(m.account))}
+                          {c.cell(m, accountOf(m.account))}
                         </td>
                       ))}
                     </tr>
@@ -285,17 +294,17 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                   </tr>
                 </thead>
                 <tbody>
-                  {history.errors.length === 0 && (
+                  {usage.errors.length === 0 && (
                     <tr>
                       <td colSpan={6} className="muted">
-                        No errors recorded.
+                        No errors in this range.
                       </td>
                     </tr>
                   )}
-                  {history.errors.map((e) => (
+                  {usage.errors.map((e) => (
                     <tr key={e.id}>
                       <td>{e.at !== null ? <Clock at={e.at} /> : '—'}</td>
-                      <td>{emailOf(e.account)?.email ?? e.account ?? '—'}</td>
+                      <td>{e.email ?? e.account ?? '—'}</td>
                       <td className="num">{e.status ?? '—'}</td>
                       <td title={e.quotaReason ?? undefined}>{e.quotaReason === null ? '—' : reasonText(e.quotaReason)}</td>
                       <td>{e.recoverAt !== null ? <Clock at={e.recoverAt} /> : '—'}</td>

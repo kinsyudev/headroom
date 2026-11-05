@@ -14,9 +14,10 @@ import { createObserver } from '../src/server/observer';
 import { createPoller } from '../src/server/poller';
 import { openStateFile } from '../src/server/state';
 import type { Snapshot } from '../src/shared/domain';
+import { HORIZON_MS, type UsageCube } from '../src/shared/usage';
 import { startFakeCpa, type FakeCpa } from './fake-cpa';
 import { createKeeperDb } from './fake-keeper';
-import { ACC1, ACC2 } from './support';
+import { ACC1, ACC2, ACC3 } from './support';
 
 const KEY = 'k-SECRET-management-key-123';
 let fake: FakeCpa;
@@ -37,7 +38,7 @@ beforeAll(async () => {
   await observer.refresh();
   const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: () => true, clock: realClock, staggerMs: 0 });
   const keeper = openKeeper(join(dir, 'app.db'), realClock.now);
-  keeper.start();
+  await keeper.start();
   const claims = createClaims({ anthropic, cpa, poller, clock: realClock });
   const oauth = createOAuthFlows({ cpa, observer, now: realClock.now });
   snapshot = () => ({
@@ -55,7 +56,7 @@ beforeAll(async () => {
     port: 0,
     assets: new Map([['/', { body: new TextEncoder().encode('<!doctype html><div id="root"></div>').buffer as ArrayBuffer, type: 'text/html' }]]),
     snapshot,
-    history: (range) => keeper.history(range, observer.accounts().map((a) => a.id)),
+    usage: () => keeper.usage(observer.accounts().map((a) => a.id)),
     handlers,
     ctx: { cpa, observer, poller, claims, oauth },
   });
@@ -151,10 +152,17 @@ describe('actions over HTTP', () => {
     expect((JSON.parse(text) as Snapshot).cpa.last?.value).toHaveLength(3);
   });
 
-  test('history answers per range and rejects others', async () => {
-    const h = await (await fetch(`${base}/api/history?range=7d`)).json();
-    expect(h.range).toBe('7d');
-    expect(h.hours.length).toBeGreaterThan(0);
-    expect((await fetch(`${base}/api/history?range=1y`)).status).toBe(400);
+  test('usage answers the whole horizon with no parameters, current to keeper, without session ids or error bodies', async () => {
+    const res = await fetch(`${base}/api/usage`);
+    const text = await res.text();
+    const cube = JSON.parse(text) as UsageCube;
+    expect(res.status).toBe(200);
+    expect(cube.catchingUp).toBe(false);
+    expect(cube.generatedAt - cube.horizonStart).toBe(HORIZON_MS);
+    expect(cube.generatedAt - cube.keeperLatestAt!).toBeLessThan(2 * 60_000);
+    expect(new Set(cube.cells.map((c) => c.account))).toEqual(new Set([ACC1, ACC2, ACC3]));
+    expect(cube.errors.length).toBeGreaterThan(0);
+    expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/);
+    expect(text).not.toContain('"type":"error"');
   });
 });

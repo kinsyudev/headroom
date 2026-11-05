@@ -7,12 +7,10 @@ import { Database } from 'bun:sqlite';
 import { DeckError } from '../shared/errors';
 import { emptySource, failed, parseInstant, succeeded, type AccountId, type Instant, type ServingSeen, type Source } from '../shared/domain';
 import { SERVING_WINDOW_MS } from '../shared/derive';
-import { RANGE_MS, type ErrorRow, type HistoryRange, type HistoryView, type TokenTotals } from '../shared/history';
 import { HORIZON_MS, type ErrorEvent, type UsageCube } from '../shared/usage';
 import { createLedger, outcomeOf, type Ledger, type UsageEvent } from './ledger';
 
 export const SERVING_EVERY_MS = 5_000;
-export const HISTORY_MEMO_MS = 30_000;
 /** Rows per ingest read. One read folds in a few ms, so /api/snapshot answers between reads during the warm-up. */
 export const INGEST_SLICE_ROWS = 2_000;
 const ERROR_MESSAGE_CHARS = 300;
@@ -23,7 +21,6 @@ export interface Keeper {
   start(): Promise<void>;
   stop(): void;
   serving(): Source<readonly ServingSeen[]>;
-  history(range: HistoryRange, accounts: readonly AccountId[]): HistoryView;
   /**
    * Usage over the horizon for these accounts, current to keeper's newest row: it reads the tail first. While the
    * warm-up runs it answers with what is folded so far and catchingUp. It throws DeckError('unavailable') when keeper
@@ -31,15 +28,6 @@ export interface Keeper {
    */
   usage(accounts: readonly AccountId[]): UsageCube;
 }
-
-const TOTALS = /* sql */ `
-  COUNT(*)                                                                    AS requests,
-  SUM(CASE WHEN COALESCE(failed, 0) != 0 THEN 1 ELSE 0 END)                   AS failed,
-  SUM(CASE WHEN status_code = 429 THEN 1 ELSE 0 END)                          AS rate_limited,
-  SUM(MAX(COALESCE(input_tokens, 0) - cache_read_tokens - cache_creation_tokens, 0)) AS fresh_input,
-  SUM(cache_read_tokens)                                                      AS cache_read,
-  SUM(cache_creation_tokens)                                                  AS cache_creation,
-  SUM(COALESCE(output_tokens, 0))                                             AS output`;
 
 const KNOWN = /* sql */ `auth_index IN (SELECT value FROM json_each($ids))`;
 
@@ -63,17 +51,6 @@ export const SQL = {
     WHERE id > $after
     ORDER BY id
     LIMIT $limit`,
-  hours: /* sql */ `
-    SELECT strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS hour, auth_index AS account, model, ${TOTALS}
-    FROM usage_events
-    WHERE julianday(timestamp) >= $since AND ${KNOWN}
-    GROUP BY hour, account, model`,
-  models: /* sql */ `
-    SELECT auth_index AS account, model, ${TOTALS}, AVG(latency_ms) AS avg_latency_ms, AVG(ttft_ms) AS avg_ttft_ms
-    FROM usage_events
-    WHERE julianday(timestamp) >= $since AND ${KNOWN}
-    GROUP BY account, model
-    ORDER BY requests DESC`,
   errors: /* sql */ `
     SELECT id, timestamp, auth_index AS account, model, status_code, auth_quota_reason, auth_quota_next_recover_at,
            substr(body, 1, ${ERROR_BODY_CHARS}) AS body
@@ -81,18 +58,7 @@ export const SQL = {
     WHERE ${KNOWN}
     ORDER BY id DESC
     LIMIT 50`,
-  latest: /* sql */ `SELECT timestamp FROM usage_events ORDER BY id DESC LIMIT 1`,
 } as const;
-
-interface TotalsRow {
-  readonly requests: number;
-  readonly failed: number | null;
-  readonly rate_limited: number | null;
-  readonly fresh_input: number | null;
-  readonly cache_read: number | null;
-  readonly cache_creation: number | null;
-  readonly output: number | null;
-}
 
 interface TailRow {
   readonly id: number;
@@ -119,7 +85,6 @@ export function openKeeper(path: string, now: () => Instant): Keeper {
   let db: Database | null = null;
   let servingSrc: Source<readonly ServingSeen[]> = emptySource();
   let timer: ReturnType<typeof setInterval> | null = null;
-  const memo = new Map<string, { at: number; view: HistoryView }>();
   let ledger: Ledger | null = null;
   let catchingUp: Promise<void> | null = null;
 
@@ -243,55 +208,6 @@ export function openKeeper(path: string, now: () => Instant): Keeper {
         throw new DeckError('unavailable', unreadable(e));
       }
     },
-    history(range, accounts) {
-      const t = now();
-      const key = `${range}|${[...accounts].sort().join(',')}`;
-      const hit = memo.get(key);
-      if (hit && t - hit.at < HISTORY_MEMO_MS) return hit.view;
-      let view: HistoryView;
-      try {
-        const d = open();
-        const params = { $since: toJulian(t - RANGE_MS[range]), $ids: JSON.stringify(accounts) };
-        const hours = d
-          .query<TotalsRow & { hour: string; account: string; model: string | null }, typeof params>(SQL.hours)
-          .all(params)
-          .flatMap((r) => {
-            const hour = parseInstant(r.hour);
-            return hour === null ? [] : [{ hour, account: r.account as AccountId, model: r.model ?? 'unknown', totals: totals(r) }];
-          });
-        const models = d
-          .query<TotalsRow & { account: string; model: string | null; avg_latency_ms: number | null; avg_ttft_ms: number | null }, typeof params>(SQL.models)
-          .all(params)
-          .map((r) => ({
-            account: r.account as AccountId,
-            model: r.model ?? 'unknown',
-            totals: totals(r),
-            avgLatencyMs: r.avg_latency_ms === null ? null : Math.round(r.avg_latency_ms),
-            avgTtftMs: r.avg_ttft_ms === null ? null : Math.round(r.avg_ttft_ms),
-          }));
-        const errors = d
-          .query<ErrorEventRow, { $ids: string }>(SQL.errors)
-          .all({ $ids: params.$ids })
-          .map(
-            (r): ErrorRow => ({
-              id: r.id,
-              at: parseInstant(r.timestamp),
-              account: (r.account as AccountId | null) ?? null,
-              model: r.model,
-              status: r.status_code,
-              quotaReason: r.auth_quota_reason || null,
-              recoverAt: parseInstant(r.auth_quota_next_recover_at),
-              message: errorMessage(r.body),
-            }),
-          );
-        const latest = d.query<{ timestamp: string }, []>(SQL.latest).get();
-        view = { range, generatedAt: t, keeperLatestAt: parseInstant(latest?.timestamp), hours, models, errors };
-      } catch (e) {
-        throw new DeckError('unavailable', unreadable(e));
-      }
-      memo.set(key, { at: t, view });
-      return view;
-    },
   };
 }
 
@@ -338,18 +254,6 @@ function parseEvent(r: TailRow): UsageEvent[] {
       session: r.session || null,
     },
   ];
-}
-
-function totals(r: TotalsRow): TokenTotals {
-  return {
-    requests: r.requests,
-    failed: r.failed ?? 0,
-    rateLimited: r.rate_limited ?? 0,
-    freshInput: r.fresh_input ?? 0,
-    cacheRead: r.cache_read ?? 0,
-    cacheCreation: r.cache_creation ?? 0,
-    output: r.output ?? 0,
-  };
 }
 
 const MESSAGE_FIELD = new RegExp(`"message"\\s*:\\s*"([^"]{1,${ERROR_MESSAGE_CHARS}})`);

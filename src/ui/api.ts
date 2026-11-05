@@ -1,11 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ActionInput, ActionKind, ActionOutput } from '../shared/actions';
 import { DeckError, type DeckErrorCode } from '../shared/errors';
 import type { Snapshot } from '../shared/domain';
-import type { HistoryRange, HistoryView } from '../shared/history';
+import { deriveAnalytics, type UsageCube } from '../shared/usage';
+import type { AccountView, AnalyticsLens, AnalyticsView } from '../shared/view';
 
 export const SNAPSHOT_POLL_MS = 2_000;
-const HISTORY_POLL_MS = 60_000;
+const USAGE_POLL_MS = 60_000;
+/** While the server is still reading the history at startup, the page asks again this soon. */
+const USAGE_CATCHING_UP_POLL_MS = 2_000;
 
 export type Connection = 'connecting' | 'live' | 'lost';
 
@@ -94,29 +97,71 @@ export function useAction<K extends ActionKind>(kind: K) {
   return { run, status, pending: status.phase === 'pending', reset: useCallback(() => setStatus({ phase: 'idle' }), []) };
 }
 
-export function useHistory(range: HistoryRange): { history: HistoryView | null; loading: boolean; error: string | null } {
-  const [state, setState] = useState<{ history: HistoryView | null; loading: boolean; error: string | null }>({ history: null, loading: true, error: null });
-  useEffect(() => {
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const load = async () => {
-      setState((s) => ({ ...s, loading: true }));
-      try {
-        const res = await fetch(`/api/history?range=${range}`, { cache: 'no-store' });
-        const body = (await res.json()) as HistoryView & { error?: { message?: string } };
-        if (!res.ok) throw new Error(body.error?.message ?? `history ${res.status}`);
-        if (alive) setState({ history: body, loading: false, error: null });
-      } catch (e) {
-        if (alive) setState((s) => ({ ...s, loading: false, error: e instanceof Error ? e.message : String(e) }));
-      } finally {
-        if (alive) timer = setTimeout(() => void load(), HISTORY_POLL_MS);
-      }
-    };
-    void load();
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [range]);
-  return state;
+export type AnalyticsState =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed'; readonly error: string }
+  /** refreshing: a newer history is on its way. error: the last refresh failed, and the view is the last good one. */
+  | { readonly kind: 'ready'; readonly view: AnalyticsView; readonly refreshing: boolean; readonly error: string | null };
+
+/**
+ * Every analytics component reads usage through this. However many call it, the page polls /api/usage once, every
+ * 60 s, or every 2 s while the server is catching up. Changing the lens refolds in memory with no request.
+ * `accounts` is deck.accounts: emails, the account order and the quota windows pace reads.
+ */
+export function useAnalytics(lens: AnalyticsLens, accounts: readonly AccountView[]): AnalyticsState {
+  const s = useSyncExternalStore(usage.listen, usage.get);
+  const { range, grain, account, model } = lens;
+  // The lens is compared by its fields, so a caller's fresh object with the same lens refolds nothing.
+  return useMemo((): AnalyticsState => {
+    if (!s.cube) return s.error === null ? { kind: 'loading' } : { kind: 'failed', error: s.error };
+    return { kind: 'ready', view: deriveAnalytics(s.cube, lens, accounts), refreshing: s.loading, error: s.error };
+  }, [s, range, grain, account, model, accounts]);
 }
+
+interface UsageState {
+  readonly cube: UsageCube | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
+/** The one poller of /api/usage. It runs while at least one component listens. */
+const usage = (() => {
+  let state: UsageState = { cube: null, loading: true, error: null };
+  const listeners = new Set<() => void>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let running = false;
+  const set = (next: UsageState) => {
+    state = next;
+    for (const l of listeners) l();
+  };
+  const load = async () => {
+    running = true;
+    set({ ...state, loading: true });
+    let next = USAGE_POLL_MS;
+    try {
+      const res = await fetch('/api/usage', { cache: 'no-store' });
+      const body = (await res.json()) as UsageCube & { error?: { message?: string } };
+      if (!res.ok) throw new Error(body.error?.message ?? `usage ${res.status}`);
+      set({ cube: body, loading: false, error: null });
+      if (body.catchingUp) next = USAGE_CATCHING_UP_POLL_MS;
+    } catch (e) {
+      set({ ...state, loading: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    running = false;
+    if (listeners.size > 0) timer = setTimeout(() => void load(), next);
+  };
+  return {
+    listen(onChange: () => void): () => void {
+      listeners.add(onChange);
+      if (!running && timer === undefined) void load();
+      return () => {
+        listeners.delete(onChange);
+        if (listeners.size === 0) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+      };
+    },
+    get: () => state,
+  };
+})();

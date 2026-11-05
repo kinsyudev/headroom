@@ -34,7 +34,7 @@ export function App() {
           <Banners banners={deck.banners} connection={connection} />
           <OverviewStrip deck={deck} colors={colors} />
           <Accounts accounts={deck.accounts} columns={deck.limitColumns} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
-          <HistoryPanel accounts={deck.accounts.map((a) => ({ id: a.id, email: a.email, color: colors.get(a.id)! }))} />
+          <HistoryPanel accounts={deck.accounts} colors={colors} />
         </div>
         {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}
       </CpaProvider>

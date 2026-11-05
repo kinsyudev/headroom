@@ -39,7 +39,7 @@ const server = serve({
   port: config.port,
   assets: await buildUi(join(import.meta.dir, 'ui/index.html')),
   snapshot,
-  history: (range) => keeper.history(range, observer.accounts().map((a) => a.id)),
+  usage: () => keeper.usage(observer.accounts().map((a) => a.id)),
   handlers,
   ctx: { cpa, observer, poller, claims, oauth },
 });

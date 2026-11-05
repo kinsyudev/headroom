@@ -77,9 +77,14 @@ describe('layering', () => {
     expect(bad.map((s) => s.path)).toEqual([]);
   });
 
-  test('components render from view types: no Snapshot and no derive imports below App', () => {
-    const bad = sources.filter((s) => s.path.startsWith('ui/components/') && (/\bSnapshot\b/.test(code(s.text)) || imports(s.text).some((i) => i.endsWith('shared/derive'))));
+  test('components render from view types: no Snapshot, no UsageCube, and no derive or usage imports below App', () => {
+    const bad = sources.filter((s) => s.path.startsWith('ui/components/') && (/\b(Snapshot|UsageCube)\b/.test(code(s.text)) || imports(s.text).some((i) => /shared\/(derive|usage)$/.test(i))));
     expect(bad.map((s) => s.path)).toEqual([]);
+  });
+
+  test('/api/usage is fetched only by useAnalytics, and deriveAnalytics is called only there', () => {
+    expect(where(/\/api\/usage/)).toEqual(['server/http.ts', 'ui/api.ts']);
+    expect(where(/\bderiveAnalytics\(/)).toEqual(['shared/usage.ts', 'ui/api.ts']);
   });
 
   test('wire schemas stay private to the module that parses them', () => {

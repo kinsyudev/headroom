@@ -8,7 +8,7 @@ import { ZodError } from 'zod';
 import { ACTIONS, type ActionInput, type ActionKind } from '../shared/actions';
 import { DECK_ERROR_STATUS, DeckError } from '../shared/errors';
 import type { Snapshot } from '../shared/domain';
-import { HISTORY_RANGES, type HistoryRange, type HistoryView } from '../shared/history';
+import type { UsageCube } from '../shared/usage';
 import type { Handler, HandlerCtx, Handlers } from './handlers';
 
 export interface Asset {
@@ -21,7 +21,7 @@ export interface HttpDeps {
   readonly port: number;
   readonly assets: ReadonlyMap<string, Asset>;
   readonly snapshot: () => Snapshot;
-  readonly history: (range: HistoryRange) => HistoryView;
+  readonly usage: () => UsageCube;
   readonly handlers: Handlers;
   readonly ctx: HandlerCtx;
 }
@@ -46,7 +46,7 @@ async function route(req: Request, deps: HttpDeps, port: number): Promise<Respon
   if (blocked) return blocked;
   if (req.method === 'GET' || req.method === 'HEAD') {
     if (url.pathname === '/api/snapshot') return json(deps.snapshot());
-    if (url.pathname === '/api/history') return json(deps.history(parseRange(url.searchParams.get('range'))));
+    if (url.pathname === '/api/usage') return json(deps.usage());
     const asset = deps.assets.get(url.pathname);
     if (asset) return new Response(asset.body, { headers: { ...BASE_HEADERS, 'Content-Type': asset.type } });
     return json({ error: { code: 'not_found', message: url.pathname } }, 404);
@@ -87,12 +87,6 @@ export function parseActBody(body: unknown): { kind: ActionKind; input: unknown 
     throw new DeckError('invalid', 'unknown action');
   }
   return { kind: b.kind as ActionKind, input: b.input ?? {} };
-}
-
-export function parseRange(q: string | null): HistoryRange {
-  if (q === null) return '24h';
-  if ((HISTORY_RANGES as readonly string[]).includes(q)) return q as HistoryRange;
-  throw new DeckError('invalid', `range must be one of ${HISTORY_RANGES.join(', ')}`);
 }
 
 function json(value: unknown, status = 200): Response {
