@@ -533,8 +533,7 @@ span.banner-line {
 .stat h2,
 .order-col,
 .ledger-head,
-.offers h4,
-.history-table h3 {
+.offers h4 {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1180,8 +1179,15 @@ a.cell-pace:hover {
 .panel-head h2 {
   font-size: 15px;
 }
-.panel-head .view {
+.panel-sub {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.panel-head .panel-link {
   margin-left: auto;
+  font-size: 13px;
 }
 .legend,
 .legend-items {
@@ -1276,24 +1282,6 @@ a.cell-pace:hover {
   height: 2px;
   border-radius: 1px;
   flex: none;
-}
-.history-tables {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-.history-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.table-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px 12px;
 }
 .table-fade {
   position: relative;
@@ -1639,10 +1627,6 @@ table.errors td.message {
 }
 .btn.more {
   align-self: flex-start;
-}
-.panel-foot {
-  margin: 0;
-  font-size: 13px;
 }
 .usage {
   display: flex;
