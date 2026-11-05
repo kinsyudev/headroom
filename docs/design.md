@@ -167,6 +167,17 @@ Every chart reads one shape, and the server never answers per range or time zone
 - Port 1338.
 - LaunchAgent `com.kinsyu.headroom` runs `/Users/kinsyu/.bun/bin/bun run src/main.ts`, with this repo as its working directory. Logs go to `~/Library/Logs/headroom.log`. It sets `KeepAlive` and `ThrottleInterval 30`.
 
+### 9. Views, lenses and the brand
+
+The page has two views, Monitor and Usage, chosen by the hash (`#usage` opens Usage and any other hash is Monitor, so a jump link to a card stays on Monitor). Usage is a separate view and not a long section, so the glance at the top of Monitor stays as short as it was and a capture of Usage can be read in 1000 px tiles. Monitor keeps one chart, the Activity panel, because it is about the accounts on the page. Everything else about history lives in Usage.
+
+- **Three lenses read one cube.** Usage calls `useAnalytics` three times and none of them refetches. `all` is 30 days with no filters, and feeds the week strip and the model list. `explore` follows the toolbar. `pattern` is 30 days with the toolbar's account and model, because a weekly rhythm needs a month. `deriveAnalytics` memoizes each fold per lens, so three calls cost one fold each.
+- **`weeks` does not depend on the range.** `AnalyticsView.weeks` is the last 168 complete hours against the 168 before them, narrowed by the account and model lens only. `before` is null until the history reaches back to the start of the earlier week, so a short week never reads as a drop.
+- **One direction, one meter.** The meter draws what is left, in four tones. `MeterTone` adds `low` (a quarter or less left) beside `ample`, `normal`, `warning` and `critical`. `LimitPace.projected` and `endsAt` turn pace into words without the component doing arithmetic on windows. The steady-pace tick sits at 100 less the share of the window gone.
+- **A chart is a form chosen by the data's job** (the dataviz skill): stacked columns for parts of a total over time, a grid for weekday by hour, a bar list for shares, lines for percentiles, a bullet bar for pace against time. Every chart starts at zero, has one axis, keeps its legend for two or more series, has a tooltip, and has a table twin in the same card. A share that is a whole (cache) is drawn as a 100% column, not as a zoomed line.
+- **Color has one job each.** Account identity is `--id-1` to `--id-5`, magnitude is the ice ramp, and status is green, amber and red. A failure series is a status, so it wears the status colors with a glyph. 499 is the client hanging up, so it stays gray.
+- **Palette checks are a test.** `test/palette.test.ts` reads `:root` in `styles.css` and fails when a text token drops under 4.5:1 on any surface, a mark token under 3:1, or two neighbouring account colors, or an account color and a status color, come within 15 of each other.
+
 ## Synthesis decision
 
 Three runners produced candidates: opus as candidate 1, fable as candidate 2, sonnet as candidate 3. All three converged on the same whole shape: one Bun process, a pure derive shared by server and browser, one action union, and a never-resend claim rule. That convergence counts as strong agreement.

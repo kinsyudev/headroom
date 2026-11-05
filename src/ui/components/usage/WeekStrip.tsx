@@ -48,19 +48,19 @@ export function WeekStrip(props: { readonly view: AnalyticsView; readonly colors
       <div className="kpis">
         <div className="kpi" data-testid="kpi-requests">
           <h3>Requests</h3>
-          <p className="kpi-value num">{count(cur.stats.requests)}</p>
+          <p className="kpi-value">{count(cur.stats.requests)}</p>
           <Delta change={change(cur.stats.requests, prev?.stats.requests)} text={changeText(change(cur.stats.requests, prev?.stats.requests))} vs={VS} />
           <Blocks blocks={requests} split={7} format={count} describe={describe} unit="requests" label="Requests per day, the earlier week then the latest" />
         </div>
         <div className="kpi" data-testid="kpi-output">
           <h3>Output tokens</h3>
-          <p className="kpi-value num">{compact(cur.stats.tokens.output)}</p>
+          <p className="kpi-value">{compact(cur.stats.tokens.output)}</p>
           <Delta change={change(cur.stats.tokens.output, prev?.stats.tokens.output)} text={changeText(change(cur.stats.tokens.output, prev?.stats.tokens.output))} vs={VS} />
           <Blocks blocks={output} split={7} format={compact} describe={describe} unit="output tokens" label="Output tokens per day, the earlier week then the latest" />
         </div>
         <div className="kpi" data-testid="kpi-cache">
           <h3>Cache hit</h3>
-          <p className="kpi-value num">{share(cur.stats.cacheReadShare)}</p>
+          <p className="kpi-value">{share(cur.stats.cacheReadShare)}</p>
           <Delta
             change={cachePts === null ? null : cachePts / 100}
             text={`${Math.abs(cachePts ?? 0).toFixed(1)} pt`}

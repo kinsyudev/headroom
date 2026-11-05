@@ -57,7 +57,7 @@ export function HistoryPanel(props: { readonly accounts: readonly AccountView[];
             values: usage.timeline.map((b) => metricOf(b.byAccount[j]!.stats, metric)),
           }))
         : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- usage changes identity every second; its timeline does not
+    // usage changes identity every second; its timeline does not
     [timeline, props.colors, metric],
   );
   const limited = (i: number) => usage?.timeline[i]?.total.outcomes.rate_limited ?? 0;

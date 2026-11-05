@@ -194,6 +194,29 @@ try {
   await page.getByTestId('history').screenshot({ path: join(SHOTS, 'e2e-4-history-hover.png') });
   pass('history chart answers hover on the in-progress hour');
 
+  await page.getByTestId('nav-analytics').click();
+  await page.getByTestId('week-strip').waitFor();
+  assert(page.url().endsWith('#usage'), 'the Usage tab puts #usage in the address, so the view can be linked');
+  assert(/\d/.test(await text(page.getByTestId('kpi-requests').locator('.kpi-value'))), 'the week strip counts the last 7 days of requests');
+  assert((await text(page.getByTestId('kpi-top'))).includes('Opus 5.5'), 'the most used model is named in plain words');
+  const paceRows = page.getByTestId('pace').locator('.pace-row');
+  assert((await paceRows.count()) >= 3, 'the quota pace lists a row per open window');
+  assert(/Lasts to the reset|Runs out in|At its limit|Too early to say/.test(await text(paceRows.first())), 'every pace row ends in one of the four outlooks');
+  assert((await page.locator('[data-testid="week-pattern"] rect.cell').count()) === 7 * 24, 'the weekday-by-hour grid has a cell for each of the 168 slots');
+  const legend = page.getByTestId('over-time').getByRole('list', { name: 'Legend' });
+  assert((await legend.locator('li').count()) === 3, 'the over-time legend names the three accounts');
+  await page.getByTestId('usage-range-7d').click();
+  assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the 7d range draws seven days, the last one still filling');
+  await page.locator('.toolbar').getByRole('button', { name: 'account2' }).click();
+  await until(async () => (await legend.locator('li').count()) === 1, 'choosing account2 narrows the chart to it');
+  assert((await text(legend)).includes('account2@example.com'), 'the one account left in the legend is account2');
+  await page.getByTestId('over-time').getByRole('button', { name: 'Table' }).click();
+  assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
+  await page.getByTestId('analytics').screenshot({ path: join(SHOTS, 'e2e-4b-usage.png') });
+  await page.getByTestId('nav-monitor').click();
+  await card('account1@example.com').waitFor();
+  pass('Usage opens from its tab, answers the week, pace and pattern questions, narrows by account, and Monitor comes back');
+
   const popup = page.waitForEvent('popup');
   await page.getByTestId('add-account').click();
   await (await popup).waitForLoadState();

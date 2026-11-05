@@ -6,7 +6,9 @@ import { useState } from 'react';
 import type { RoutingStrategy } from '../../shared/domain';
 import type { DeckView } from '../../shared/view';
 import { useAction, type Connection } from '../api';
+import { Mark, Wordmark } from '../brand';
 import { usePaused } from '../deck';
+import { VIEWS, type ViewKey } from '../route';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
 import { Status } from './Freshness';
@@ -19,21 +21,33 @@ const STRATEGY_HELP: Readonly<Record<RoutingStrategy, string>> = {
 };
 const FLOW_TTL_MS = 5 * 60_000;
 
-export function Header(props: { readonly deck: DeckView; readonly connection: Connection }) {
+export function Header(props: { readonly deck: DeckView; readonly connection: Connection; readonly view: ViewKey }) {
   const d = props.deck;
+  const runningOut = d.accounts.reduce((n, a) => n + a.limits.filter((l) => l.pace?.outlook.kind === 'hits').length, 0);
   const cpaDown = props.connection === 'live' && d.cpa.kind === 'down';
   const status = cpaDown ? 'cpa-down' : props.connection;
   return (
     <header className="topbar">
       <div className="brand">
-        <h1>Headroom</h1>
-        <span
-          className={`live-dot ${status}`}
-          title={cpaDown ? 'The Headroom server is live; CPA is not answering' : `snapshot ${props.connection}`}
-          aria-label={cpaDown ? 'CPA down' : `connection ${props.connection}`}
-        />
+        <Mark size={24} />
+        <Wordmark />
       </div>
-      <div className="topbar-controls">
+      <nav className="views" aria-label="Views">
+        {VIEWS.map((v) => (
+          <a key={v.key} href={v.hash} className="view-tab" aria-current={v.key === props.view ? 'page' : undefined} data-testid={v.testId}>
+            {v.label}
+            {v.key === 'usage' && runningOut > 0 && (
+              <span className="tab-badge" title={`${runningOut} quota window${runningOut === 1 ? '' : 's'} on course to run out before ${runningOut === 1 ? 'it resets' : 'they reset'}`}>
+                <span aria-hidden>!</span>
+                <span className="sr-only">
+                  {runningOut} quota window{runningOut === 1 ? '' : 's'} on course to run out
+                </span>
+              </span>
+            )}
+          </a>
+        ))}
+      </nav>
+      <div className="topbar-controls" hidden={props.view !== 'monitor'}>
         <div className="segmented" role="group" aria-label="Routing strategy" data-testid="strategy">
           <span className="segmented-label">Routing</span>
           {STRATEGIES.map((s) => (
@@ -62,7 +76,14 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
         </ActionButton>
         <AddAccount deck={d} />
       </div>
-      <Status status={d.status} />
+      <div className="topbar-status">
+        <span
+          className={`live-dot ${status}`}
+          title={cpaDown ? 'The Headroom server is live; CPA is not answering' : `snapshot ${props.connection}`}
+          aria-label={cpaDown ? 'CPA down' : `connection ${props.connection}`}
+        />
+        <Status status={d.status} />
+      </div>
     </header>
   );
 }

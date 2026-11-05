@@ -34,7 +34,6 @@ export function CachePanel(props: { readonly view: AnalyticsView; readonly week:
           return input === 0 ? 0 : (p.key === 'read' ? t.cacheRead : p.key === 'write' ? t.cacheCreation : t.freshInput) / input;
         }),
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.timeline],
   );
   const cur = props.week.now.figures.stats.cacheReadShare;
@@ -52,7 +51,6 @@ export function CachePanel(props: { readonly view: AnalyticsView; readonly week:
         ];
       }),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [series, v.timeline, now],
   );
   const t = v.total;
@@ -66,16 +64,16 @@ export function CachePanel(props: { readonly view: AnalyticsView; readonly week:
     >
       <div className="figures stacked">
         <div>
-          <p className="figure num">{share(t.cacheReadShare)}</p>
+          <p className="figure">{share(t.cacheReadShare)}</p>
           <p className="figure-label">of input served from cache</p>
           <Delta change={pts === null ? null : pts / 100} text={`${Math.abs(pts ?? 0).toFixed(1)} pt`} better="up" flatBelow={0.0005} vs="last 7 days vs the 7 before" />
         </div>
         <div>
-          <p className="figure num">{t.outputPerRequest === null ? '—' : count(t.outputPerRequest)}</p>
+          <p className="figure">{t.outputPerRequest === null ? '—' : count(t.outputPerRequest)}</p>
           <p className="figure-label">output tokens per request</p>
         </div>
         <div>
-          <p className="figure num">{t.outputPerSession === null ? '—' : compact(t.outputPerSession)}</p>
+          <p className="figure">{t.outputPerSession === null ? '—' : compact(t.outputPerSession)}</p>
           <p className="figure-label">output tokens per session</p>
         </div>
       </div>

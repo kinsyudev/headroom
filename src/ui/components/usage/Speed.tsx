@@ -19,7 +19,6 @@ function SpeedChart(props: { readonly title: string; readonly sub: string; reado
       { key: 'p50', label: 'Median', end: 'median', color: P50, values: v.timeline.map((b) => props.pick(b)?.p50 ?? null) },
       { key: 'p90', label: 'Slowest 10%', end: 'slowest 10%', color: P90, values: v.timeline.map((b) => props.pick(b)?.p90 ?? null) },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.timeline, props.pick],
   );
   const table = useMemo(
@@ -30,7 +29,6 @@ function SpeedChart(props: { readonly title: string; readonly sub: string; reado
         return [span(b), seconds(p?.p50 ?? null), seconds(p?.p90 ?? null), seconds(p?.p99 ?? null), p ? count(p.samples) : '—'];
       }),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.timeline, props.pick, now],
   );
   const t = props.total;
@@ -43,15 +41,15 @@ function SpeedChart(props: { readonly title: string; readonly sub: string; reado
     >
       <div className="figures">
         <div>
-          <p className="figure num">{seconds(t?.p50 ?? null)}</p>
+          <p className="figure">{seconds(t?.p50 ?? null)}</p>
           <p className="figure-label">median</p>
         </div>
         <div>
-          <p className="figure num">{seconds(t?.p90 ?? null)}</p>
+          <p className="figure">{seconds(t?.p90 ?? null)}</p>
           <p className="figure-label">slowest 10%</p>
         </div>
         <div>
-          <p className="figure num">{seconds(t?.p99 ?? null)}</p>
+          <p className="figure">{seconds(t?.p99 ?? null)}</p>
           <p className="figure-label">slowest 1%</p>
         </div>
       </div>

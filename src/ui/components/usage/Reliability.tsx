@@ -26,7 +26,6 @@ export function FailuresPanel(props: { readonly view: AnalyticsView; readonly di
   const { label, span, title } = bucketText(v.lens.grain, now);
   const series = useMemo(
     () => FAILURES.map((f) => ({ key: f.outcome, label: f.label, color: f.color, values: v.timeline.map((b) => b.total.outcomes[f.outcome]) })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.timeline],
   );
   const table = useMemo(
@@ -34,7 +33,6 @@ export function FailuresPanel(props: { readonly view: AnalyticsView; readonly di
       head: [v.lens.grain === 'hour' ? 'Hour' : 'Day', 'Requests', ...FAILURES.map((f) => f.label)],
       rows: v.timeline.map((b) => [span(b), count(b.total.requests), ...FAILURES.map((f) => b.total.outcomes[f.outcome])]),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [v.timeline, now],
   );
   const t = v.total;
@@ -49,12 +47,12 @@ export function FailuresPanel(props: { readonly view: AnalyticsView; readonly di
     >
       <div className="figures">
         <div>
-          <p className="figure num">{share(t.rates === null ? null : t.rates.ok)}</p>
+          <p className="figure">{share(t.rates === null ? null : t.rates.ok)}</p>
           <p className="figure-label">of {count(t.requests)} succeeded</p>
         </div>
         {FAILURES.slice(0, 3).map((f) => (
           <div key={f.outcome}>
-            <p className="figure num">{count(t.outcomes[f.outcome])}</p>
+            <p className="figure">{count(t.outcomes[f.outcome])}</p>
             <p className="figure-label">
               <span aria-hidden>{f.icon} </span>
               {f.short} · {share(t.rates?.[f.outcome] ?? null)}

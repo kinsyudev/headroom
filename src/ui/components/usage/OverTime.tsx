@@ -34,7 +34,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
         color: props.colors.get(a.id)!,
         values: v.timeline.map((b) => metricOf(b.byAccount[j]!.stats, metric)),
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- v changes identity every second; its timeline does not
+    // v changes identity every second; its timeline does not
     [v.timeline, v.dimensions, props.colors, metric],
   );
   const table = useMemo(
@@ -42,7 +42,6 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
       head: [v.lens.grain === 'hour' ? 'Hour' : 'Day', ...series.map((s) => s.label), 'Total'],
       rows: v.timeline.map((b, i) => [b.partial ? `${span(b)} · now` : span(b), ...series.map((s) => (s.values[i] ?? 0).toLocaleString()), series.reduce((n, s) => n + (s.values[i] ?? 0), 0).toLocaleString()]),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [series, v.timeline, now],
   );
 

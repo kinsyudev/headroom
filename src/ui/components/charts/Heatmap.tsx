@@ -2,7 +2,7 @@ import { memo, useRef, useState } from 'react';
 import type { WeekGrid } from '../../../shared/view';
 import { count, hourText, weekdayName } from '../../format';
 import { ChartTip } from './ChartTip';
-import { useWidth } from './kit';
+import { tooltipLeft, useWidth } from './kit';
 
 /** The brand ramp, faintest to brightest. Equal-width steps from zero to the busiest slot, so a darker cell is more and never different. */
 const RAMP = ['var(--ice-1)', 'var(--ice-2)', 'var(--ice-3)', 'var(--ice-4)', 'var(--ice-5)', 'var(--ice-6)'] as const;
@@ -85,7 +85,7 @@ export const Heatmap = memo(function Heatmap(props: { readonly grid: WeekGrid })
       </svg>
       {hover && hovered && (
         <ChartTip
-          left={Math.min(Math.max(0, cx(hover.h) + cellW + 8), width - TIP_W - 4) > cx(hover.h) ? cx(hover.h) + cellW + 8 : Math.max(0, cx(hover.h) - TIP_W - 8)}
+          left={tooltipLeft(cx(hover.h), cellW, width, TIP_W)}
           top={cy(hover.wd) - 6}
           width={TIP_W}
           title={`${weekdayName(hover.wd)}s, ${hourText(hover.h)}–${hourText(hover.h + 1)}`}
