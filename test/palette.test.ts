@@ -40,9 +40,10 @@ const hueGap = (a: string, b: string) => {
 };
 
 const SURFACES = ['page', 'surface', 'surface-2', 'raised'] as const;
+const TEXT = ['ink', 'ink-2', 'muted', 'brand', 'link', 'brand-ink', 'critical-ink', 'warning', 'good'] as const;
 
 describe('the palette keeps the page legible', () => {
-  test.each(['ink', 'ink-2', 'muted', 'brand', 'link', 'brand-ink', 'critical-ink', 'warning', 'good'])('text token --%s clears 4.5:1 on every surface', (name) => {
+  test.each(TEXT)('text token --%s clears 4.5:1 on every surface', (name) => {
     for (const surface of SURFACES) expect(contrast(token(name), token(surface))).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -51,25 +52,55 @@ describe('the palette keeps the page legible', () => {
   });
 });
 
-describe('secondary and muted text stay legible on every tinted panel the stylesheet draws', () => {
-  const panel = (m: RegExpMatchArray) => Number(m[2]) <= 25 && (SURFACES as readonly string[]).includes(m[3]!);
-  const tints = [
-    ...new Set(
-      [...css.matchAll(/background:\s*color-mix\(in srgb, var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)\)/g)].filter(panel).map((m) => m[0].slice(m[0].indexOf('color-mix'))),
-    ),
-  ];
-  const mixed = (tint: string) => {
-    const [, a, p, b] = /var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)/.exec(tint)!;
-    const [x, y, share] = [token(a!), token(b!), Number(p) / 100];
-    return `#${[1, 3, 5].map((i) => Math.round(parseInt(x.slice(i, i + 2), 16) * share + parseInt(y.slice(i, i + 2), 16) * (1 - share)).toString(16).padStart(2, '0')).join('')}`;
-  };
+const panel = (m: RegExpMatchArray) => Number(m[2]) <= 25 && (SURFACES as readonly string[]).includes(m[3]!);
+const tints = [
+  ...new Set(
+    [...css.matchAll(/background:\s*color-mix\(in srgb, var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)\)/g)].filter(panel).map((m) => m[0].slice(m[0].indexOf('color-mix'))),
+  ),
+];
+const parts = (tint: string) => {
+  const [, a, p, b] = /var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)/.exec(tint)!;
+  return { over: a!, share: Number(p), under: b! };
+};
+const mixed = (tint: string) => {
+  const { over, share, under } = parts(tint);
+  const [x, y] = [token(over), token(under)];
+  return `#${[1, 3, 5].map((i) => Math.round(parseInt(x.slice(i, i + 2), 16) * (share / 100) + parseInt(y.slice(i, i + 2), 16) * (1 - share / 100)).toString(16).padStart(2, '0')).join('')}`;
+};
 
+describe('every text token stays legible on every tinted panel the stylesheet draws', () => {
   test('the stylesheet has tinted panels to check', () => {
     expect(tints.length).toBeGreaterThan(5);
   });
 
-  test.each(tints.flatMap((tint) => ['ink-2', 'muted'].map((name) => [name, tint] as const)))('--%s clears 4.5:1 on %s', (name, tint) => {
+  test.each(tints.flatMap((tint) => TEXT.filter((name) => name !== 'good').map((name) => [name, tint] as const)))('--%s clears 4.5:1 on %s', (name, tint) => {
     expect(contrast(token(name), mixed(tint))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // Green sets words only on the plain surfaces. On a tint it draws a dot or a fill, which needs the 3:1 of a mark.
+  test.each(tints)('--good clears 3:1 as a mark on %s', (tint) => {
+    expect(contrast(token('good'), mixed(tint))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('text set under 13px clears 7:1 on every surface it sits on', () => {
+  // Tiles and rows wash at 14% or less. Stronger fills are buttons, badges and status boxes, whose text is 13px or more.
+  const washes = tints.filter((tint) => parts(tint).share <= 14);
+  const brandWashes = washes.filter((tint) => ['accent', 'brand'].includes(parts(tint).over));
+
+  test('the tiles have washes to check, the claimable ones among them', () => {
+    expect(washes.length).toBeGreaterThan(5);
+    expect(brandWashes.length).toBeGreaterThan(1);
+  });
+
+  // The uppercase labels and chart ticks are 12px in --muted, and the chart end labels 12px in --ink-2.
+  test.each(['muted', 'ink-2'].flatMap((name) => [...SURFACES, ...washes].map((on) => [name, on] as const)))('--%s clears 7:1 on %s', (name, on) => {
+    expect(contrast(token(name), on.startsWith('color-mix') ? mixed(on) : token(on))).toBeGreaterThanOrEqual(7);
+  });
+
+  // An uppercase label on a claimable tile turns --link.
+  test.each(brandWashes)('--link clears 7:1 on %s', (tint) => {
+    expect(contrast(token('link'), mixed(tint))).toBeGreaterThanOrEqual(7);
   });
 });
 

@@ -7,7 +7,7 @@
   --raised: #1b2430;
   --ink: #e8eef6;
   --ink-2: #c6d1e0;
-  --muted: #a1b0c3;
+  --muted: #afbdcf;
   --quiet: #667487;
   --grid: #1a222d;
   --axis: #2a3544;
@@ -298,7 +298,7 @@ code {
   justify-content: flex-end;
   align-items: center;
   gap: 4px 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-2);
 }
 .status-live {
@@ -386,7 +386,6 @@ code {
 .btn.small {
   padding: 2px 10px;
   min-height: 26px;
-  font-size: 12px;
 }
 .action {
   display: inline-flex;
@@ -395,7 +394,7 @@ code {
   flex-wrap: wrap;
 }
 .feedback {
-  font-size: 12.5px;
+  font-size: 13px;
   max-width: 360px;
 }
 .feedback.ok {
@@ -439,13 +438,13 @@ code {
 }
 .segmented-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   margin-right: 2px;
 }
 .segmented-gloss {
   margin-left: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -453,7 +452,7 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
@@ -477,7 +476,7 @@ code {
   color: var(--muted);
 }
 .chip {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink-2);
   background: var(--surface-2);
   border-radius: 5px;
@@ -822,7 +821,7 @@ a.cell-pace:hover {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
@@ -838,7 +837,7 @@ a.cell-pace:hover {
   grid-column: 1 / -1;
   grid-row: 3;
   justify-self: start;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .cell > .cell-nested {
   grid-column: 1 / -1;
@@ -867,7 +866,7 @@ a.cell-pace:hover {
   font-weight: 600;
 }
 .cell-unit {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
 }
@@ -961,7 +960,7 @@ a.cell-pace:hover {
 }
 .cell-fail {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
   white-space: nowrap;
@@ -1230,7 +1229,7 @@ a.cell-pace:hover {
 }
 .stepper-note {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .stepper-box {
@@ -1391,7 +1390,7 @@ a.cell-pace:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: 13px;
   z-index: 6;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
 }
@@ -1580,7 +1579,7 @@ table.errors td.message {
   flex-wrap: wrap;
 }
 .flow {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink-2);
   display: inline-flex;
   align-items: center;
@@ -2190,7 +2189,7 @@ table.errors td.message {
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .scale-steps {
@@ -2339,7 +2338,7 @@ button.bar-body {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-  font-size: 12px;
+  font-size: 13px;
   pointer-events: none;
 }
 .bar-body:hover .pop,
