@@ -1935,6 +1935,17 @@ table.errors td.message {
   stroke: var(--surface);
   stroke-width: 2;
 }
+.chart .prev-ring {
+  stroke: var(--surface);
+  stroke-width: 5;
+}
+.chart .prev-line {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.line-key.prev {
+  background: var(--ink);
+}
 .chart .end-label {
   fill: var(--ink-2);
 }

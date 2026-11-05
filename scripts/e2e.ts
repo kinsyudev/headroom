@@ -209,13 +209,27 @@ try {
   assert((await paceRows.count()) >= 3, 'the quota pace lists a row per open window');
   assert(/Lasts to the reset|Runs out in|At its limit|Too early to say/.test(await text(paceRows.first())), 'every pace row ends in one of the four outlooks');
   assert((await page.locator('[data-testid="week-pattern"] rect.cell').count()) === 7 * 24, 'the weekday-by-hour grid has a cell for each of the 168 slots');
+  assert((await text(page.getByTestId('kpi-requests'))).includes('vs the 7 days before'), 'Usage opens on 7 days, and the requests tile compares them with the 7 days before');
   const legend = page.getByTestId('over-time').getByRole('list', { name: 'Legend' });
-  assert((await legend.locator('li').count()) === 3, 'the over-time legend names the three accounts');
+  const legendText = await text(legend);
+  assert(
+    (await legend.locator('li').count()) === 4 && ['account1@example.com', 'account2@example.com', 'account3@example.com', 'Same day last week'].every((s) => legendText.includes(s)),
+    'the over-time legend names the three accounts and the same day last week',
+  );
+  assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the opening 7 days draw seven days, the last one still filling');
+  assert((await page.getByTestId('over-time').locator('.chart .prev-line').count()) === 7, 'each of the seven days carries its same-day-last-week mark');
+  await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').nth(5).hover();
+  assert((await text(page.locator('.tooltip'))).includes('Same day last week'), 'hovering a day gives the figure for the same day last week');
+  await page.getByTestId('usage-range-30d').click();
+  assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 30, 'the 30d range draws thirty days');
+  assert((await legend.locator('li').count()) === 3, 'the same-day-last-week mark belongs to the 7d range, so 30d lists the three accounts');
+  assert((await text(page.getByTestId('kpi-requests'))).includes('No earlier 30 days on record'), 'the requests tile follows the range and says when no span before it is on record');
   await page.getByTestId('usage-range-7d').click();
   assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the 7d range draws seven days, the last one still filling');
   await page.locator('.toolbar').getByRole('button', { name: 'account2' }).click();
-  await until(async () => (await legend.locator('li').count()) === 1, 'choosing account2 narrows the chart to it');
-  assert((await text(legend)).includes('account2@example.com'), 'the one account left in the legend is account2');
+  await until(async () => (await legend.locator('li').count()) === 2, 'choosing account2 narrows the chart to it and keeps the same day last week');
+  const narrowed = await text(legend);
+  assert(narrowed.includes('account2@example.com') && narrowed.includes('Same day last week'), 'the one account left in the legend is account2, beside the same day last week');
   await page.getByTestId('over-time').getByRole('button', { name: 'Table' }).click();
   assert((await page.getByTestId('over-time').locator('table.data tbody tr').count()) === 7, 'the table twin holds the same seven rows as the chart');
   await page.getByTestId('analytics').screenshot({ path: join(SHOTS, 'e2e-4b-usage.png') });
