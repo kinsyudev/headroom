@@ -35,6 +35,7 @@ import type {
   Headroom,
   LimitColumn,
   LimitView,
+  MeterTone,
   OfferState,
   OfferView,
   OverviewView,
@@ -382,6 +383,13 @@ interface Observation {
 const percentLeft = (used: Percent): PercentLeft => Math.min(100, Math.max(0, 100 - used)) as PercentLeft;
 const percentLeftOrNull = (used: Percent | null): PercentLeft | null => (used === null ? null : percentLeft(used));
 
+/** Over half left is room to spare: the meter recedes so the windows running low are the ones that stand out. */
+const AMPLE_LEFT = 50;
+
+export function meterTone(severity: Severity, left: PercentLeft | null): MeterTone {
+  return severity === 'normal' && left !== null && left > AMPLE_LEFT ? 'ample' : severity;
+}
+
 export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: HeaderQuota | null, now: Instant): LimitView[] {
   const rows = new Map<string, { draw: Observation; other: Observation | null }>();
   for (const l of poll?.value ?? []) {
@@ -414,13 +422,16 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
   const views: LimitView[] = [...rows.values()].map(({ draw, other }) => {
     const lapsed = draw.resetsAt !== null && draw.resetsAt <= now;
     const otherLive = other && !(other.resetsAt !== null && other.resetsAt <= now);
+    const left = lapsed ? null : percentLeft(draw.percent);
+    const severity = lapsed ? 'normal' : draw.severity;
     return {
       key: rowKey(draw.kind, draw.scopeModel),
       label: limitLabel(draw.kind, draw.scopeModel),
       phase: lapsed ? 'lapsed' : 'open',
       percent: lapsed ? null : draw.percent,
-      left: lapsed ? null : percentLeft(draw.percent),
-      severity: lapsed ? 'normal' : draw.severity,
+      left,
+      severity,
+      tone: meterTone(severity, left),
       resetsAt: draw.resetsAt,
       limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
       source: draw.source,
@@ -435,6 +446,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       percent: null,
       left: 100 as PercentLeft,
       severity: 'normal',
+      tone: 'ample',
       resetsAt: null,
       limiting: false,
       source: { kind: 'poll', at: poll.at },
@@ -487,14 +499,16 @@ export function deriveSpend(spend: Source<Spend | null>, headers: HeaderQuota | 
           at: headers.observedAt,
         }
       : null;
-  const poll = s?.value ? pollView(s.value, s.at) : null;
+  const poll = s?.value ? pollView(s.value, s.at, live?.severity === 'critical') : null;
   return poll || live ? { poll, live } : null;
 }
 
-function pollView({ enabled, percent, ...rest }: Spend, at: Instant): NonNullable<SpendView['poll']> {
+function pollView({ enabled, percent, ...rest }: Spend, at: Instant, liveCritical: boolean): NonNullable<SpendView['poll']> {
   const { used, limit } = rest;
+  const left = percentLeftOrNull(percent);
   const remaining = limit && { ...limit, minor: Math.max(0, limit.minor - used.minor) };
-  return { ...rest, state: !enabled ? 'off' : limit?.minor === 0 ? 'no_budget' : 'budget', left: percentLeftOrNull(percent), remaining, at };
+  const tone = meterTone(liveCritical ? 'critical' : rest.severity, left);
+  return { ...rest, state: !enabled ? 'off' : limit?.minor === 0 ? 'no_budget' : 'budget', left, tone, remaining, at };
 }
 
 export function derivePlan(profile: Source<Profile>): PlanView | null {

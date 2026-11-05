@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, LimitColumn } from '../../shared/view';
-import { reasonTitle, SERVING_WHY } from '../format';
+import { leftLabel, reasonTitle, SERVING_WHY } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivityCell } from './ActivitySparkline';
 import { Countdown } from './Countdown';
@@ -33,7 +33,7 @@ export function Accounts(props: {
     <section className="panel accounts" aria-label="Accounts" style={style}>
       <div className="ledger-head" aria-hidden>
         <span>Account</span>
-        {props.columns.length === 0 ? <span>Room left</span> : props.columns.map((c) => <span key={c.key}>{c.label}</span>)}
+        {props.columns.length === 0 ? <span>Room left</span> : props.columns.map((c) => <span key={c.key}>{leftLabel(c.label)}</span>)}
         <span title={EXTRA_USAGE_HELP}>Extra usage</span>
         <span title={REQUESTS_HELP}>Requests</span>
       </div>
@@ -151,7 +151,7 @@ function AccountRow(props: {
 function EmptyCell(props: { readonly label: string }) {
   return (
     <div className="cell" title={`No ${props.label.toLowerCase()} window on this account`}>
-      <span className="cell-label">{props.label}</span>
+      <span className="cell-label">{leftLabel(props.label)}</span>
       <span className="cell-value muted">—</span>
     </div>
   );

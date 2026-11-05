@@ -56,6 +56,9 @@ export function clockTime(at: number, now: number): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
 }
 
+/** The one place a column says which way its figures run: the header, the narrow row label and the meter's name. */
+export const leftLabel = (window: string): string => `${window} left`;
+
 export function percent(p: PercentLeft | null): string {
   if (p === null) return '—';
   if (p > 0 && p < 1) return '<1%';

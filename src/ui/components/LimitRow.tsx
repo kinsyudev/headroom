@@ -1,47 +1,27 @@
-import type { CSSProperties, ReactNode } from 'react';
-import type { PercentLeft, Severity } from '../../shared/domain';
-import type { LimitView, SpendView } from '../../shared/view';
+import type { ReactNode } from 'react';
+import type { PercentLeft } from '../../shared/domain';
+import type { LimitView, MeterTone, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
-import { age, clockTime, duration, money, percent, reasonText } from '../format';
+import { age, clockTime, duration, leftLabel, money, percent, reasonText } from '../format';
 
-const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--muted)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
 
 export function Meter(props: {
   readonly left: PercentLeft | null;
-  readonly severity: Severity;
+  readonly tone: MeterTone;
   readonly label: string;
   readonly tick?: { readonly left: PercentLeft; readonly title: string } | null;
 }) {
   return (
-    <div
-      className={`meter sev-${props.severity}`}
-      role="meter"
-      aria-label={props.label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={props.left ?? undefined}
-      style={{ '--fill': FILL[props.severity] } as CSSProperties}
-    >
+    <div className={`meter tone-${props.tone}`} role="meter" aria-label={props.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.left ?? undefined}>
       {props.left !== null && props.left > 0 && <div className="meter-fill" style={{ width: `${props.left}%` }} />}
       {props.tick && <div className="meter-tick" style={{ left: `${props.tick.left}%` }} title={props.tick.title} />}
     </div>
   );
 }
 
-function Left(props: { readonly left: PercentLeft | null }) {
-  return props.left === null ? (
-    <>—</>
-  ) : (
-    <>
-      {percent(props.left)}
-      <span className="cell-unit"> left</span>
-    </>
-  );
-}
-
 function resetNote(l: LimitView, now: number): { readonly text: string; readonly title: string } | null {
-  if (l.phase === 'idle') return { text: 'no window running', title: 'No session window is running, so all of it is left; one starts with the next request' };
+  if (l.phase === 'idle') return { text: 'starts on first request', title: 'No session window is running, so all of it is left; one starts with the next request' };
   if (l.resetsAt === null) return null;
   const at = clockTime(l.resetsAt, now);
   if (l.phase === 'lapsed') return { text: `${at} ✓ awaiting data`, title: `reset ${at} ✓ · awaiting fresh data` };
@@ -66,12 +46,12 @@ export function LimitCell(props: { readonly limit: LimitView }) {
     .join(' · ');
   return (
     <div className={`cell limit phase-${l.phase} sev-${l.severity}`} data-testid={`limit-${l.key}`} title={title}>
-      <span className="cell-label">{l.label}</span>
+      <span className="cell-label">{leftLabel(l.label)}</span>
       <span className="cell-value num" data-testid="percent">
-        <Left left={l.left} />
+        {percent(l.left)}
       </span>
       <span className="cell-note num">{note?.text}</span>
-      <Meter left={l.left} severity={l.severity} label={`${l.label} left`} tick={tick} />
+      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} tick={tick} />
     </div>
   );
 }
@@ -105,7 +85,7 @@ function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
   if (p?.state === 'no_budget') return { value: 'No budget', note: p.limit ? `${money(p.limit)} cap` : null, tone: 'quiet', says: 'on with a zero budget; requests stop at the plan limits' };
   if (p?.state === 'budget') {
     const note = p.limit && p.remaining ? `${money(p.remaining)} of ${money(p.limit)} left` : `${money(p.used)} spent`;
-    return { value: <Left left={p.left} />, note, tone: 'metered', says: live?.says ?? (p.limit ? 'room left under the cap' : 'on, with no cap set') };
+    return { value: percent(p.left), note, tone: 'metered', says: live?.says ?? (p.limit ? 'room left under the cap' : 'on, with no cap set') };
   }
   if (live) return live;
   return { value: 'Not read', note: atWall ? 'skipped at the limit' : null, tone: 'quiet', says: atWall ? 'amounts are not read while the account is at its limit' : 'not read yet' };
@@ -145,7 +125,7 @@ export function SpendCell(props: { readonly spend: SpendView | null; readonly at
         {face.value}
       </span>
       {face.note && <span className="cell-note num">{face.note}</span>}
-      {p?.state === 'budget' && <Meter left={p.left} severity={s.live?.severity === 'critical' ? 'critical' : p.severity} label="Extra usage left" />}
+      {p?.state === 'budget' && <Meter left={p.left} tone={p.tone} label="Extra usage left" />}
     </div>
   );
 }

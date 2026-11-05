@@ -26,6 +26,7 @@ import {
   type JuniperTide,
   type Limit,
   type Sample,
+  type Severity,
   type Snapshot,
   type Source,
   type SourceError,
@@ -205,6 +206,29 @@ describe('window lifecycle', () => {
     expect(left(100)).toMatchObject({ percent: 100, left: 0 });
     expect(left(101)).toMatchObject({ percent: 101, left: 0 });
     expect(left(0)).toMatchObject({ percent: 0, left: 100 });
+  });
+
+  describe('how loudly the meter draws a window', () => {
+    const toneOf = (used: number, severity: Severity) => {
+      const poll = { value: usage('anthropic-usage-2.json', 'normal').limits.map((l) => (l.kind === 'session' ? { ...l, percent: used as never, severity } : l)), at: T0 };
+      return mergeLimits(poll, null, T0)[0]!.tone;
+    };
+
+    test.each([
+      ['most of it left', 12, 'normal', 'ample'],
+      ['one point over half left', 49, 'normal', 'ample'],
+      ['exactly half left', 50, 'normal', 'normal'],
+      ['under half left', 80, 'normal', 'normal'],
+      ['a warning keeps its tone however much is left', 12, 'warning', 'warning'],
+      ['a window at its limit', 100, 'critical', 'critical'],
+    ] as const)('%s: %p%% used at %s severity is %s', (_label, used, severity, tone) => {
+      expect(toneOf(used, severity)).toBe(tone);
+    });
+
+    test('an idle window has all of its room, and a lapsed one has no reading to be loud about', () => {
+      expect(mergeLimits(pollOf('anthropic-usage-1.json', T0), null, T0)[0]).toMatchObject({ phase: 'idle', tone: 'ample' });
+      expect(mergeLimits(pollOf('anthropic-usage-3.json', T0), null, AFTER_COOLDOWN)[0]).toMatchObject({ phase: 'lapsed', tone: 'normal' });
+    });
   });
 
   test('a newer header window after a reset replaces the lapsed poll row', () => {
@@ -857,6 +881,18 @@ describe('card status line', () => {
       expect(poll({})).toMatchObject({ left: 0, remaining: { minor: 0, currency: 'USD' } });
       expect(poll({ used: { ...read.spend!.used, minor: 1200 }, percent: 12 as never })).toMatchObject({ left: 88, remaining: { minor: 8800 } });
       expect(poll({ limit: null, percent: null })).toMatchObject({ left: null, remaining: null });
+    });
+
+    test('the meter is quiet with most of the cap left, plain under half, and critical once the live overage is rejected', () => {
+      const read = usage('anthropic-usage-3.json', 'normal');
+      if (read.mode !== 'normal') throw new Error('fixture is a normal read');
+      const toneAt = (percent: number, headers: CpaAccount['headers'] = null) => {
+        const spend = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, percent: percent as never, severity: 'normal' as const }, at: T0 } };
+        return deriveSpend(spend, headers)?.poll?.tone;
+      };
+      expect(toneAt(12)).toBe('ample');
+      expect(toneAt(60)).toBe('normal');
+      expect(toneAt(12, { ...account(ACC3).headers!, observedAt: plus(T0, MIN) })).toBe('critical');
     });
   });
 });

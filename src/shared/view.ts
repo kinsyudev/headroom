@@ -167,6 +167,9 @@ export interface TroubleView {
 /** idle: the session limit is absent from limits[], so no session window is running. */
 export type WindowPhase = 'open' | 'idle' | 'lapsed';
 
+/** How loudly a meter is drawn: its severity, except that a normal reading with most of its room left is 'ample' and recedes. */
+export type MeterTone = Severity | 'ample';
+
 export interface LimitView {
   readonly key: string;
   readonly label: string;
@@ -176,6 +179,7 @@ export interface LimitView {
   /** Free: 100 for an idle window, null once the window has lapsed and no newer reading has arrived. */
   readonly left: PercentLeft | null;
   readonly severity: Severity;
+  readonly tone: MeterTone;
   readonly resetsAt: Instant | null;
   /** Anthropic marks this window active and it is at warning or critical, so it is what holds the account back. */
   readonly limiting: boolean;
@@ -196,6 +200,8 @@ export interface SpendView {
     /** The cap less what is spent, never below zero; null when there is no cap. */
     readonly remaining: Money | null;
     readonly severity: Severity;
+    /** What the meter draws: critical when the live overage reading is, else the poll's own tone. */
+    readonly tone: MeterTone;
     readonly disabledReason: string | null;
     readonly at: Instant;
   } | null;
