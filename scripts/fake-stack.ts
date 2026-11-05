@@ -7,6 +7,8 @@ import { createKeeperDb, insertUsage, KEEPER_ACC1 } from '../test/fake-keeper';
 
 const ROOT = join(import.meta.dir, '..');
 const KEY = 'fake-stack-management-key';
+/** Pinned so the fake stack's Anthropic identity does not follow whichever Claude Code this machine has installed. */
+export const FAKE_CLI_VERSION = '2.1.311';
 
 export interface Stack {
   readonly url: string;
@@ -39,6 +41,7 @@ export async function startStack(opts: { readonly port?: number; readonly log?: 
       HEADROOM_ENV_FILE: join(dir, 'cpa-usage-keeper.env'),
       HEADROOM_KEEPER_DB: keeperPath,
       HEADROOM_STATE_DIR: join(dir, 'state'),
+      HEADROOM_CLI_VERSION: FAKE_CLI_VERSION,
     },
     stdout: Bun.file(logPath),
     stderr: Bun.file(logPath),

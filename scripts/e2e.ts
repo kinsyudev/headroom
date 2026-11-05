@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Locator, type Page } from 'playwright';
 import type { Snapshot } from '../src/shared/domain';
-import { startStack } from './fake-stack';
+import { FAKE_CLI_VERSION, startStack } from './fake-stack';
 
 const ROOT = join(import.meta.dir, '..');
 const SHOTS = join(ROOT, 'var/screenshots');
@@ -180,7 +180,7 @@ try {
   assert(Bun.deepEquals(got, EXPECTED_MUTATIONS), `mutations differ:\n${JSON.stringify(got, null, 2)}`);
   pass(`fake CPA recorded exactly the ${EXPECTED_MUTATIONS.length} expected mutations`);
   const identity = new Set(stack.fake.calls.map((c) => `${c.userAgent}|${c.xApp}`));
-  assert(identity.size === 1 && [...identity][0] === 'claude-cli/2.1.311 (external, cli)|cli', 'every Anthropic call carried the Claude Code identity');
+  assert(identity.size === 1 && [...identity][0] === `claude-cli/${FAKE_CLI_VERSION} (external, cli)|cli`, 'every Anthropic call carried the Claude Code identity');
   const starts = stack.fake.calls.map((c) => c.at).sort((a, b) => a - b);
   const gaps = starts.slice(1).map((t, i) => t - starts[i]!);
   assert(Math.min(...gaps) >= 9_900, `Anthropic calls at least 10 s apart (min gap ${Math.min(...gaps)} ms)`);
