@@ -365,7 +365,11 @@ try {
     ['rate-limited', 'server error'].every((s) => failuresLegend.includes(s)) && !failuresLegend.includes('cancelled') && !/\b(429|499|5xx)\b/.test(failuresLegend),
     'the failures legend leads with plain words, names the two faults it draws and keeps the status codes out of it',
   );
-  assert(/cancelled, not drawn/.test(await text(page.getByTestId('failures').locator('.figures'))), 'cancelled requests stay counted in the failures figures, marked as not drawn, because they are not a fault');
+  const failureFigures = page.getByTestId('failures').locator('.figures > div');
+  const cancelledFigure = failureFigures.filter({ hasText: 'cancelled by you' }).locator('.figure');
+  assert((await cancelledFigure.count()) === 1, 'cancelled requests stay counted in the failures figures as "cancelled by you", because they are not a fault');
+  const figureColor = (figure: typeof cancelledFigure) => figure.evaluate((el) => getComputedStyle(el).color);
+  assert((await figureColor(cancelledFigure)) !== (await figureColor(failureFigures.first().locator('.figure'))), 'the cancelled figure is muted, in a colour of its own against the succeeded figure');
   const failureBars = page.getByTestId('failures').locator('.chart rect[tabindex="0"]');
   let coded = false;
   for (let i = 0; i < (await failureBars.count()) && !coded; i++) {

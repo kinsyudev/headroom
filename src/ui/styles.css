@@ -1806,6 +1806,9 @@ table.data th.wrap {
 .grid-2.pattern {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
 }
+.grid-2.reliability .figures {
+  column-gap: 28px;
+}
 @media (max-width: 1199px) {
   .grid-2.reliability {
     grid-template-columns: minmax(0, 1fr);
@@ -2235,6 +2238,9 @@ table.data th.wrap {
   margin-top: 2px;
   font-size: 13px;
   color: var(--ink-2);
+}
+.figures .muted .figure-label {
+  color: var(--muted);
 }
 .fail-log {
   display: flex;

@@ -25,15 +25,15 @@ interface FailureKind {
   readonly rare?: true;
 }
 
-/** A fault went wrong on the way and is drawn in its status colour. A cancelled request is the client hanging up, so it is counted and never drawn. */
-type Failure = FailureKind & ({ readonly fault: true; readonly color: string } | { readonly fault: false });
+/** A fault went wrong on the way and is drawn in its status colour. A cancelled request is the client hanging up, so it is counted, never drawn, and its figure is muted and says whose doing it was. */
+type Failure = FailureKind & ({ readonly fault: true; readonly color: string } | { readonly fault: false; readonly figure: string });
 type Fault = Extract<Failure, { fault: true }>;
 
 /** A failure is a status, so it wears the status colours and a glyph: 429 amber, 5xx red. Anything else is neutral. */
 const FAILURES: readonly Failure[] = [
   { outcome: 'rate_limited', status: '429', word: 'rate-limited', short: 'rate-limited', column: 'Rate-limited', hint: 'Requests answered with HTTP 429, too many requests', icon: '!', fault: true, color: 'var(--warning)' },
   { outcome: 'server_error', status: '5xx', word: 'server error', short: 'server errors', column: 'Server errors', hint: "Requests that failed on Anthropic's side, HTTP 5xx", icon: '✕', fault: true, color: 'var(--critical)' },
-  { outcome: 'client_closed', status: '499', word: 'cancelled', short: 'cancelled', column: 'Cancelled', hint: 'Requests the client closed before the answer finished, HTTP 499', icon: '○', fault: false },
+  { outcome: 'client_closed', status: '499', word: 'cancelled', short: 'cancelled', column: 'Cancelled', hint: 'Requests the client closed before the answer finished, HTTP 499', icon: '○', fault: false, figure: 'cancelled by you' },
   { outcome: 'other_error', status: '', word: 'other', short: 'other', column: 'Other', hint: 'Requests that failed some other way', icon: '·', rare: true, fault: true, color: 'var(--axis)' },
 ];
 const NAMED = FAILURES.filter((f) => !f.rare);
@@ -75,12 +75,11 @@ export function FailuresPanel(props: { readonly view: AnalyticsView; readonly sl
           <p className="figure-label">of {count(t.requests)} succeeded</p>
         </div>
         {NAMED.map((f) => (
-          <div key={f.outcome}>
+          <div key={f.outcome} className={f.fault ? undefined : 'muted'}>
             <p className="figure">{count(t.outcomes[f.outcome])}</p>
             <p className="figure-label">
               <span aria-hidden>{f.icon} </span>
-              {f.short}
-              {f.fault ? '' : ', not drawn'} · {share(t.rates?.[f.outcome] ?? null)}
+              {f.fault ? f.short : f.figure} · {share(t.rates?.[f.outcome] ?? null)}
             </p>
           </div>
         ))}
