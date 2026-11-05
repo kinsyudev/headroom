@@ -2,10 +2,10 @@ import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/dom
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
 import type { ServingWhy } from '../shared/view';
 
-export const SERVING_WHY: Readonly<Record<ServingWhy, { readonly short: string; readonly long: string }>> = {
-  fill_first_target: { short: 'first in line', long: 'first in line (fill-first)' },
-  affinity: { short: 'session affinity', long: 'session affinity' },
-  round_robin: { short: 'round-robin', long: 'round-robin' },
+export const SERVING_WHY: Readonly<Record<ServingWhy, string>> = {
+  fill_first_target: 'first in line (fill-first)',
+  affinity: 'session affinity',
+  round_robin: 'round-robin',
 };
 
 const CLAIM_RESULT: Readonly<Record<string, string>> = {

@@ -44,6 +44,7 @@ export function Trouble(props: { readonly account: AccountView }) {
         {hasDetails && (
           <button type="button" className="btn ghost" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
             {open ? 'Hide details' : 'Details'}
+            <span aria-hidden>{open ? '▴' : '▾'}</span>
           </button>
         )}
         {can.clearCooldown && (

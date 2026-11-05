@@ -1,11 +1,12 @@
 import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, LimitColumn } from '../../shared/view';
+import { useNow } from '../deck';
 import { leftLabel, reasonTitle, SERVING_WHY } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivityCell } from './ActivitySparkline';
 import { Countdown } from './Countdown';
-import { ModeLine } from './Freshness';
+import { ModeLine, nextCheck } from './Freshness';
 import { LimitCell, SpendCell } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers, resetsAnchor } from './ResetOffers';
@@ -51,6 +52,7 @@ function AccountRow(props: {
   readonly color: string;
   readonly onClaim: (program: ProgramId, grant: GrantId | null) => void;
 }) {
+  const now = useNow();
   const a = props.account;
   const r = a.routing;
   const held = a.read.refreshHeld;
@@ -111,7 +113,7 @@ function AccountRow(props: {
             kind="quota.refresh"
             input={{ account: a.id }}
             disabled={held !== null}
-            title={held === null ? 'Check Anthropic usage now' : REFRESH_HELD[held.why].long}
+            title={[held === null ? 'Check Anthropic usage now' : REFRESH_HELD[held.why].long, nextCheck(a, now)].filter(Boolean).join('\n')}
             done={(o) => (o.scheduled[0]?.held ? `not queued: ${REFRESH_HELD[o.scheduled[0].held].short}` : 'check queued')}
             variant="ghost"
             testId="refresh-quota"
@@ -162,8 +164,8 @@ export function RoutingBadge(props: { readonly routing: AccountView['routing'] }
   switch (role.kind) {
     case 'serving':
       return (
-        <span className="badge good role" data-testid="role" title={SERVING_WHY[role.why].long}>
-          ● Serving <span className="badge-sub">{SERVING_WHY[role.why].short}</span>
+        <span className="badge good role" data-testid="role" title={SERVING_WHY[role.why]}>
+          ● Serving
         </span>
       );
     case 'standby':

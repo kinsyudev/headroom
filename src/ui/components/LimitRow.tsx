@@ -82,7 +82,7 @@ function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
   const p = s.poll;
   const live = s.live !== null && s.live.severity !== 'normal' ? liveFace(s.live, now) : null;
   if (p?.state === 'off') return { value: 'Off', note: p.disabledReason ? reasonText(p.disabledReason) : null, tone: 'quiet', says: 'off; requests stop at the plan limits' };
-  if (p?.state === 'no_budget') return { value: 'No budget', note: p.limit ? `${money(p.limit)} cap` : null, tone: 'quiet', says: 'on with a zero budget; requests stop at the plan limits' };
+  if (p?.state === 'no_budget') return { value: 'No budget', note: null, tone: 'quiet', says: 'on with a zero budget; requests stop at the plan limits' };
   if (p?.state === 'budget') {
     const note = p.limit && p.remaining ? `${money(p.remaining)} of ${money(p.limit)} left` : `${money(p.used)} spent`;
     return { value: percent(p.left), note, tone: 'metered', says: live?.says ?? (p.limit ? 'room left under the cap' : 'on, with no cap set') };

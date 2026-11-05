@@ -16,9 +16,11 @@ export function ResetOffers(props: { readonly account: AccountView; readonly onC
       <h4>
         Claude resets{a.offersClear !== null && <span className="offers-note"> each clears {a.offersClear}</span>}
       </h4>
-      {a.offers.map((o) => (
-        <OfferRow key={o.program} email={a.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
-      ))}
+      <div className="offer-list">
+        {a.offers.map((o) => (
+          <OfferRow key={o.program} email={a.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
+        ))}
+      </div>
     </div>
   );
 }

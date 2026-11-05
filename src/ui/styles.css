@@ -178,7 +178,7 @@ code {
   cursor: default;
 }
 .btn:disabled:not(.accent, .selected, .state, .strong, .ghost, .ghost-danger),
-.page.cpa-down .btn.accent:disabled {
+.page.cpa-down .btn:disabled:not(.selected, .state) {
   background: transparent;
   border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent);
   color: var(--muted);
@@ -332,10 +332,6 @@ code {
 }
 .badge.muted {
   color: var(--muted);
-}
-.badge-sub {
-  font-weight: 400;
-  color: var(--ink-2);
 }
 .chip {
   font-size: 12px;
@@ -577,7 +573,6 @@ span.banner-line {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  container-type: inline-size;
 }
 .email {
   font-size: 14.5px;
@@ -836,24 +831,24 @@ span.banner-line {
   letter-spacing: 0;
   color: var(--muted);
 }
-.offer {
+.offer-list {
   grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  justify-content: start;
+  gap: 4px 24px;
+}
+.offer {
+  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
   align-items: center;
   min-height: 30px;
 }
-.offer > .btn,
-.offer-state {
-  justify-self: end;
-}
 .offer-text,
 .offer-state {
   color: var(--ink-2);
   min-width: 0;
-}
-.offer-state {
-  text-align: right;
 }
 .offer-text strong {
   color: var(--ink);
@@ -1341,7 +1336,7 @@ table.errors td.message {
     flex-wrap: wrap;
     column-gap: 8px;
   }
-  .offer {
+  .offer-list {
     grid-column: 1 / -1;
   }
 }
@@ -1352,10 +1347,5 @@ table.errors td.message {
   .stat + .stat {
     border-left: 0;
     border-top: 1px solid var(--grid);
-  }
-}
-@container (max-width: 300px) {
-  .badge-sub {
-    display: none;
   }
 }

@@ -81,7 +81,6 @@ const PROBLEMS = ['failing', 'stale', 'aging'] as const;
 export function ModeLine(props: { readonly account: AccountView }) {
   const now = useNow();
   const { atWall, read, freshness, routing, quietOffers } = props.account;
-  const limitsFailing = freshness.some((f) => f.feed === 'limits' && f.state === 'failing');
 
   const clauses: ReactNode[] = [read.lastAt === null ? 'not checked yet' : `checked ${age(now - read.lastAt)} ago`];
   for (const state of PROBLEMS) {
@@ -96,7 +95,6 @@ export function ModeLine(props: { readonly account: AccountView }) {
   }
   if (read.reading) clauses.push('checking now');
   else if (read.paused) clauses.push('checks paused');
-  else if (read.nextAt !== null) clauses.push(read.nextAt > now ? `${limitsFailing ? 'retry' : 'next check'} in ${duration(read.nextAt - now)}` : 'next check due');
   if (read.backoffUntil !== null) clauses.push(`rate-limited until ${clockTime(read.backoffUntil, now)}`);
   if (read.capUntil !== null) clauses.push(`check cap full, next check allowed ${clockTime(read.capUntil, now)}`);
 
@@ -110,4 +108,11 @@ export function ModeLine(props: { readonly account: AccountView }) {
       </div>
     </div>
   );
+}
+
+export function nextCheck(account: AccountView, now: number): string | null {
+  const { read, freshness } = account;
+  if (read.reading || read.paused || read.nextAt === null) return null;
+  const what = freshness.some((f) => f.feed === 'limits' && f.state === 'failing') ? 'Automatic retry' : 'Next automatic check';
+  return read.nextAt > now ? `${what} in ${duration(read.nextAt - now)}` : `${what} due`;
 }

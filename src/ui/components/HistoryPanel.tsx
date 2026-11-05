@@ -47,6 +47,8 @@ interface ModelColumn {
 
 const seconds = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}s`);
 
+const RATE_LIMITED_HELP = 'Requests refused as rate-limited (HTTP 429)';
+
 const MODEL_COLUMNS: readonly ModelColumn[] = [
   {
     label: 'Account',
@@ -59,7 +61,7 @@ const MODEL_COLUMNS: readonly ModelColumn[] = [
   { label: 'Model', cell: (m) => m.model },
   { label: 'Requests', group: 'usage', num: true, cell: (m) => m.totals.requests.toLocaleString() },
   { label: 'Failed', group: 'usage', num: true, cell: (m) => m.totals.failed },
-  { label: '429', title: 'Rate-limited (HTTP 429)', group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
+  { label: 'Rate-limited', title: RATE_LIMITED_HELP, group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
   { label: 'Uncached in', title: METRICS[1]!.title, group: 'cache', num: true, cell: (m) => compact(m.totals.freshInput) },
   { label: 'Cache read', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheRead) },
   { label: 'Cache write', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheCreation) },
@@ -162,7 +164,9 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                         {s.label}
                       </th>
                     ))}
-                    <th className="num">429s</th>
+                    <th className="num" title={RATE_LIMITED_HELP}>
+                      Rate-limited
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -247,8 +251,8 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
             </TableScroll>
           </div>
           <div className="history-table">
-            <h3>Recent errors and 429s</h3>
-            <TableScroll label="Recent errors and 429s">
+            <h3>Recent errors and rate limits</h3>
+            <TableScroll label="Recent errors and rate limits">
               <table className="data errors">
                 <thead>
                   <tr>
