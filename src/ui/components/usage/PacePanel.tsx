@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { AccountId } from '../../../shared/domain';
 import type { MeterTone, PaceView } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { clockTime, compact, count, duration, shortName } from '../../format';
+import { clockTime, compact, count, duration, PACE_TICK_HELP, shortName } from '../../format';
 import { paceAnchor, useJumpTarget } from '../../route';
 import { Meter } from '../LimitRow';
 
@@ -122,7 +122,7 @@ export function PacePanel(props: { readonly pace: readonly PaceView[]; readonly 
         </ul>
       )}
       <p className="pace-key muted">
-        <span className="meter-tick-key" aria-hidden /> The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.
+        <span className="meter-tick-key" aria-hidden /> {PACE_TICK_HELP}
       </p>
     </section>
   );

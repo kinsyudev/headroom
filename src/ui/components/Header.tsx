@@ -8,7 +8,7 @@ import type { DeckView } from '../../shared/view';
 import { useAction, type Connection } from '../api';
 import { Mark, Wordmark } from '../brand';
 import { usePaused } from '../deck';
-import { clockTime, duration } from '../format';
+import { clockTime, duration, shortName } from '../format';
 import { VIEWS, type ViewKey } from '../route';
 import { ActionButton } from './ActionButton';
 import { Countdown } from './Countdown';
@@ -41,7 +41,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
               <span
                 className="tab-badge"
                 title={runningOut
-                  .map((r) => `${r.email.split('@')[0]} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, d.now)}, ${duration(r.resetsAt - r.at)} before it resets`)
+                  .map((r) => `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, d.now)}, ${duration(r.resetsAt - r.at)} before it resets`)
                   .join('\n')}
               >
                 {runningOut.length} running out

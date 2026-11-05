@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import type { AccountId, Instant } from '../../shared/domain';
 import type { DeckView, ServeLine } from '../../shared/view';
-import { leftLabel, percent, reasonTitle } from '../format';
+import { leftLabel, percent, reasonTitle, shortName } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
@@ -18,7 +18,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   const who = (id: AccountId, email: string) => (
     <span className="nowrap" title={email}>
-      {swatch(id)} {email.split('@')[0]}
+      {swatch(id)} {shortName(email)}
     </span>
   );
   const lead = o.serving[0];
