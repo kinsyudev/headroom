@@ -56,6 +56,13 @@ describe('hard constraints', () => {
     expect(where(/0\.0\.0\.0/)).toEqual([]);
   });
 
+  test('the snapshot carries the CPA address without any user or password CPA_BASE_URL holds', () => {
+    const env = { HEADROOM_CLI_VERSION: '1.0.0' };
+    expect(loadConfig({ ...env, CPA_BASE_URL: 'http://ops:hunter2@127.0.0.1:8317/' }).cpaAddress).toBe('http://127.0.0.1:8317');
+    expect(loadConfig(env).cpaAddress).toBe('http://127.0.0.1:8317');
+    expect(where(/cpaBaseUrl: config\.cpaBaseUrl/)).toEqual([]);
+  });
+
   test('only keeper.ts names input_tokens', () => {
     expect(where(/input_tokens/)).toEqual(['server/keeper.ts']);
   });

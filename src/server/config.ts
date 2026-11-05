@@ -6,6 +6,8 @@ export interface Config {
   readonly hostname: '127.0.0.1';
   readonly port: number;
   readonly cpaBaseUrl: string;
+  /** cpaBaseUrl without any user or password it carries: the only form the page may print. */
+  readonly cpaAddress: string;
   readonly envPath: string;
   readonly keeperDbPath: string;
   readonly stateDir: string;
@@ -15,15 +17,24 @@ export interface Config {
 export const FALLBACK_CLI_VERSION = '2.1.311';
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+  const cpaBaseUrl = env.CPA_BASE_URL ?? 'http://127.0.0.1:8317';
   return {
     hostname: '127.0.0.1',
     port: Number(env.HEADROOM_PORT ?? 1338),
-    cpaBaseUrl: env.CPA_BASE_URL ?? 'http://127.0.0.1:8317',
+    cpaBaseUrl,
+    cpaAddress: withoutCredentials(cpaBaseUrl),
     envPath: env.HEADROOM_ENV_FILE ?? '/opt/homebrew/etc/cpa-usage-keeper.env',
     keeperDbPath: env.HEADROOM_KEEPER_DB ?? '/opt/homebrew/var/cpa-usage-keeper/app.db',
     stateDir: env.HEADROOM_STATE_DIR ?? join(import.meta.dir, '../../var'),
     claudeCliVersion: env.HEADROOM_CLI_VERSION ?? detectCliVersion(),
   };
+}
+
+function withoutCredentials(url: string): string {
+  const u = new URL(url);
+  u.username = '';
+  u.password = '';
+  return u.href.replace(/\/$/, '');
 }
 
 function detectCliVersion(): string {
