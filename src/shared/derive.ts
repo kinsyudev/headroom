@@ -209,7 +209,7 @@ export function deriveAccount(
     can: {
       enable: a.disabled,
       disable: !a.disabled,
-      makePrimary: a.disabled || !routing.outranksAll,
+      makePrimary: !routing.primary && (a.disabled || !routing.outranksAll),
       clearCooldown: a.cooldowns.some((c) => c.retryAt > now) || (a.unavailable && (a.nextRetryAfter ?? Infinity) > now),
     },
   };
@@ -289,7 +289,7 @@ function deriveTrouble(a: CpaAccount, now: Instant, limits: readonly LimitView[]
   const full = quota ? limits.find((l) => l.phase === 'open' && l.percent !== null && l.percent >= 100) : undefined;
   const resetsAt = full?.resetsAt ?? null;
   const lifts = resetsAt !== null && holds.length > 0 && holds.every((h) => h.until !== null && Math.abs(h.until - resetsAt) <= SAME_MOMENT_MS);
-  return { cause: deriveCause(a.statusMessage, live), holds, limit: full ? { label: full.label, lifts } : null };
+  return { cause: deriveCause(a.statusMessage, live), holds, limit: full ? { label: full.label, liftsAt: lifts ? resetsAt : null } : null };
 }
 
 const messageCause = (message: string | null) => MESSAGE_CAUSES.find((m) => message !== null && m.pattern.test(message));
@@ -323,6 +323,7 @@ export function deriveRouting(
 ): ReadonlyMap<AccountId, RoutingView> {
   const eligible = new Map(accounts.map((a) => [a.id, !a.disabled && eligibility(a, now).ok]));
   const topPriority = Math.max(-Infinity, ...accounts.filter((a) => eligible.get(a.id)).map((a) => a.priority));
+  const atTop = accounts.filter((a) => eligible.get(a.id) && a.priority === topPriority);
   const out = new Map<AccountId, RoutingView>();
   for (const a of accounts) {
     const isTarget = eligible.get(a.id)! && (strategy === 'round-robin' || a.priority === topPriority);
@@ -342,6 +343,7 @@ export function deriveRouting(
       stepTo: stepTo(a.priority),
       role,
       isTarget,
+      primary: strategy !== 'round-robin' && atTop.length === 1 && atTop[0] === a,
       lastSeenAt: s?.lastAt ?? null,
       recent: s?.recent ?? null,
       outranksAll: accounts.every((o) => o.id === a.id || a.priority > o.priority),
@@ -535,10 +537,13 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
-function resetName(clears: readonly string[], source: string): ResetName {
+function limitsNamed(clears: readonly string[]): string {
   const windows = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase());
-  const limits = windows.length === 0 ? 'limit' : `${windows.join(' and ')} ${windows.length === 1 ? 'limit' : 'limits'}`;
-  return { what: `Reset ${limits}`, source };
+  return windows.length === 0 ? 'limit' : `${windows.join(' and ')} ${windows.length === 1 ? 'limit' : 'limits'}`;
+}
+
+function resetName(clears: readonly string[], source: string): ResetName {
+  return { what: `Reset ${limitsNamed(clears)}`, source };
 }
 
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
@@ -586,6 +591,8 @@ export function deriveOffers(
     {
       program: 'juniper_tide',
       name: resetName(JUNIPER_CLEARS, 'weekly allowance'),
+      lead: 'Weekly allowance',
+      terms: [`clears the ${limitsNamed(JUNIPER_CLEARS)}`, 'once a week'],
       effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
       selfResets: selfResets(JUNIPER_CLEARS, limits),
       state: juniper,
@@ -595,6 +602,8 @@ export function deriveOffers(
     {
       program: 'cedar_ember',
       name: resetName(cedarClears, 'bonus grant'),
+      lead: 'Bonus grant',
+      terms: [],
       effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
       selfResets: selfResets(cedarClears, limits),
       state: cedar,

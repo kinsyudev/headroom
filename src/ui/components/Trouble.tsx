@@ -3,7 +3,7 @@ import type { Instant } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { reasonText } from '../format';
 import { ActionButton } from './ActionButton';
-import { Clock } from './Countdown';
+import { Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
 
 export function Trouble(props: { readonly account: AccountView }) {
@@ -27,7 +27,17 @@ export function Trouble(props: { readonly account: AccountView }) {
               : trouble.holds.map((h) => (
                   <>
                     {h.what}
-                    {limit?.lifts ? <> until the {limit.label.toLowerCase()} resets</> : <Until at={h.until} />}
+                    {limit && limit.liftsAt !== null ? (
+                      <>
+                        {' '}
+                        until the {limit.label.toLowerCase()} resets{' '}
+                        <span className="nowrap">
+                          at <Clock at={limit.liftsAt} /> <span className="muted">(in <Countdown at={limit.liftsAt} />)</span>
+                        </span>
+                      </>
+                    ) : (
+                      <Until at={h.until} />
+                    )}
                   </>
                 ))),
           ]}
@@ -35,7 +45,7 @@ export function Trouble(props: { readonly account: AccountView }) {
       </p>
       <div className="trouble-actions">
         {hasDetails && (
-          <button type="button" className="btn quiet" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
+          <button type="button" className="btn ghost" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
             {open ? 'Hide details' : 'Details'}
           </button>
         )}

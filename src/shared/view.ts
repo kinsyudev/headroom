@@ -137,6 +137,8 @@ export interface RoutingView {
     | { readonly kind: 'blocked'; readonly until: Instant | null; readonly reason: string }
     | { readonly kind: 'disabled' };
   readonly isTarget: boolean;
+  /** Fill-first's first in line on its own: enabled, not blocked, and above every other such account. Round-robin has no line. */
+  readonly primary: boolean;
   readonly outranksAll: boolean;
   readonly lastSeenAt: Instant | null;
   readonly recent: number | null;
@@ -158,10 +160,10 @@ export interface TroubleView {
   readonly holds: readonly { readonly what: string; readonly until: Instant | null }[];
   /**
    * The usage window at its limit ("Session") when the cause is about quota, so the window is what holds
-   * the account; null otherwise. lifts: every hold ends within a minute of that window's reset, so the
-   * reset is what frees the account.
+   * the account; null otherwise. liftsAt: that window's reset when every hold ends within a minute of it,
+   * so the reset is what frees the account; null otherwise.
    */
-  readonly limit: { readonly label: string; readonly lifts: boolean } | null;
+  readonly limit: { readonly label: string; readonly liftsAt: Instant | null } | null;
 }
 
 /** idle: the session limit is absent from limits[], so no session window is running. */
@@ -227,6 +229,12 @@ export interface GrantView {
 export interface OfferView {
   readonly program: ProgramId;
   readonly name: ResetName;
+  /**
+   * The reset's row on the account, led by what sets it apart from the other reset: its source ("Weekly allowance"),
+   * then its standing terms ("clears the session limit", "once a week"). A grant's count and end come from grants.
+   */
+  readonly lead: string;
+  readonly terms: readonly string[];
   readonly effect: string;
   /** When each limit the reset clears would reset without it; limits with no open window are left out. */
   readonly selfResets: readonly { readonly what: string; readonly at: Instant }[];

@@ -157,8 +157,8 @@ try {
   const reads = () => stack.fake.calls.filter((c) => c.account === ACC1 && c.path.startsWith('/api/oauth/usage')).length;
   const before = reads();
   await c1.getByTestId('refresh-quota').click({ timeout: 70_000 });
-  await until(() => reads() === before + 1, 'Read now sends exactly one usage read for account1', 40_000);
-  pass('read now sends one budgeted usage read and no mutation');
+  await until(() => reads() === before + 1, 'Check now sends exactly one usage read for account1', 40_000);
+  pass('check now sends one budgeted usage read and no mutation');
 
   const foreign = await fetch(`${stack.url}/api/snapshot`, { headers: { Host: `evil.example:${stack.port}` } });
   assert(foreign.status === 421, `foreign Host answered ${foreign.status}`);

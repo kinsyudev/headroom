@@ -13,7 +13,7 @@ export function ActionButton<K extends ActionKind>(props: {
   readonly done?: string | ((out: ActionOutput<K>) => string);
   readonly disabled?: boolean;
   readonly title?: string;
-  readonly variant?: 'quiet' | 'selected' | 'state' | 'strong' | 'danger-quiet';
+  readonly variant?: 'quiet' | 'selected' | 'state' | 'strong' | 'ghost' | 'ghost-danger';
   readonly testId?: string;
 }) {
   const a = useAction(props.kind);

@@ -8,18 +8,19 @@ import { Countdown } from './Countdown';
 import { ModeLine } from './Freshness';
 import { LimitCell, SpendCell } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
-import { QuietOffers, ResetOffers } from './ResetOffers';
+import { ResetOffers, resetsAnchor } from './ResetOffers';
 import { Trouble } from './Trouble';
 
 const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], { readonly short: string; readonly long: string }>> = {
-  reading: { short: 'already reading', long: 'A read is already running' },
+  reading: { short: 'already checking', long: 'A check is already running' },
   rate_limited: { short: 'rate-limited', long: 'Rate-limited; waiting for the backoff' },
-  capped: { short: 'read cap full', long: 'At most 8 reads per account in 15 minutes; waiting for the oldest to age out' },
+  capped: { short: 'check cap full', long: 'At most 8 checks per account in 15 minutes; waiting for the oldest to age out' },
   debounced: { short: 'once per minute', long: 'Once per minute per account' },
 };
 
 const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off or with no budget, requests stop at the plan limits.';
 const REQUESTS_HELP = 'Requests CPA routed to the account, per 10 minutes';
+const PRIMARY_HELP = 'First in line; raise another account above it to change';
 
 export function Accounts(props: {
   readonly accounts: readonly AccountView[];
@@ -81,10 +82,10 @@ function AccountRow(props: {
       <ActivityCell buckets={a.activity} color={props.color} help={REQUESTS_HELP} />
 
       {(a.trouble !== null || offersOpen) && (
-        <div className="acct-attention">
+        <section className="acct-attention" aria-label={a.trouble === null ? 'Claude resets' : 'Trouble and fixes'} id={resetsAnchor(a.id)} tabIndex={-1}>
           <Trouble account={a} />
           {offersOpen && <ResetOffers account={a} onClaim={props.onClaim} />}
-        </div>
+        </section>
       )}
 
       <footer className="acct-foot">
@@ -93,41 +94,50 @@ function AccountRow(props: {
             kind="account.makePrimary"
             input={{ account: a.id }}
             disabled={!a.can.makePrimary}
-            title={a.can.makePrimary ? 'Set priority above every other account' : 'Already first in priority, outranking every other account'}
+            title={r.primary ? PRIMARY_HELP : a.can.makePrimary ? 'Set priority above every other account' : 'Already first in priority, outranking every other account'}
             pendingLabel="Making primary…"
             done={(o) => (o.changed ? `priority ${o.priority}` : 'already primary')}
-            variant={a.can.makePrimary ? 'quiet' : 'state'}
+            variant={r.primary ? 'state' : 'quiet'}
             testId="make-primary"
           >
-            {a.can.makePrimary ? 'Make primary' : 'Primary'}
+            {r.primary ? 'Primary' : 'Make primary'}
           </ActionButton>
           <PriorityStepper account={a.id} routing={r} />
         </div>
         <span className="foot-spacer" aria-hidden />
-        <div className="foot-group data">
-          {!offersOpen && <QuietOffers account={a} />}
+        <div className="foot-group check">
           <ModeLine account={a} />
           <ActionButton
             kind="quota.refresh"
             input={{ account: a.id }}
             disabled={held !== null}
-            title={held === null ? 'Read Anthropic usage now' : REFRESH_HELD[held.why].long}
-            done={(o) => (o.scheduled[0]?.held ? `not queued: ${REFRESH_HELD[o.scheduled[0].held].short}` : 'read queued')}
+            title={held === null ? 'Check Anthropic usage now' : REFRESH_HELD[held.why].long}
+            done={(o) => (o.scheduled[0]?.held ? `not queued: ${REFRESH_HELD[o.scheduled[0].held].short}` : 'check queued')}
+            variant="ghost"
             testId="refresh-quota"
           >
-            ↻ Read now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
+            ↻ Check now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
           </ActionButton>
-          <ActionButton kind="account.refreshToken" input={{ account: a.id }} pendingLabel="Refreshing…" done={(o) => (o.ok ? 'token refreshed' : 'CPA said not ok')} testId="refresh-token">
+        </div>
+        <div className="foot-group upkeep">
+          <span className="foot-divider" aria-hidden />
+          <ActionButton
+            kind="account.refreshToken"
+            input={{ account: a.id }}
+            pendingLabel="Refreshing…"
+            done={(o) => (o.ok ? 'token refreshed' : 'CPA said not ok')}
+            variant="ghost"
+            testId="refresh-token"
+          >
             Refresh token
           </ActionButton>
-          <span className="foot-divider" aria-hidden />
           <ActionButton
             kind="account.setDisabled"
             input={{ account: a.id, disabled: a.can.disable }}
             title={a.can.disable ? 'Take this account out of rotation' : 'Put this account back in rotation'}
             pendingLabel={a.can.disable ? 'Disabling…' : 'Enabling…'}
             done={a.can.disable ? 'disabled' : 'enabled'}
-            variant={a.can.disable ? 'danger-quiet' : 'strong'}
+            variant={a.can.disable ? 'ghost-danger' : 'strong'}
             testId="toggle-disabled"
           >
             {a.can.disable ? 'Disable' : 'Enable'}

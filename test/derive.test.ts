@@ -104,6 +104,18 @@ describe('routing and serving', () => {
     expect(v.can).toMatchObject({ enable: true, disable: false, makePrimary: true });
     expect(view(deck({ accounts }), ACC2).routing.isTarget).toBe(true);
   });
+
+  const blockedOnTop = cpaAccounts().map((a): CpaAccount => (a.id === ACC3 ? { ...a, priority: 60 } : a));
+  test.each([
+    ['account1 alone at the top of the routable accounts, account3 tied with it but blocked', {}, T0, [ACC1], [ACC2, ACC3]],
+    ['account3 back from its cooldown ties account1, so neither is first on its own', {}, AFTER_COOLDOWN, [], [ACC1, ACC2, ACC3]],
+    ['round-robin has no line to be first in', { strategy: 'round-robin' as const }, T0, [], [ACC1, ACC2, ACC3]],
+    ['a blocked account above everyone is not first in line, and making it primary would change nothing', { accounts: blockedOnTop }, T0, [ACC1], [ACC2]],
+  ] as const)('primary: %s', (_label, s, now, primary, makePrimary) => {
+    const d = deck(s, now);
+    expect(d.accounts.filter((a) => a.routing.primary).map((a) => a.id)).toEqual([...primary]);
+    expect(d.accounts.filter((a) => a.can.makePrimary).map((a) => a.id)).toEqual([...makePrimary]);
+  });
 });
 
 describe('clearing a cooldown', () => {
@@ -322,6 +334,14 @@ describe('offers and claimability', () => {
       expect(names(feedsFrom(synthetic, T0))).toEqual({
         juniper_tide: { what: 'Reset session limit', source: 'weekly allowance' },
         cedar_ember: { what: 'Reset session limit', source: 'bonus grant' },
+      });
+    });
+
+    test('each row leads with what sets the reset apart: its source, then what it clears and how often', () => {
+      const rows = Object.fromEntries(offersOf(feedsFrom(synthetic, T0)).map((o) => [o.program, { lead: o.lead, terms: o.terms }]));
+      expect(rows).toEqual({
+        juniper_tide: { lead: 'Weekly allowance', terms: ['clears the session limit', 'once a week'] },
+        cedar_ember: { lead: 'Bonus grant', terms: [] },
       });
     });
 
@@ -580,14 +600,14 @@ describe('why an account is in trouble', () => {
       expect(held((x) => ({ ...x, statusMessage: null, cooldowns: [credential('credential_quota', END)] })).trouble?.limit?.label).toBe('Session');
     });
 
-    test('a cooldown ending 17 s after the session resets is lifted by that reset', () => {
-      expect(held((x) => x).trouble?.limit).toEqual({ label: 'Session', lifts: true });
+    test('a cooldown ending 17 s after the session resets is lifted by that reset, and the panel can say when', () => {
+      expect(held((x) => x).trouble?.limit).toEqual({ label: 'Session', liftsAt: at('2026-11-04T14:20:00.412Z') });
     });
 
     test('a cooldown outlasting the reset by half an hour is not lifted by it', () => {
       const later = plus(END, 30 * MIN);
       const unblock = (x: CpaAccount): CpaAccount => ({ ...x, cooldowns: [credential('credential_quota', later)], nextRetryAfter: later });
-      expect(held(unblock).trouble?.limit).toEqual({ label: 'Session', lifts: false });
+      expect(held(unblock).trouble?.limit).toEqual({ label: 'Session', liftsAt: null });
     });
 
     test('a rejected token is not about quota, so a full window does not take the blame', () => {

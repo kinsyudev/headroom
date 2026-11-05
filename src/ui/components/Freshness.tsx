@@ -80,10 +80,10 @@ const PROBLEMS = ['failing', 'stale', 'aging'] as const;
 
 export function ModeLine(props: { readonly account: AccountView }) {
   const now = useNow();
-  const { atWall, read, freshness, routing } = props.account;
+  const { atWall, read, freshness, routing, quietOffers } = props.account;
   const limitsFailing = freshness.some((f) => f.feed === 'limits' && f.state === 'failing');
 
-  const clauses: ReactNode[] = [read.lastAt === null ? 'not read yet' : `read ${age(now - read.lastAt)} ago`];
+  const clauses: ReactNode[] = [read.lastAt === null ? 'not checked yet' : `checked ${age(now - read.lastAt)} ago`];
   for (const state of PROBLEMS) {
     const feeds = freshness.filter((f) => f.state === state);
     if (feeds.length === 0) continue;
@@ -94,15 +94,16 @@ export function ModeLine(props: { readonly account: AccountView }) {
       </span>,
     );
   }
-  if (read.reading) clauses.push('reading now');
-  else if (read.paused) clauses.push('reads paused');
-  else if (read.nextAt !== null) clauses.push(read.nextAt > now ? `${limitsFailing ? 'retry' : 'next read'} in ${duration(read.nextAt - now)}` : 'next read due');
+  if (read.reading) clauses.push('checking now');
+  else if (read.paused) clauses.push('checks paused');
+  else if (read.nextAt !== null) clauses.push(read.nextAt > now ? `${limitsFailing ? 'retry' : 'next check'} in ${duration(read.nextAt - now)}` : 'next check due');
   if (read.backoffUntil !== null) clauses.push(`rate-limited until ${clockTime(read.backoffUntil, now)}`);
-  if (read.capUntil !== null) clauses.push(`read cap full, next read allowed ${clockTime(read.capUntil, now)}`);
+  if (read.capUntil !== null) clauses.push(`check cap full, next check allowed ${clockTime(read.capUntil, now)}`);
 
-  const cadence = atWall ? 'At limit: limits and claimable resets are read every 3 min' : 'Normal: usage is read every 5 min';
+  const cadence = atWall ? 'At limit: limits and claimable resets are checked every 3 min' : 'Normal: usage is checked every 5 min';
+  const resets = quietOffers === null ? [] : [`Claude resets: ${quietOffers.join(' · ')}`];
   return (
-    <div className="mode num" data-testid="freshness" title={[cadence, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
+    <div className="mode num" data-testid="freshness" title={[cadence, ...resets, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
       {atWall && routing.role.kind !== 'blocked' && <span className="badge warning">At limit</span>}
       <div className="mode-text">
         <Segments parts={clauses} />
