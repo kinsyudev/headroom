@@ -65,7 +65,13 @@ try {
   pass('three accounts read through the budgeted scheduler');
 
   assert((await page.locator('[data-testid^="card-"]').count()) === 3, 'three account cards');
-  assert((await text(page.getByTestId('tile-serving'))).includes('account1@example.com'), 'overview names account1 as serving');
+  // The keep-alive keeps account1 serving, but account2 or account3 may have answered after it, and then the tile leads with that one.
+  const servingTile = page.getByTestId('tile-serving');
+  const alsoServing = (await servingTile.locator('.seg').allTextContents()).find((s) => s.startsWith('also ')) ?? '';
+  assert(
+    (await servingTile.locator('.hero-text').allTextContents()).includes('account1@example.com') || alsoServing.slice('also '.length).split(', ').includes('account1'),
+    'overview names account1 as serving, as the account that answered last or among the others answering',
+  );
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
   const nextReset = await text(page.getByTestId('tile-next-reset'));
