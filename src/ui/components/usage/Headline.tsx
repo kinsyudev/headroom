@@ -56,13 +56,13 @@ export function Headline(props: { readonly view: AnalyticsView; readonly week: W
         <div className="kpi" data-testid="kpi-requests">
           <h3>Requests</h3>
           <p className="kpi-value">{count(t.requests)}</p>
-          <Delta change={change(t.requests, prev?.requests)} text={changeText(change(t.requests, prev?.requests))} span={span} />
+          <Delta change={change(t.requests, prev?.requests)} text={changeText(change(t.requests, prev?.requests))} better={null} span={span} />
           <Blocks blocks={requests} split={prior.length} format={count} describe={describeBlock} unit="requests" label={`Requests per ${v.lens.grain}, the earlier span then the latest`} />
         </div>
         <div className="kpi" data-testid="kpi-output">
           <h3>Output tokens</h3>
           <p className="kpi-value">{compact(t.tokens.output)}</p>
-          <Delta change={change(t.tokens.output, prev?.tokens.output)} text={changeText(change(t.tokens.output, prev?.tokens.output))} span={span} />
+          <Delta change={change(t.tokens.output, prev?.tokens.output)} text={changeText(change(t.tokens.output, prev?.tokens.output))} better={null} span={span} />
           <Blocks blocks={output} split={prior.length} format={compact} describe={describeBlock} unit="output tokens" label={`Output tokens per ${v.lens.grain}, the earlier span then the latest`} />
         </div>
         <div className="kpi" data-testid="kpi-cache">
