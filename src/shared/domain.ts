@@ -321,6 +321,8 @@ export type LinkState =
 
 export interface Snapshot {
   readonly generatedAt: Instant;
+  /** The CPA address Headroom is configured with, for the page to print when CPA does not answer. Never the key or a header. */
+  readonly cpaBaseUrl: string; // config.ts
   readonly link: LinkState; // cpa.ts
   readonly cpa: Source<readonly CpaAccount[]>; // observer.ts
   readonly strategy: Source<RoutingStrategy>; // observer.ts

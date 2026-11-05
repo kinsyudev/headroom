@@ -929,7 +929,7 @@ function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView)
   if (s.link.kind !== 'ok') {
     banners.push({ kind: 'link', link: s.link, retryAt: s.link.kind === 'rejected' ? ((s.link.at + KEY_REJECT_LATCH_MS) as Instant) : null });
   } else if (cpa.kind === 'down') {
-    banners.push({ kind: 'cpa_unreachable', lastAt: cpa.lastAt });
+    banners.push({ kind: 'cpa_unreachable', lastAt: cpa.lastAt, address: s.cpaBaseUrl });
   }
   for (const v of views) {
     for (const o of v.offers) {

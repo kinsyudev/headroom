@@ -67,6 +67,7 @@ export function snapshot(parts: {
   const now = parts.now ?? T0;
   return {
     generatedAt: now,
+    cpaBaseUrl: 'http://127.0.0.1:8317',
     link: { kind: 'ok' },
     cpa: { ...emptySource(), last: { value: parts.accounts ?? cpaAccounts(), at: now } },
     strategy: { ...emptySource(), last: { value: parts.strategy ?? 'fill-first', at: now } },

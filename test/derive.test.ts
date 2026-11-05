@@ -1097,10 +1097,10 @@ describe('CPA unreachable', () => {
     cpa: { ...answered.cpa, last: { ...answered.cpa.last!, at: answeredAt }, error: { value: error, at: T0 } },
   });
 
-  test('pauses the CPA actions and every account read, and banners the last answer once', () => {
-    const d = deriveDeck(failing({ kind: 'cpa_unreachable' }), T0);
+  test('pauses the CPA actions and every account read, and banners the last answer and the address to check once', () => {
+    const d = deriveDeck({ ...failing({ kind: 'cpa_unreachable' }), cpaBaseUrl: 'http://10.0.0.7:9317' }, T0);
     expect(d.cpa).toEqual({ kind: 'down', lastAt: answeredAt });
-    expect(d.banners.filter((b) => b.kind === 'cpa_unreachable')).toEqual([{ kind: 'cpa_unreachable', lastAt: answeredAt }]);
+    expect(d.banners.filter((b) => b.kind === 'cpa_unreachable')).toEqual([{ kind: 'cpa_unreachable', lastAt: answeredAt, address: 'http://10.0.0.7:9317' }]);
     expect(d.accounts).toHaveLength(3);
     for (const a of d.accounts) expect(a.read.paused).toBe(true);
   });

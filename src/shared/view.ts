@@ -352,7 +352,7 @@ export interface FreshnessView {
 
 export type Banner =
   | { readonly kind: 'link'; readonly link: Exclude<LinkState, { kind: 'ok' }>; readonly retryAt: Instant | null }
-  | { readonly kind: 'cpa_unreachable'; readonly lastAt: Instant | null }
+  | { readonly kind: 'cpa_unreachable'; readonly lastAt: Instant | null; readonly address: string }
   | { readonly kind: 'claim_unknown'; readonly claim: ClaimId; readonly email: string; readonly program: ProgramId; readonly label: string }
   | { readonly kind: 'keeper_unavailable'; readonly message: string };
 

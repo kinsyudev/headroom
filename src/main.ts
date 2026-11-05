@@ -25,6 +25,7 @@ const oauth = createOAuthFlows({ cpa, observer, now: clock.now });
 
 const snapshot = (): Snapshot => ({
   generatedAt: clock.now(),
+  cpaBaseUrl: config.cpaBaseUrl,
   link: cpa.link(),
   cpa: observer.cpa(),
   strategy: observer.strategy(),

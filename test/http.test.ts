@@ -43,6 +43,7 @@ beforeAll(async () => {
   const oauth = createOAuthFlows({ cpa, observer, now: realClock.now });
   snapshot = () => ({
     generatedAt: realClock.now(),
+    cpaBaseUrl: 'http://127.0.0.1:8317',
     link: cpa.link(),
     cpa: observer.cpa(),
     strategy: observer.strategy(),

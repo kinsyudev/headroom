@@ -40,7 +40,7 @@ function BannerText(props: { readonly banner: Banner }) {
               </>
             )}
           </strong>
-          <span className="banner-line">Routing and account actions are paused until CPA answers. Check that CPA is running at the address in Headroom's CPA_BASE_URL.</span>
+          <span className="banner-line">Routing and account actions are paused until CPA answers. Check that CPA is running at {b.address}.</span>
         </>
       );
     case 'claim_unknown':
