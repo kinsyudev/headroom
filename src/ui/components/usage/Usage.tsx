@@ -73,8 +73,10 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
         <CachePanel view={e} dim={dim} />
       </div>
       <Mix view={e} slots={props.slots} account={account} model={model} onAccount={setAccount} onModel={setModel} />
-      <Speed view={e} />
-      <FailuresPanel view={e} slots={props.slots} dim={dim} />
+      <div className="grid-2 reliability">
+        <Speed view={e} />
+        <FailuresPanel view={e} slots={props.slots} dim={dim} />
+      </div>
       <ByModelTable view={e} slots={props.slots} />
     </div>
   );

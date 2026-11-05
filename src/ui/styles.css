@@ -1806,6 +1806,11 @@ table.data th.wrap {
 .grid-2.pattern {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
 }
+@media (max-width: 1199px) {
+  .grid-2.reliability {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 /* The headline row. */
 .kpis {

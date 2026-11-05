@@ -1,7 +1,7 @@
 import { memo, useRef, useState, type ReactNode } from 'react';
 import { ChartTip } from './ChartTip';
 import type { Bucket } from './StackedColumns';
-import { niceTicks, tooltipLeft, useWidth } from './kit';
+import { niceTicks, tooltipLeft, useHeight, useWidth } from './kit';
 
 export interface LineSeries {
   readonly key: string;
@@ -27,11 +27,16 @@ export const LineChart = memo(function LineChart(props: {
   readonly label: string;
   readonly extra?: (i: number) => ReactNode;
   readonly height?: number;
+  /** Grow past `height` to fill the room the layout gives the chart, so a panel beside a taller one leaves no empty band. */
+  readonly fill?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref, 400);
+  const fill = props.fill === true;
+  const measured = useHeight(ref, fill);
   const [hover, setHover] = useState<number | null>(null);
-  const H = Math.round((props.height ?? 190) * (width < 520 ? 0.85 : 1));
+  const floor = Math.round((props.height ?? 190) * (width < 520 ? 0.85 : 1));
+  const H = fill ? Math.max(floor, measured) : floor;
   const n = props.buckets.length;
   const plotW = Math.max(100, width - PAD.left - PAD.right);
   const plotH = H - PAD.top - PAD.bottom;
@@ -59,7 +64,7 @@ export const LineChart = memo(function LineChart(props: {
   const lastIndex = (values: readonly (number | null)[]) => values.findLastIndex((v) => v !== null);
 
   return (
-    <div className="chart" ref={ref} onPointerLeave={() => setHover(null)}>
+    <div className={fill ? 'chart fill' : 'chart'} ref={ref} style={fill ? { minHeight: floor } : undefined} onPointerLeave={() => setHover(null)}>
       <svg width={width} height={H} role="img" aria-label={props.label}>
         {ticks.map((t) => (
           <g key={t}>

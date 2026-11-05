@@ -74,7 +74,8 @@ export function Speed(props: { readonly view: AnalyticsView }) {
         bucketLabel={label}
         tooltipTitle={title}
         label={`${m.label} time, median and the time 9 in 10 requests beat`}
-        height={210}
+        height={180}
+        fill
         extra={(i) => {
           const p = m.pick(v.timeline[i]!.total);
           return p ? (
