@@ -1,9 +1,8 @@
-import { Database } from 'bun:sqlite';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFakeCpa, type FakeCpa } from '../test/fake-cpa';
-import { createKeeperDb, insertUsage, KEEPER_ACC1 } from '../test/fake-keeper';
+import { createKeeperDb, feedKeeper } from '../test/fake-keeper';
 
 const ROOT = join(import.meta.dir, '..');
 const KEY = 'fake-stack-management-key';
@@ -23,12 +22,7 @@ export async function startStack(opts: { readonly port?: number; readonly log?: 
   const fake = startFakeCpa({ key: KEY });
   writeFileSync(join(dir, 'cpa-usage-keeper.env'), `APP_PORT=1337\nCPA_MANAGEMENT_KEY=${KEY}\n`);
   const keeperPath = join(dir, 'app.db');
-  createKeeperDb(keeperPath);
-  const keeper = new Database(keeperPath);
-  const traffic = setInterval(
-    () => insertUsage(keeper, { at: Date.now(), account: KEEPER_ACC1, model: 'claude-opus-5-5', input: 12_000, cacheRead: 9_000, output: 300 }),
-    5_000,
-  );
+  const feed = feedKeeper(keeperPath, { from: createKeeperDb(keeperPath) });
 
   const logPath = opts.log ?? join(ROOT, 'var/fake-stack.log');
   mkdirSync(join(ROOT, 'var'), { recursive: true });
@@ -60,10 +54,9 @@ export async function startStack(opts: { readonly port?: number; readonly log?: 
     port,
     fake,
     async stop() {
-      clearInterval(traffic);
       app.kill('SIGTERM');
       await app.exited;
-      keeper.close();
+      feed.stop();
       fake.stop();
       rmSync(dir, { recursive: true, force: true });
     },

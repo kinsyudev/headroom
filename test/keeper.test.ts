@@ -23,7 +23,7 @@ function db(): { path: string; handle: Database } {
   handle.exec(readFileSync(join(FIXTURES, 'keeper-schema.sql'), 'utf8'));
   insertUsage(handle, { at: at('2026-11-04T12:10:00Z'), account: ACC1, model: 'claude-opus-5-5', input: 50_000, cacheRead: 40_000, cacheCreation: 5_000, output: 900 });
   insertUsage(handle, { at: at('2026-11-04T12:58:30Z'), account: ACC1, model: 'claude-opus-5-5', input: 1_000, output: 100 });
-  insertUsage(handle, { at: at('2026-11-04T12:59:30Z'), account: ACC3, model: 'claude-opus-5-5', failed: true, status: 429 });
+  insertUsage(handle, { at: at('2026-11-04T12:59:30Z'), account: ACC3, model: 'claude-opus-5-5', status: 429 });
   insertUsage(handle, { at: at('2026-11-04T11:30:00Z'), account: ACC3, model: 'claude-sonnet-5-5', input: 2_000, output: 50 });
   insertUsage(handle, { at: at('2026-11-03T23:59:00Z'), account: ACC2, model: 'claude-opus-5-5', input: 10, output: 5 });
   insertUsage(handle, { at: at('2026-11-02T10:00:00Z'), account: ACC2, model: 'claude-opus-5-5', input: 7, output: 7 });
