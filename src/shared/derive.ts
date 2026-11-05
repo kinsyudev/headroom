@@ -419,7 +419,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       resetsAt: draw.resetsAt,
       limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
       source: draw.source,
-      other: otherLive ? { kind: other.source.kind, percent: other.percent, at: other.source.at } : null,
+      other: otherLive ? otherView(other, lapsed ? null : draw.percent) : null,
     };
   });
   if (poll && !rows.has(rowKey('session', null))) {
@@ -432,12 +432,17 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       resetsAt: null,
       limiting: false,
       source: { kind: 'poll', at: poll.at },
-      other: idleOther && !(idleOther.resetsAt !== null && idleOther.resetsAt <= now)
-        ? { kind: 'headers', percent: idleOther.percent, at: idleOther.source.at }
-        : null,
+      other: idleOther && !(idleOther.resetsAt !== null && idleOther.resetsAt <= now) ? otherView(idleOther, null) : null,
     });
   }
   return views.sort((x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key));
+}
+
+/** Two readings of one window within a point of each other are the same reading to the eye, so only a wider gap earns a mark. */
+const TICK_MIN_GAP = 2;
+
+function otherView(other: Observation, drawn: Percent | null): NonNullable<LimitView['other']> {
+  return { kind: other.source.kind, percent: other.percent, at: other.source.at, differs: drawn !== null && Math.abs(other.percent - drawn) >= TICK_MIN_GAP };
 }
 
 function rowKey(kind: string, scopeModel: string | null): string {

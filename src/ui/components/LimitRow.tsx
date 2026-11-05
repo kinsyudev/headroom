@@ -9,7 +9,12 @@ const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', hea
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
 
-export function Meter(props: { readonly percent: number | null; readonly severity: Severity; readonly label: string; readonly tick?: number | null }) {
+export function Meter(props: {
+  readonly percent: number | null;
+  readonly severity: Severity;
+  readonly label: string;
+  readonly tick?: { readonly percent: number; readonly title: string } | null;
+}) {
   return (
     <div
       className="meter"
@@ -21,7 +26,7 @@ export function Meter(props: { readonly percent: number | null; readonly severit
       style={{ '--fill': FILL[props.severity] } as CSSProperties}
     >
       {props.percent !== null && props.percent > 0 && <div className="meter-fill" style={{ width: `${clamp(props.percent)}%` }} />}
-      {props.tick != null && <div className="meter-tick" style={{ left: `${clamp(props.tick)}%` }} />}
+      {props.tick && <div className="meter-tick" style={{ left: `${clamp(props.tick.percent)}%` }} title={props.tick.title} />}
     </div>
   );
 }
@@ -39,6 +44,9 @@ export function LimitCell(props: { readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
   const note = resetNote(l, now);
+  const tick = l.other?.differs
+    ? { percent: l.other.percent, title: `Second reading: ${SOURCE[l.other.kind]} ${percent(l.other.percent)}, ${age(now - l.other.at)} ago. The bar shows the ${SOURCE[l.source.kind]} reading.` }
+    : null;
   const title = [
     note?.title,
     l.limiting && 'the limit holding this account back right now',
@@ -54,7 +62,7 @@ export function LimitCell(props: { readonly limit: LimitView }) {
         {l.phase === 'open' ? percent(l.percent) : l.phase === 'idle' ? 'idle' : '—'}
       </span>
       <span className="cell-note num">{note?.text}</span>
-      <Meter percent={l.phase === 'open' ? l.percent : null} severity={l.severity} label={`${l.label} used`} tick={l.other?.percent ?? null} />
+      <Meter percent={l.phase === 'open' ? l.percent : null} severity={l.severity} label={`${l.label} used`} tick={tick} />
     </div>
   );
 }

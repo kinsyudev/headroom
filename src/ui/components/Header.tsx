@@ -55,13 +55,12 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
           kind="quota.refresh"
           input={{ account: 'all' }}
           done={(o) => `${o.scheduled.filter((x) => x.held === null).length} of ${o.scheduled.length} queued`}
-          title="Read Anthropic usage for every account that isn't rate-limited or read in the last minute"
+          title="Check Anthropic usage for every account that isn't rate-limited or checked in the last minute"
           testId="refresh-all"
         >
-          ↻ Read all
+          ↻ Check all
         </ActionButton>
         <AddAccount deck={d} />
-        {d.cpa.kind === 'down' && <span className="paused-note">Paused until CPA answers</span>}
       </div>
       <Status status={d.status} />
     </header>

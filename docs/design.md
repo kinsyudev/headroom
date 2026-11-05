@@ -129,7 +129,7 @@ There is nothing else. No SQLite of our own.
   - `lapsed` means `resetsAt` has passed and no newer data has arrived. Show "14:20 ✓ · awaiting data", with "reset 14:20 ✓ · awaiting fresh data" on hover, never the old percent.
   - `idle` means the session limit is absent from `limits[]`, so no session window is running. Fixture 1 shows this.
 - **Serving now comes from keeper.** Every 5 s, `keeper.ts` reads the most recent `usage_events` (newest 500 rows by `id`) grouped by `auth_index`, giving last-seen time and request count in the last 2 min. An account is serving if it was last seen under 120 s ago. The tile also says whether that account takes the next new session, or names the account that will, which is a prediction from the routing rule. CPA's `recent_requests` is the fallback when keeper is unavailable.
-- **Merging header and poll data.** Both sources map to the same rows (`5h` to session, `7d` to weekly_all). The newer observation is drawn, and the other is shown as a faint tick with its age.
+- **Merging header and poll data.** Both sources map to the same rows (`5h` to session, `7d` to weekly_all). The newer observation is drawn, and the other is marked as a tick, with its age on hover, only when it differs from the drawn percent by 2 points or more.
 
 ### 7. History
 

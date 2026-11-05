@@ -207,9 +207,34 @@ describe('window lifecycle', () => {
     expect(mergeLimits(null, account(ACC3).headers, T0)[0]).toMatchObject({ key: 'session', percent: 100, severity: 'critical' });
   });
 
-  test('a poll without a session limit and older 5h headers stays idle and shows the header value as the tick', () => {
+  test('a poll without a session limit and older 5h headers stays idle and keeps the header value, with nothing drawn to differ from', () => {
     const m = mergeLimits(pollOf('anthropic-usage-1.json', T0), account(ACC1).headers, T0);
-    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, other: { kind: 'headers', percent: 17 } });
+    expect(m[0]).toMatchObject({ key: 'session', phase: 'idle', percent: null, other: { kind: 'headers', percent: 17, differs: false } });
+  });
+
+  describe('which readings differ enough to mark', () => {
+    const headerSession = (percent: number): CpaAccount['headers'] => {
+      const h = account(ACC1).headers!;
+      return { ...h, windows: h.windows.map((w) => (w.key === '5h' ? { ...w, percent: percent as never } : w)) };
+    };
+    const differs = (headerPercent: number) => mergeLimits(pollOf('anthropic-usage-2.json', T0), headerSession(headerPercent), T0)[0]!.other?.differs;
+
+    test.each([
+      [10, true],
+      [11, false],
+      [12, false],
+      [13, false],
+      [14, true],
+      [17, true],
+    ])('the poll draws 12% and the headers say %p%%: marked is %p', (headers, marked) => {
+      expect(differs(headers)).toBe(marked);
+    });
+
+    test('a lapsed row has no drawn percent, so its other reading is never marked', () => {
+      const older = { ...headerSession(40)!, observedAt: plus(T0, -MIN) };
+      const m = mergeLimits(pollOf('anthropic-usage-3.json', T0), { ...older, windows: [{ key: '5h', percent: 40 as never, resetsAt: at('2026-11-04T19:20:00Z'), status: 'allowed' }] }, AFTER_COOLDOWN);
+      expect(m[0]).toMatchObject({ key: 'session', phase: 'lapsed', other: { percent: 40, differs: false } });
+    });
   });
 
   describe('which window is limiting', () => {

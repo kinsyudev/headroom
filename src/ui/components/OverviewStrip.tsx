@@ -1,5 +1,6 @@
 import type { AccountId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
+import { clockTime } from '../format';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
@@ -9,6 +10,19 @@ const ROOM_HELP =
 
 export function OverviewStrip(props: { readonly deck: DeckView; readonly colors: ReadonlyMap<AccountId, string> }) {
   const o = props.deck.overview;
+  const { cpa, now } = props.deck;
+  const down = cpa.kind === 'down';
+  const answeredAt = cpa.kind === 'down' && cpa.lastAt !== null ? ` (CPA last answered at ${clockTime(cpa.lastAt, now)})` : '';
+  const heading = (label: string) => (
+    <div className="stat-head">
+      <h2>{label}</h2>
+      {down && (
+        <span className="asof" title={`CPA is not answering, so this is the last value Headroom has${answeredAt}.`}>
+          last known
+        </span>
+      )}
+    </div>
+  );
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   const [lead, ...alsoServing] = o.serving;
   const nextSession = !o.target ? (
@@ -28,7 +42,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         data-testid="tile-serving"
         title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
       >
-        <h2>Serving now</h2>
+        {heading('Serving now')}
         {lead ? (
           <p className="hero hero-id" title={lead.email}>
             {swatch(lead.account)}
@@ -41,9 +55,15 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
           <Segments
             parts={[
               lead ? (
-                <>
-                  last request <Age at={lead.lastAt} /> ago
-                </>
+                down ? (
+                  <>
+                    last request at <Clock at={lead.lastAt} />
+                  </>
+                ) : (
+                  <>
+                    last request <Age at={lead.lastAt} /> ago
+                  </>
+                )
               ) : (
                 'nothing answered in the last 2 min'
               ),
@@ -55,7 +75,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
       </div>
 
       <div className="stat" data-testid="tile-next-reset">
-        <h2>Next reset</h2>
+        {heading('Next reset')}
         {o.nextReset ? (
           <>
             <p className="hero num">
@@ -88,11 +108,13 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         )}
       </div>
 
-      <div className={o.claimableCount > 0 ? 'stat claims has-claims' : 'stat claims'} data-testid="tile-claimable">
-        <h2>Claimable resets</h2>
+      <div className={o.claimableCount > 0 && !down ? 'stat claims has-claims' : 'stat claims'} data-testid="tile-claimable">
+        {heading('Claimable resets')}
         <p className="hero num">{o.claimableCount}</p>
         <p className="stat-sub">
-          {claimAccounts.length === 0 ? (
+          {down ? (
+            'Claims are paused until CPA answers.'
+          ) : claimAccounts.length === 0 ? (
             'None now. Offered when an account hits its limit.'
           ) : (
             <Segments
@@ -107,7 +129,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
       </div>
 
       <div className="stat rooms" data-testid="tile-headroom" title={ROOM_HELP}>
-        <h2>Room left</h2>
+        {heading('Room left')}
         <p className="hero room-pair num">
           <Room label="session" h={o.headroom.session} /> <Room label="weekly" h={o.headroom.weekly} />
         </p>{' '}
