@@ -6,16 +6,34 @@ import { age, clockTime, duration, leftLabel, money, percent, reasonText } from 
 
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
 
+/** steady: where the fill would end if the window were being used evenly, so a fill that stops short of the tick is running ahead of pace. */
 export function Meter(props: {
   readonly left: PercentLeft | null;
   readonly tone: MeterTone;
   readonly label: string;
+  readonly steady?: number | null;
 }) {
   return (
     <div className={`meter tone-${props.tone}`} role="meter" aria-label={props.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={props.left ?? undefined}>
       {props.left !== null && props.left > 0 && <div className="meter-fill" style={{ width: `${props.left}%` }} />}
+      {props.steady != null && <div className="meter-tick" style={{ left: `${props.steady}%` }} aria-hidden />}
     </div>
   );
+}
+
+/** What the steady-pace tick on the meter means, said in words for the cell's tooltip. */
+function paceTitle(p: NonNullable<LimitView['pace']>, now: number): string {
+  const even = `${Math.round(100 - p.elapsed)}% left would be an even pace by now`;
+  switch (p.outlook.kind) {
+    case 'hits':
+      return `${even}; at this rate it runs out in ${duration(p.outlook.at - now)}, before the reset`;
+    case 'lasts':
+      return `${even}; at this rate it lasts to the reset`;
+    case 'at_limit':
+      return 'no room left in this window';
+    case 'too_early':
+      return `${even}; too early in the window to project`;
+  }
 }
 
 function resetNote(l: LimitView, now: number): { readonly text: string; readonly title: string } | null {
@@ -31,8 +49,11 @@ export function LimitCell(props: { readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
   const note = resetNote(l, now);
+  const pace = l.pace;
+  const runsOut = pace?.outlook.kind === 'hits' ? pace.outlook : null;
   const title = [
     note?.title,
+    pace && paceTitle(pace, now),
     l.limiting && 'the limit holding this account back right now',
     `${SOURCE[l.source.kind]} ${age(now - l.source.at)} ago`,
     l.other && `Second reading: ${SOURCE[l.other.kind]} ${percent(l.other.left)} left, ${age(now - l.other.at)} ago`,
@@ -46,7 +67,12 @@ export function LimitCell(props: { readonly limit: LimitView }) {
         {percent(l.left)}
       </span>
       <span className="cell-note num">{note?.text}</span>
-      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} />
+      <Meter left={l.left} tone={l.tone} label={leftLabel(l.label)} steady={pace === null ? null : 100 - pace.elapsed} />
+      {runsOut && pace && (
+        <span className="cell-pace num" data-testid="pace-note">
+          <span aria-hidden>! </span>Runs out in {duration(runsOut.at - now)}
+        </span>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
-import type { ServingWhy } from '../shared/view';
+import type { Grain, ServingWhy } from '../shared/view';
 
 export const SERVING_WHY: Readonly<Record<ServingWhy, string>> = {
   fill_first_target: 'first in line (fill-first)',
@@ -124,4 +124,61 @@ export function claimText(r: ClaimRecord): string {
     case 'not_sent':
       return `Not sent: ${o.why}. Nothing consumed.`;
   }
+}
+
+/** "claude-opus-5-5" reads as "Opus 5.5". An id that does not follow the pattern is shown as it is. */
+export function modelName(id: string): string {
+  const m = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/.exec(id);
+  if (!m) return id;
+  return `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}`;
+}
+
+/** A share between 0 and 1, as a percent with one decimal below 10 and none above, so 96.6% and 87% both read at a glance. */
+export function share(n: number | null, digits?: number): string {
+  if (n === null) return '—';
+  const p = n * 100;
+  if (p === 0) return '0%';
+  if (p > 0 && p < 0.1) return '<0.1%';
+  return `${p.toFixed(digits ?? (p < 10 || (p >= 90 && p < 99.95) ? 1 : 0))}%`;
+}
+
+/** 1,284 below 10,000 and 12.9K above, so a tile and an axis agree on what a count looks like. */
+export function count(n: number): string {
+  return n < 10_000 ? Math.round(n).toLocaleString('en') : compact(n);
+}
+
+export function seconds(ms: number | null): string {
+  return ms === null ? '—' : ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 1000)} s`;
+}
+
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+export const weekdayName = (weekday: number, style: 'long' | 'short' = 'long'): string => (style === 'long' ? WEEKDAYS[weekday]! : WEEKDAYS[weekday]!.slice(0, 3));
+
+export const hourText = (hour: number): string => `${String(hour % 24).padStart(2, '0')}:00`;
+
+/** A change as a fraction of what it was: 0.193 is "19%". Null when there was nothing to compare against. */
+export function changeText(change: number | null): string {
+  if (change === null) return '—';
+  const p = Math.abs(change) * 100;
+  return `${p < 1 ? p.toFixed(1) : Math.round(p)}%`;
+}
+
+interface Span {
+  readonly start: number;
+  readonly end: number;
+  readonly partial: boolean;
+}
+
+/** How a time bucket reads on an axis, in a tooltip title, and as a table row. The bucket still filling says "now". */
+export function bucketText(grain: Grain, now: number) {
+  const span = (b: Span) =>
+    grain === 'hour' ? `${clockTime(b.start, now)}–${clockTime(b.end, now)}` : new Date(b.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return {
+    label: (b: Span) => {
+      if (b.partial) return 'now';
+      return grain === 'hour' ? new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date(b.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    },
+    span,
+    title: (b: Span) => (b.partial ? `${span(b)} · in progress` : span(b)),
+  };
 }
