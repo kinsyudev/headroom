@@ -1,7 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import { INELIGIBLE_EXPLAIN } from '../src/shared/derive';
 import type { ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
-import { bucketText, changeText, claimText, compact, count, hourText, modelName, money, reasonText, reasonTitle, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+import { bucketText, changeText, claimText, compact, count, foldedPaceSays, hourText, modelName, money, reasonText, reasonTitle, seconds, shortName, share, stamp, weekdayName } from '../src/ui/format';
+
+describe('a folded quota pace line', () => {
+  test.each([
+    [1, 0, 'Lasts to the reset'],
+    [2, 0, 'Both last to the reset'],
+    [3, 0, 'All 3 last to the reset'],
+    [0, 1, 'Too early to say'],
+    [0, 2, 'Both too early to say'],
+    [1, 1, '1 lasts to the reset, 1 too early to say'],
+    [2, 1, '2 last to the reset, 1 too early to say'],
+  ])('%i that last and %i too early says "%s"', (lasts, early, says) => {
+    expect(foldedPaceSays(lasts, early)).toBe(says);
+  });
+});
 
 describe('amounts', () => {
   test('a whole amount drops its cents and any other amount keeps them', () => {

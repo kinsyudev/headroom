@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { AccountId } from '../../../shared/domain';
 import type { MeterTone, PaceAccountView, PaceView } from '../../../shared/view';
 import { useNow } from '../../deck';
-import { clockTime, compact, count, duration, PACE_TICK_HELP, shortName } from '../../format';
+import { clockTime, compact, count, duration, foldedPaceSays, PACE_TICK_HELP, shortName } from '../../format';
 import { paceAnchor, useJumpTarget } from '../../route';
 import { Meter } from '../LimitRow';
 
@@ -42,16 +42,6 @@ function spentTitle(p: PaceView): string {
     `${count(s.requests)} requests and ${compact(s.tokens.output)} output tokens on ${shortName(p.email)} since the window opened`,
     per === null ? 'under 1% used, so too little to price one percent' : `1% of it is about ${count(per.requests)} requests or ${compact(per.output)} output tokens`,
   ].join('\n');
-}
-
-/** What the one line for an account's steady windows says: they all last, they are all too early, or some of each. */
-function foldSays(steady: readonly PaceView[]): string {
-  const lasts = steady.filter((p) => p.pace.outlook.kind === 'lasts').length;
-  const early = steady.length - lasts;
-  const only = (n: number, one: string, many: string) => (n === 1 ? one : n === 2 ? `Both ${many}` : `All ${n} ${many}`);
-  if (early === 0) return only(lasts, 'Lasts to the reset', 'last to the reset');
-  if (lasts === 0) return only(early, 'Too early to say', 'too early to say');
-  return `${lasts} ${lasts === 1 ? 'lasts' : 'last'} to the reset, ${early} too early to say`;
 }
 
 function Who(props: { readonly account: PaceAccountView; readonly color: string | undefined }) {
@@ -98,7 +88,8 @@ function PaceRow(props: { readonly p: PaceView; readonly who: ReactNode; readonl
 /** The windows that last or are too early, as one line that keeps each one's percent left and reset time, and opens to their bars. */
 function PaceFold(props: { readonly account: PaceAccountView; readonly who: ReactNode; readonly target: string | null; readonly now: number }) {
   const { account, now } = props;
-  const look = account.steady.some((p) => p.pace.outlook.kind === 'lasts') ? LOOKS.lasts : LOOKS.too_early;
+  const lasts = account.steady.filter((p) => p.pace.outlook.kind === 'lasts').length;
+  const look = lasts > 0 ? LOOKS.lasts : LOOKS.too_early;
   const holdsTarget = account.steady.some((p) => paceAnchor(p.account, p.limit.key) === props.target);
   return (
     <details className="pace-fold" open={holdsTarget}>
@@ -119,7 +110,7 @@ function PaceFold(props: { readonly account: PaceAccountView; readonly who: Reac
             {look.icon}
           </span>
           <span>
-            <strong>{foldSays(account.steady)}</strong>
+            <strong>{foldedPaceSays(lasts, account.steady.length - lasts)}</strong>
           </span>
           <span className="pace-toggle" aria-hidden>
             <span className="when-closed">Show bars</span>

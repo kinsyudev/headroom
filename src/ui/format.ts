@@ -61,6 +61,14 @@ export const SERVE_ORDER_HELP =
 export const PACE_TICK_HELP =
   'The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.';
 
+/** What one line says for an account's folded quota windows, given how many last to the reset and how many are too early to say. */
+export function foldedPaceSays(lasts: number, early: number): string {
+  const only = (n: number, one: string, many: string) => (n === 1 ? one : n === 2 ? `Both ${many}` : `All ${n} ${many}`);
+  if (early === 0) return only(lasts, 'Lasts to the reset', 'last to the reset');
+  if (lasts === 0) return only(early, 'Too early to say', 'too early to say');
+  return `${lasts} ${lasts === 1 ? 'lasts' : 'last'} to the reset, ${early} too early to say`;
+}
+
 export function percent(p: PercentLeft | null): string {
   if (p === null) return '—';
   if (p > 0 && p < 1) return '<1%';
