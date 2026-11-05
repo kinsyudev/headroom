@@ -888,6 +888,18 @@ describe('card status line', () => {
       expect(stateOf('anthropic-usage-3.json')).toBe('budget');
     });
 
+    test('a cap spent to its limit or past it is used up, and a cap with room is still a budget', () => {
+      const read = usage('anthropic-usage-3.json', 'normal');
+      if (read.mode !== 'normal') throw new Error('fixture is a normal read');
+      expect(read.spend!.limit!.minor).toBe(10_000);
+      const used = (minor: number) => ({ ...read.spend!.used, minor });
+      const poll = (change: Partial<Spend>) => deriveSpend({ ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, ...change }, at: T0 } }, null)?.poll;
+      expect(poll({ used: used(10_062) })).toMatchObject({ state: 'cap_used', left: 0, remaining: { minor: 0 }, tone: 'critical' });
+      expect(poll({ used: used(10_000) })).toMatchObject({ state: 'cap_used' });
+      expect(poll({ used: used(9_999), percent: 99 as never, severity: 'warning' })).toMatchObject({ state: 'budget' });
+      expect(poll({ used: used(1_200), percent: 12 as never, severity: 'normal' })).toMatchObject({ state: 'budget', left: 88 });
+    });
+
     test('an enabled account with no cap set still has a budget', () => {
       const read = usage('anthropic-usage-3.json', 'normal');
       if (read.mode !== 'normal') throw new Error('fixture is a normal read');
