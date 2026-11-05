@@ -61,6 +61,7 @@ export function Header(props: { readonly deck: DeckView; readonly connection: Co
           ↻ Read all
         </ActionButton>
         <AddAccount deck={d} />
+        {d.cpa.kind === 'down' && <span className="paused-note">Paused until CPA answers</span>}
       </div>
       <Status status={d.status} />
     </header>

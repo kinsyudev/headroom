@@ -24,6 +24,13 @@ export interface DeckView {
   readonly strategy: RoutingStrategy | null;
   readonly status: StatusView;
   readonly cpa: CpaView;
+  /** Every usage window any account reports, in display order: the columns of the accounts table. */
+  readonly limitColumns: readonly LimitColumn[];
+}
+
+export interface LimitColumn {
+  readonly key: string;
+  readonly label: string;
 }
 
 export interface StatusView {
@@ -70,6 +77,10 @@ export interface Headroom {
   readonly value: number;
   readonly of: number;
   readonly unknown: number;
+  /** value as a whole percent of the accounts whose room is known; null when none is. */
+  readonly percent: number | null;
+  /** The enabled account with the most room left, as a share of one account (0 to 1); null when no account's room is known. */
+  readonly most: { readonly account: AccountId; readonly email: string; readonly left: number } | null;
 }
 
 export interface AccountView {
@@ -145,6 +156,12 @@ export type CooldownView = CooldownScope & {
 export interface TroubleView {
   readonly cause: string;
   readonly holds: readonly { readonly what: string; readonly until: Instant | null }[];
+  /**
+   * The usage window at its limit ("Session") when the cause is about quota, so the window is what holds
+   * the account; null otherwise. lifts: every hold ends within a minute of that window's reset, so the
+   * reset is what frees the account.
+   */
+  readonly limit: { readonly label: string; readonly lifts: boolean } | null;
 }
 
 /** idle: the session limit is absent from limits[], so no session window is running. */

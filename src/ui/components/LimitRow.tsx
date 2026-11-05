@@ -1,9 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import type { Severity } from '../../shared/domain';
 import type { LimitView, SpendView } from '../../shared/view';
 import { useNow } from '../deck';
 import { age, clockTime, duration, money, percent, reasonText } from '../format';
-import { Segments } from './Segments';
 
 const FILL: Readonly<Record<Severity, string>> = { normal: 'var(--muted)', warning: 'var(--warning)', critical: 'var(--critical)' };
 const SOURCE: Readonly<Record<'poll' | 'headers', string>> = { poll: 'poll', headers: 'live' };
@@ -27,57 +26,35 @@ export function Meter(props: { readonly percent: number | null; readonly severit
   );
 }
 
-function resetText(l: LimitView, now: number): { readonly first: string; readonly second: string; readonly title: string } | null {
+function resetNote(l: LimitView, now: number): { readonly text: string; readonly title: string } | null {
+  if (l.phase === 'idle') return { text: 'no window running', title: 'No session window is running; one starts with the next request' };
   if (l.resetsAt === null) return null;
   const at = clockTime(l.resetsAt, now);
-  switch (l.phase) {
-    case 'open': {
-      const left = duration(l.resetsAt - now);
-      return { first: left, second: at, title: `resets ${at} · in ${left}` };
-    }
-    case 'lapsed':
-      return { first: `${at} ✓`, second: 'awaiting data', title: `reset ${at} ✓ · awaiting fresh data` };
-    case 'idle':
-      return null;
-  }
+  if (l.phase === 'lapsed') return { text: `${at} ✓ awaiting data`, title: `reset ${at} ✓ · awaiting fresh data` };
+  const left = duration(l.resetsAt - now);
+  return { text: `${left} · ${at}`, title: `resets ${at}, in ${left}` };
 }
 
-export function LimitRow(props: { readonly limit: LimitView }) {
+export function LimitCell(props: { readonly limit: LimitView }) {
   const now = useNow();
   const l = props.limit;
-  const readings = [
+  const note = resetNote(l, now);
+  const title = [
+    note?.title,
+    l.limiting && 'the limit holding this account back right now',
     `${SOURCE[l.source.kind]} ${age(now - l.source.at)} ago`,
     l.other && `${SOURCE[l.other.kind]} ${percent(l.other.percent)} ${age(now - l.other.at)} ago`,
   ]
     .filter(Boolean)
     .join(' · ');
-  const reset = resetText(l, now);
   return (
-    <div className={`limit phase-${l.phase}`} data-testid={`limit-${l.key}`} title={readings}>
-      <span className="limit-label">
-        {l.label}
-        {l.limiting && (
-          <span className="tag" title="The limit that is holding this account back right now">
-            limiting
-          </span>
-        )}
-      </span>
-      <Meter percent={l.phase === 'open' ? l.percent : null} severity={l.severity} label={`${l.label} used`} tick={l.other?.percent ?? null} />
-      <span className="limit-value num" data-testid="percent">
+    <div className={`cell limit phase-${l.phase} sev-${l.severity}`} data-testid={`limit-${l.key}`} title={title}>
+      <span className="cell-label">{l.label}</span>
+      <span className="cell-value num" data-testid="percent">
         {l.phase === 'open' ? percent(l.percent) : l.phase === 'idle' ? 'idle' : '—'}
       </span>
-      <span className="limit-reset" title={reset?.title}>
-        {reset && (
-          <>
-            <span className="nowrap limit-in num">
-              {reset.first}
-              <span className="limit-sep">{'\u00A0·'}</span>
-            </span>{' '}
-            <span className="nowrap limit-at num">{reset.second}</span>
-          </>
-        )}
-        {l.phase === 'idle' && 'no window running'}
-      </span>
+      <span className="cell-note num">{note?.text}</span>
+      <Meter percent={l.phase === 'open' ? l.percent : null} severity={l.severity} label={`${l.label} used`} tick={l.other?.percent ?? null} />
     </div>
   );
 }
@@ -86,64 +63,69 @@ type Overage = NonNullable<SpendView['live']>;
 
 const OVERAGE_STATUS: Readonly<Record<string, string>> = { allowed: 'allowed', allowed_warning: 'allowed, near the cap', rejected: 'rejected' };
 
-const overage = (o: Overage) =>
+const overageText = (o: Overage) =>
   [o.percent !== null && percent(o.percent), o.status && (OVERAGE_STATUS[o.status] ?? o.status), o.reason && `(${reasonText(o.reason)})`].filter(Boolean).join(' ');
 
-const STOPS_AT_PLAN_LIMITS = 'stops at the plan limits';
-
-function overageNote(o: Overage, now: number): readonly ReactNode[] {
-  const reason = o.reason && reasonText(o.reason);
-  const resets = o.resetsAt !== null && o.resetsAt > now && `resets ${clockTime(o.resetsAt, now)}`;
-  switch (o.status) {
-    case 'rejected':
-      return [reason, 'extra-usage requests are rejected', resets];
-    case 'allowed_warning':
-      return [`near the spend cap${o.percent === null ? '' : ` (${percent(o.percent)})`}`, 'extra usage still allowed', resets];
-    default:
-      return [reason, o.percent !== null && percent(o.percent), resets];
-  }
+interface SpendFace {
+  readonly value: string;
+  readonly note: string | null;
+  readonly tone: 'quiet' | 'warning' | 'critical' | 'metered';
+  readonly says: string;
 }
 
-function unmeteredNote(p: SpendView['poll'], live: SpendView['live'], atWall: boolean, now: number): readonly ReactNode[] {
-  if (p?.state === 'off') return [p.disabledReason ? reasonText(p.disabledReason) : 'off', STOPS_AT_PLAN_LIMITS];
-  if (p?.state === 'no_budget') return [`no budget${p.limit ? ` (${money(p.limit)} cap)` : ''}`, STOPS_AT_PLAN_LIMITS];
-  if (live !== null && live.severity !== 'normal') return overageNote(live, now);
-  return [atWall ? 'not read while at the limit' : 'not read yet'];
+function liveFace(o: Overage, now: number): SpendFace | null {
+  const resets = o.resetsAt !== null && o.resetsAt > now ? `resets ${clockTime(o.resetsAt, now)}` : null;
+  const why = o.reason ? reasonText(o.reason) : null;
+  if (o.status === 'rejected') return { value: 'Cap reached', note: resets, tone: 'critical', says: [why ?? 'spend cap reached', 'extra-usage requests are rejected', resets].filter(Boolean).join('; ') };
+  if (o.status === 'allowed_warning') return { value: 'Near cap', note: o.percent === null ? resets : percent(o.percent), tone: 'warning', says: 'near the spend cap; extra usage still allowed' };
+  return null;
 }
 
-export function SpendRow(props: { readonly spend: SpendView | null; readonly atWall: boolean }) {
+function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
+  const p = s.poll;
+  const live = s.live !== null && s.live.severity !== 'normal' ? liveFace(s.live, now) : null;
+  if (p?.state === 'off') return { value: 'Off', note: p.disabledReason ? reasonText(p.disabledReason) : null, tone: 'quiet', says: 'off; requests stop at the plan limits' };
+  if (p?.state === 'no_budget') return { value: 'No budget', note: p.limit ? `${money(p.limit)} cap` : null, tone: 'quiet', says: 'on with a zero budget; requests stop at the plan limits' };
+  if (p?.state === 'budget') return { value: percent(p.percent), note: p.limit ? `${money(p.used)} of ${money(p.limit)}` : `${money(p.used)} spent`, tone: 'metered', says: live?.says ?? 'spent of the budget' };
+  if (live) return live;
+  return { value: 'Not read', note: atWall ? 'skipped at the limit' : null, tone: 'quiet', says: atWall ? 'amounts are not read while the account is at its limit' : 'not read yet' };
+}
+
+export function SpendCell(props: { readonly spend: SpendView | null; readonly atWall: boolean; readonly help: string }) {
   const now = useNow();
   const s = props.spend;
-  if (!s) return null;
+  if (!s) {
+    return (
+      <div className="cell spend" data-testid="spend" title={props.help}>
+        <span className="cell-label">Extra usage</span>
+        <span className="cell-value muted">—</span>
+      </div>
+    );
+  }
+  const face = spendFace(s, props.atWall, now);
   const p = s.poll;
-  const live = s.live;
-  const codes = [...new Set([p?.disabledReason, live?.reason].filter(Boolean))];
-  const readings = [
-    p ? `poll ${age(now - p.at)} ago` : props.atWall && 'amounts are not read while the account is at its limit',
-    live && `${overage(live)}, live ${age(now - live.at)} ago`,
+  const codes = [...new Set([p?.disabledReason, s.live?.reason].filter(Boolean))];
+  const title = [
+    `Extra usage: ${face.says}`,
+    p ? `poll ${age(now - p.at)} ago` : null,
+    s.live && `${overageText(s.live)}, live ${age(now - s.live.at)} ago`,
     codes.length > 0 && `reason code: ${codes.join(', ')}`,
   ]
     .filter(Boolean)
     .join(' · ');
   return (
-    <div className="limit spend" data-testid="spend" title={readings}>
-      <span className="limit-label">Extra usage</span>
-      {p?.state === 'budget' ? (
-        <>
-          <Meter percent={p.percent} severity={p.severity} label="Extra usage spent" />
-          <span className="limit-value num">{percent(p.percent)}</span>
-          <span className="limit-reset num nowrap">{p.limit ? `${money(p.used)} / ${money(p.limit)}` : money(p.used)}</span>
-          {live !== null && live.severity !== 'normal' && (
-            <span className="spend-note">
-              <Segments parts={overageNote(live, now)} />
-            </span>
-          )}
-        </>
-      ) : (
-        <span className="spend-note">
-          <Segments parts={unmeteredNote(p, live, props.atWall, now)} />
-        </span>
-      )}
+    <div className={`cell spend tone-${face.tone}`} data-testid="spend" title={title}>
+      <span className="cell-label">Extra usage</span>
+      <span className="cell-value num">
+        {face.tone === 'critical' && (
+          <span className="cell-icon" aria-hidden>
+            ✕
+          </span>
+        )}
+        {face.value}
+      </span>
+      {face.note && <span className="cell-note num">{face.note}</span>}
+      {p?.state === 'budget' && <Meter percent={p.percent} severity={s.live?.severity === 'critical' ? 'critical' : p.severity} label="Extra usage spent" />}
     </div>
   );
 }

@@ -32,6 +32,7 @@ import type {
   FeedName,
   FreshnessView,
   Headroom,
+  LimitColumn,
   LimitView,
   OfferState,
   OfferView,
@@ -114,7 +115,11 @@ export const REASON_TEXT: Readonly<Record<string, string>> = {
   group_zero_credit_limit: 'no extra-usage credit',
 };
 
-const MESSAGE_CAUSES: readonly (readonly [RegExp, string])[] = [[/monthly spend limit/i, 'Monthly spend limit hit']];
+/** quota: the cause only bites once a plan limit is used up, so a full window is what holds the account. */
+const MESSAGE_CAUSES: readonly { readonly pattern: RegExp; readonly cause: string; readonly quota: boolean }[] = [
+  { pattern: /monthly spend limit/i, cause: 'Monthly spend limit hit', quota: true },
+];
+const QUOTA_REASONS: ReadonlySet<string> = new Set(['quota', 'credential_quota']);
 
 /** The page shows minutes, so two times this close read as one moment. */
 const SAME_MOMENT_MS = MINUTE_MS;
@@ -136,7 +141,15 @@ export function deriveDeck(s: Snapshot, now: Instant): DeckView {
     strategy: s.strategy.last?.value ?? null,
     status: deriveStatus([freshness('cpa', s.cpa, now), freshness('strategy', s.strategy, now), freshness('serving', s.serving, now)]),
     cpa,
+    limitColumns: limitColumns(views),
   };
+}
+
+function limitColumns(views: readonly AccountView[]): LimitColumn[] {
+  const columns = new Map(views.flatMap((a) => a.limits.map((l) => [l.key, l.label] as const)));
+  return [...columns]
+    .map(([key, label]) => ({ key, label }))
+    .sort((x, y) => kindRank(x.key) - kindRank(y.key) || x.key.localeCompare(y.key));
 }
 
 const PROBLEM_ORDER: readonly FreshnessView['state'][] = ['failing', 'stale', 'never', 'aging'];
@@ -177,7 +190,7 @@ export function deriveAccount(
     routing,
     cooldowns: a.cooldowns.filter((c) => c.retryAt > now).map(({ httpStatus: _, ...view }) => view),
     statusMessage: a.statusMessage,
-    trouble: deriveTrouble(a, now),
+    trouble: deriveTrouble(a, now, limits),
     atWall,
     limits,
     spend: deriveSpend(feeds.spend, a.headers),
@@ -264,18 +277,26 @@ export function eligibility(a: CpaAccount, now: Instant): Eligibility {
   return { ok: false, until, reason: credential[0]?.reason ?? a.statusMessage ?? 'unavailable' };
 }
 
-function deriveTrouble(a: CpaAccount, now: Instant): TroubleView | null {
+function deriveTrouble(a: CpaAccount, now: Instant, limits: readonly LimitView[]): TroubleView | null {
   const live = a.cooldowns.filter((c) => c.retryAt > now);
   const holds = deriveHolds(
     eligibility(a, now),
     live.flatMap((c) => (c.scope === 'model' ? [c] : [])),
   );
-  return holds.length === 0 && a.statusMessage === null ? null : { cause: deriveCause(a.statusMessage, live), holds };
+  if (holds.length === 0 && a.statusMessage === null) return null;
+  const message = messageCause(a.statusMessage);
+  const quota = message ? message.quota : live.some((c) => QUOTA_REASONS.has(c.reason));
+  const full = quota ? limits.find((l) => l.phase === 'open' && l.percent !== null && l.percent >= 100) : undefined;
+  const resetsAt = full?.resetsAt ?? null;
+  const lifts = resetsAt !== null && holds.length > 0 && holds.every((h) => h.until !== null && Math.abs(h.until - resetsAt) <= SAME_MOMENT_MS);
+  return { cause: deriveCause(a.statusMessage, live), holds, limit: full ? { label: full.label, lifts } : null };
 }
 
+const messageCause = (message: string | null) => MESSAGE_CAUSES.find((m) => message !== null && m.pattern.test(message));
+
 function deriveCause(message: string | null, live: readonly Cooldown[]): string {
-  const phrase = MESSAGE_CAUSES.find(([pattern]) => message !== null && pattern.test(message));
-  if (phrase) return phrase[1];
+  const phrase = messageCause(message);
+  if (phrase) return phrase.cause;
   const named = live.filter((c) => c.reason !== 'unknown');
   const reason = (named.find((c) => c.scope === 'credential') ?? named[0])?.reason;
   const text = reason === undefined ? message : (REASON_TEXT[reason] ?? reason);
@@ -564,7 +585,7 @@ export function deriveOffers(
   return [
     {
       program: 'juniper_tide',
-      name: resetName(JUNIPER_CLEARS, 'weekly'),
+      name: resetName(JUNIPER_CLEARS, 'weekly allowance'),
       effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
       selfResets: selfResets(JUNIPER_CLEARS, limits),
       state: juniper,
@@ -573,7 +594,7 @@ export function deriveOffers(
     },
     {
       program: 'cedar_ember',
-      name: resetName(cedarClears, 'bonus'),
+      name: resetName(cedarClears, 'bonus grant'),
       effect: defaultGrant ? `Clears ${clearsText(defaultGrant.clears)}. Uses 1 of ${defaultGrant.resetsLeft} left on "${defaultGrant.label}".` : 'Clears the limits the grant names.',
       selfResets: selfResets(cedarClears, limits),
       state: cedar,
@@ -747,14 +768,20 @@ function left(limits: readonly LimitView[], key: string): number | null {
 function headroom(accounts: readonly AccountView[], which: 'session' | 'weekly'): Headroom {
   let value = 0;
   let unknown = 0;
+  let most: Headroom['most'] = null;
   for (const a of accounts) {
     const weekly = left(a.limits, 'weekly_all');
     const session = left(a.limits, 'session');
     const v = which === 'weekly' ? weekly : session === null && weekly === null ? null : Math.min(session ?? 100, weekly ?? 100);
-    if (v === null) unknown += 1;
-    else value += v / 100;
+    if (v === null) {
+      unknown += 1;
+      continue;
+    }
+    value += v / 100;
+    if (most === null || v / 100 > most.left) most = { account: a.id, email: a.email, left: v / 100 };
   }
-  return { value: Math.round(value * 100) / 100, of: accounts.length, unknown };
+  const known = accounts.length - unknown;
+  return { value: Math.round(value * 100) / 100, of: accounts.length, unknown, percent: known === 0 ? null : Math.round((value / known) * 100), most };
 }
 
 function deriveBanners(s: Snapshot, views: readonly AccountView[], cpa: CpaView): Banner[] {

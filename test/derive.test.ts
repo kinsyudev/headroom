@@ -320,8 +320,8 @@ describe('offers and claimability', () => {
 
     test('the weekly reset and a bonus clearing the session limit read as one pattern', () => {
       expect(names(feedsFrom(synthetic, T0))).toEqual({
-        juniper_tide: { what: 'Reset session limit', source: 'weekly' },
-        cedar_ember: { what: 'Reset session limit', source: 'bonus' },
+        juniper_tide: { what: 'Reset session limit', source: 'weekly allowance' },
+        cedar_ember: { what: 'Reset session limit', source: 'bonus grant' },
       });
     });
 
@@ -330,12 +330,12 @@ describe('offers and claimability', () => {
       ['a bonus clearing both', ['five_hour', 'seven_day'], 'Reset session and weekly limits'],
       ['a bonus naming nothing', [], 'Reset limit'],
     ] as const)('%s', (_label, clears, what) => {
-      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toEqual({ what, source: 'bonus' });
+      expect(names(withGrants([{ ...grant, clears: [...clears] }])).cedar_ember).toEqual({ what, source: 'bonus grant' });
     });
 
     test('with no usable grant the name still says what the grants clear, or that nothing is named', () => {
-      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toEqual({ what: 'Reset session limit', source: 'bonus' });
-      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toEqual({ what: 'Reset limit', source: 'bonus' });
+      expect(names(withGrants([{ ...grant, resetsLeft: 0 }])).cedar_ember).toEqual({ what: 'Reset session limit', source: 'bonus grant' });
+      expect(names(feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0)).cedar_ember).toEqual({ what: 'Reset limit', source: 'bonus grant' });
     });
 
     test('the overview and the card name a claimable reset identically, and the overview groups them by account', () => {
@@ -456,16 +456,52 @@ describe('headroom and next reset', () => {
       [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
     };
     const d = deriveDeck(snapshot({ feeds }), T0);
-    expect(d.overview.headroom.session).toEqual({ value: 1.72, of: 3, unknown: 0 });
-    expect(d.overview.headroom.weekly).toEqual({ value: 2.12, of: 3, unknown: 0 });
+    const account2 = { account: ACC2, email: 'account2@example.com', left: 0.99 };
+    expect(d.overview.headroom.session).toEqual({ value: 1.72, of: 3, unknown: 0, percent: 57, most: account2 });
+    expect(d.overview.headroom.weekly).toEqual({ value: 2.12, of: 3, unknown: 0, percent: 71, most: account2 });
     expect(d.overview.nextReset).toMatchObject({ account: ACC3, label: 'Session', at: at('2026-11-04T14:20:00.412Z') });
   });
 
   test('an account with no limits data counts as unknown, not as 0 or 100', () => {
     const noHeaders = cpaAccounts().map((a): CpaAccount => (a.id === ACC2 ? { ...a, headers: null } : a));
     const d = deriveDeck(snapshot({ accounts: noHeaders }), T0);
-    expect(d.overview.headroom.weekly.unknown).toBe(1);
-    expect(d.overview.headroom.weekly.of).toBe(3);
+    const weekly = d.overview.headroom.weekly;
+    expect(weekly.unknown).toBe(1);
+    expect(weekly.of).toBe(3);
+    expect(weekly.most).toEqual({ account: ACC1, email: 'account1@example.com', left: 0.73 });
+    expect(weekly.percent).toBe(57);
+  });
+
+  test('with no account read yet, no share and no account with the most room', () => {
+    const blind = cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null }));
+    expect(deriveDeck(snapshot({ accounts: blind }), T0).overview.headroom.session).toEqual({ value: 0, of: 3, unknown: 3, percent: null, most: null });
+  });
+});
+
+describe('the accounts table columns', () => {
+  const columns = (feeds: Record<string, AccountFeeds>, accounts = cpaAccounts()) => deriveDeck(snapshot({ accounts, feeds }), T0).limitColumns;
+
+  test('every window any account reports is one column, session first, then weekly, then the scoped weeklies', () => {
+    const feeds = {
+      [ACC1]: feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0),
+      [ACC2]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0),
+      [ACC3]: feedsFrom(usage('anthropic-usage-3.json', 'normal'), T0),
+    };
+    const keys = columns(feeds).map((c) => c.key);
+    expect(keys.slice(0, 2)).toEqual(['session', 'weekly_all']);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const a of deriveDeck(snapshot({ feeds }), T0).accounts) for (const l of a.limits) expect(keys).toContain(l.key);
+  });
+
+  test('a scoped window only one account reports still gets its column, labelled as the card labels it', () => {
+    const f = feedsFrom(usage('anthropic-usage-2.json', 'normal'), T0);
+    const opus: Limit = { kind: 'weekly_scoped', scopeModel: 'Opus', percent: 40 as never, severity: 'normal', resetsAt: plus(T0, 60 * MIN), isActive: false };
+    const withOpus = { ...f, limits: { ...f.limits, last: { value: [...f.limits.last!.value, opus], at: T0 } } };
+    expect(columns({ [ACC1]: withOpus, [ACC2]: f })).toContainEqual({ key: 'weekly_scoped:Opus', label: 'Weekly · Opus' });
+  });
+
+  test('no account read yet and no traffic: no columns', () => {
+    expect(columns({}, cpaAccounts().map((a): CpaAccount => ({ ...a, headers: null })))).toEqual([]);
   });
 });
 
@@ -526,7 +562,43 @@ describe('why an account is in trouble', () => {
   const END = at('2026-11-04T14:20:17.000Z');
 
   test('a blocked account says the plain cause, what is cooling down, and until when', () => {
-    expect(trouble((a) => a)).toEqual({ cause: 'Monthly spend limit hit', holds: [{ what: 'account and 3 models cooling down', until: END }] });
+    expect(trouble((a) => a)).toMatchObject({ cause: 'Monthly spend limit hit', holds: [{ what: 'account and 3 models cooling down', until: END }] });
+  });
+
+  describe('the window that holds it', () => {
+    const atWall = { [ACC3]: feedsFrom(usage('anthropic-usage-at-wall-3.json', 'wall'), T0) };
+    const held = (change: (a: CpaAccount) => CpaAccount, feeds: Record<string, AccountFeeds> = atWall) =>
+      deriveDeck(snapshot({ accounts: cpaAccounts().map((a) => (a.id === ACC3 ? change(a) : a)), feeds }), T0).accounts.find((a) => a.id === ACC3)!;
+
+    test('a spend-cap message on an account with its session used up names the session window, and keeps the message as the cause', () => {
+      const a = held((x) => x);
+      expect(a.limits.find((l) => l.key === 'session')?.percent).toBe(100 as never);
+      expect(a.trouble).toMatchObject({ cause: 'Monthly spend limit hit', limit: { label: 'Session' } });
+    });
+
+    test('a quota cooldown with no message names the full window too', () => {
+      expect(held((x) => ({ ...x, statusMessage: null, cooldowns: [credential('credential_quota', END)] })).trouble?.limit?.label).toBe('Session');
+    });
+
+    test('a cooldown ending 17 s after the session resets is lifted by that reset', () => {
+      expect(held((x) => x).trouble?.limit).toEqual({ label: 'Session', lifts: true });
+    });
+
+    test('a cooldown outlasting the reset by half an hour is not lifted by it', () => {
+      const later = plus(END, 30 * MIN);
+      const unblock = (x: CpaAccount): CpaAccount => ({ ...x, cooldowns: [credential('credential_quota', later)], nextRetryAfter: later });
+      expect(held(unblock).trouble?.limit).toEqual({ label: 'Session', lifts: false });
+    });
+
+    test('a rejected token is not about quota, so a full window does not take the blame', () => {
+      const t = held((x) => ({ ...x, statusMessage: null, cooldowns: [credential('unauthorized', END)] })).trouble;
+      expect(t).toMatchObject({ cause: 'Token rejected', limit: null });
+    });
+
+    test('with no window at its limit nothing is named', () => {
+      const roomy = { [ACC3]: feedsFrom(usage('anthropic-usage-1.json', 'normal'), T0) };
+      expect(held((x) => ({ ...x, headers: null }), roomy).trouble).toMatchObject({ cause: 'Monthly spend limit hit', limit: null });
+    });
   });
 
   test('accounts with nothing wrong have no trouble', () => {
@@ -552,7 +624,7 @@ describe('why an account is in trouble', () => {
 
   test('one model cooling down on an account that still routes is named, and the account is not called blocked', () => {
     const t = trouble((a) => ({ ...a, statusMessage: null, unavailable: false, nextRetryAfter: null, cooldowns: [model('claude-opus-5-5', 'quota', END)] }));
-    expect(t).toEqual({ cause: 'Quota used up', holds: [{ what: 'opus-5-5 cooling down', until: END }] });
+    expect(t).toMatchObject({ cause: 'Quota used up', holds: [{ what: 'opus-5-5 cooling down', until: END }] });
   });
 
   test('model cooldowns that outlast the account get their own time', () => {
@@ -575,7 +647,7 @@ describe('why an account is in trouble', () => {
   });
 
   test('once the cooldown has ended only CPA\'s last error is left, with no holds', () => {
-    expect(trouble((a) => a, ACC3, AFTER_COOLDOWN)).toEqual({ cause: 'Monthly spend limit hit', holds: [] });
+    expect(trouble((a) => a, ACC3, AFTER_COOLDOWN)).toMatchObject({ cause: 'Monthly spend limit hit', holds: [] });
   });
 });
 

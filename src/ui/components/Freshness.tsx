@@ -80,7 +80,7 @@ const PROBLEMS = ['failing', 'stale', 'aging'] as const;
 
 export function ModeLine(props: { readonly account: AccountView }) {
   const now = useNow();
-  const { atWall, read, freshness } = props.account;
+  const { atWall, read, freshness, routing } = props.account;
   const limitsFailing = freshness.some((f) => f.feed === 'limits' && f.state === 'failing');
 
   const clauses: ReactNode[] = [read.lastAt === null ? 'not read yet' : `read ${age(now - read.lastAt)} ago`];
@@ -103,8 +103,8 @@ export function ModeLine(props: { readonly account: AccountView }) {
   const cadence = atWall ? 'At limit: limits and claimable resets are read every 3 min' : 'Normal: usage is read every 5 min';
   return (
     <div className="mode num" data-testid="freshness" title={[cadence, ...freshness.map((f) => feedDetail(f, now))].join('\n')}>
-      {atWall && <span className="badge warning">At limit</span>}{' '}
-      <div className="mode-text muted">
+      {atWall && routing.role.kind !== 'blocked' && <span className="badge warning">At limit</span>}
+      <div className="mode-text">
         <Segments parts={clauses} />
       </div>
     </div>

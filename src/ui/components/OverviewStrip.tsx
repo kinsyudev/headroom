@@ -1,156 +1,139 @@
-import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
+import type { AccountId } from '../../shared/domain';
 import type { DeckView, Headroom } from '../../shared/view';
-import { resetNameText } from '../format';
-import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
-import { Meter } from './LimitRow';
+import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
 
-export function OverviewStrip(props: {
-  readonly deck: DeckView;
-  readonly colors: ReadonlyMap<AccountId, string>;
-  readonly onClaim: (account: AccountId, program: ProgramId, grant: GrantId | null) => void;
-}) {
+const ROOM_HELP =
+  "Room left across the enabled accounts, as a share of what they hold when every window is fresh. Session room is capped by each account's weekly room, since a session cannot use more than the week has left.";
+
+export function OverviewStrip(props: { readonly deck: DeckView; readonly colors: ReadonlyMap<AccountId, string> }) {
   const o = props.deck.overview;
   const swatch = (id: AccountId) => <span className="swatch small" style={{ background: props.colors.get(id) }} aria-hidden />;
   const [lead, ...alsoServing] = o.serving;
   const nextSession = !o.target ? (
     <span className="badge critical">No account can take traffic</span>
   ) : lead?.takesNext ? (
-    'also takes the next new session'
+    'takes the next new session'
   ) : (
-    <>next new session → {swatch(o.target.account)} {o.target.email}</>
+    <>
+      next new session on {swatch(o.target.account)} {o.target.email}
+    </>
   );
+  const claimAccounts = o.claimable;
   return (
-    <section className="overview" aria-label="Overview" data-testid="overview">
-      <div className="overview-col">
-        <div
-          className="tile serving"
-          data-testid="tile-serving"
-          title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
-        >
-          <h2>Serving now</h2>
-          {lead ? (
-            <p className="hero hero-id" title={lead.email}>
-              {swatch(lead.account)}
-              <span className="hero-text">{lead.email}</span>
-            </p>
-          ) : (
-            <p className="hero muted">Idle</p>
-          )}
-          <p className="tile-sub">
-            <Segments
-              parts={[
-                lead ? (
-                  <>
-                    last request <Age at={lead.lastAt} /> ago
-                  </>
-                ) : (
-                  'nothing answered in the last 2 min'
-                ),
-                nextSession,
-              ]}
-            />
+    <section className="summary" aria-label="Overview" data-testid="overview">
+      <div
+        className="stat serving"
+        data-testid="tile-serving"
+        title={`Evidence: ${o.servingEvidence === 'keeper' ? 'the request log behind History' : 'CPA response headers (the request log is unavailable)'}`}
+      >
+        <h2>Serving now</h2>
+        {lead ? (
+          <p className="hero hero-id" title={lead.email}>
+            {swatch(lead.account)}
+            <span className="hero-text">{lead.email}</span>
           </p>
-          {alsoServing.length > 0 && (
-            <p className="tile-sub muted clip">
-              also serving{' '}
-              {alsoServing.map((s, i) => (
-                <span key={s.account}>
-                  {i > 0 && ', '}
-                  {swatch(s.account)} {s.email}
-                </span>
-              ))}
-            </p>
-          )}
-        </div>
-
-        <div className="tile" data-testid="tile-next-reset">
-          <h2>Next reset</h2>
-          {o.nextReset ? (
-            <>
-              <p className="hero num">
-                <Countdown at={o.nextReset.at} />
-              </p>
-              <p className="tile-sub">
-                <Segments
-                  parts={[
-                    <>
-                      {swatch(o.nextReset.account)} {o.nextReset.email}
-                    </>,
-                    <>
-                      {o.nextReset.label} at <Clock at={o.nextReset.at} />
-                    </>,
-                    o.nextReset.unblocks && 'unblocks then',
-                  ]}
-                />
-              </p>
-            </>
-          ) : (
-            <p className="tile-main muted">No window with a known reset</p>
-          )}
-          {o.nextUnblock && (
-            <p className="tile-foot">
-              {swatch(o.nextUnblock.account)} {o.nextUnblock.email} unblocks at <Clock at={o.nextUnblock.at} />{' '}
-              <span className="muted">
-                (<Countdown at={o.nextUnblock.at} />)
-              </span>
-            </p>
-          )}
-        </div>
+        ) : (
+          <p className="hero muted">Idle</p>
+        )}
+        <p className="stat-sub">
+          <Segments
+            parts={[
+              lead ? (
+                <>
+                  last request <Age at={lead.lastAt} /> ago
+                </>
+              ) : (
+                'nothing answered in the last 2 min'
+              ),
+              nextSession,
+              alsoServing.length > 0 && <>also {alsoServing.map((s) => s.email).join(', ')}</>,
+            ]}
+          />
+        </p>
       </div>
-      <div className="overview-col">
-        <div className="tile claims" data-testid="tile-claimable">
-          <h2>Claimable resets</h2>
-          <p className="hero num">{o.claimableCount}</p>
-          {o.claimable.length === 0 ? (
-            <p className="tile-sub muted">None right now. The weekly reset is checked when an account hits its limit.</p>
-          ) : (
-            o.claimable.map((g) => (
-              <div key={g.account} className="claim-group">
-                <h3 className="claim-account clip">
-                  {swatch(g.account)} {g.email}
-                </h3>
-                <ul className="claimable">
-                  {g.resets.map((r) => (
-                    <li key={r.program}>
-                      <span className="claim-name">
-                        <Segments parts={[r.name.what, r.name.source, r.detail && <span className="muted">{r.detail}</span>]} />
-                      </span>
-                      <ClaimButton name={resetNameText(r.name)} email={g.email} testId={`overview-claim-${r.program}`} onClick={() => props.onClaim(g.account, r.program, r.grant)} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
-        </div>
 
-        <div
-          className="tile rooms"
-          data-testid="tile-headroom"
-          role="group"
-          aria-label="Headroom"
-          title="Room left, counted in whole accounts. Each enabled account counts as 1.00 when all of its room is left. Session room is capped by each account's weekly room."
-        >
-          <Room label="Session room" h={o.headroom.session} />
-          <Room label="Weekly room" h={o.headroom.weekly} />
-        </div>
+      <div className="stat" data-testid="tile-next-reset">
+        <h2>Next reset</h2>
+        {o.nextReset ? (
+          <>
+            <p className="hero num">
+              <Countdown at={o.nextReset.at} />
+            </p>
+            <p className="stat-sub">
+              <Segments
+                parts={[
+                  <>
+                    {swatch(o.nextReset.account)} {o.nextReset.email}
+                  </>,
+                  <>
+                    {o.nextReset.label.toLowerCase()} resets <Clock at={o.nextReset.at} />
+                  </>,
+                  o.nextReset.unblocks && 'unblocks then',
+                  o.nextUnblock && (
+                    <>
+                      {o.nextUnblock.email} unblocks at <Clock at={o.nextUnblock.at} />
+                    </>
+                  ),
+                ]}
+              />
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="hero muted">—</p>
+            <p className="stat-sub">No window with a known reset</p>
+          </>
+        )}
+      </div>
+
+      <div className={o.claimableCount > 0 ? 'stat claims has-claims' : 'stat claims'} data-testid="tile-claimable">
+        <h2>Claimable resets</h2>
+        <p className="hero num">{o.claimableCount}</p>
+        <p className="stat-sub">
+          {claimAccounts.length === 0 ? (
+            'None now. Offered when an account hits its limit.'
+          ) : (
+            <Segments
+              parts={claimAccounts.map((g) => (
+                <a className="jump" href={`#${resetsAnchor(g.account)}`}>
+                  {swatch(g.account)} {g.resets.length === 1 ? 'Review' : `Review ${g.resets.length}`} on {g.email} ↓
+                </a>
+              ))}
+            />
+          )}
+        </p>
+      </div>
+
+      <div className="stat rooms" data-testid="tile-headroom" title={ROOM_HELP}>
+        <h2>Room left</h2>
+        <p className="hero room-pair num">
+          <Room label="session" h={o.headroom.session} /> <Room label="weekly" h={o.headroom.weekly} />
+        </p>{' '}
+        <p className="stat-sub">
+          <Segments
+            parts={[
+              `of ${o.headroom.session.of} ${o.headroom.session.of === 1 ? 'account' : 'accounts'}`,
+              o.headroom.session.unknown > 0 && <span className="muted">{o.headroom.session.unknown} not read yet</span>,
+              o.headroom.session.most && o.headroom.session.of > 1 && (
+                <>
+                  most on {swatch(o.headroom.session.most.account)} {o.headroom.session.most.email}
+                </>
+              ),
+            ]}
+          />
+        </p>
       </div>
     </section>
   );
 }
 
 function Room(props: { readonly label: string; readonly h: Headroom }) {
-  const { value, of, unknown } = props.h;
   return (
-    <div className="room">
-      <h2>{props.label}</h2>
-      <p className="hero num">{value.toFixed(2)}</p>{' '}
-      <p className="tile-sub">
-        <Segments parts={[`of ${of} ${of === 1 ? 'account' : 'accounts'}`, unknown > 0 && <span className="muted">{unknown} unknown</span>]} />
-      </p>
-      <Meter percent={of > unknown ? (value / of) * 100 : null} severity="normal" label={props.label} />
-    </div>
+    <span className="room">
+      {props.h.percent === null ? '—' : `${props.h.percent}%`}
+      <span className="room-label"> {props.label}</span>
+    </span>
   );
 }

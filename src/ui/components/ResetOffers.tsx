@@ -5,31 +5,36 @@ import { ClaimButton } from './ClaimButton';
 import { Age, Clock, Countdown } from './Countdown';
 import { Segments } from './Segments';
 
+export const resetsAnchor = (account: string) => `resets-${account}`;
+
 export function ResetOffers(props: { readonly account: AccountView; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
-  const rows = props.account.offers.map((o) => (
-    <OfferRow key={o.program} email={props.account.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
-  ));
-  const quiet = props.account.quietOffers;
-  if (quiet !== null) {
-    return (
-      <details className="offers-quiet" aria-label="Claude resets">
-        <summary>
-          <span className="offers-title">Claude resets</span>
-          {quiet.map((phrase) => (
-            <span key={phrase} className="offers-phrase">
-              {phrase}
-            </span>
-          ))}
-        </summary>
-        <div className="offers-rows">{rows}</div>
-      </details>
-    );
-  }
+  const a = props.account;
+  const claimable = a.offers.some((o) => o.state.kind === 'claimable');
   return (
-    <section className="offers" aria-label="Claude resets">
-      <h4>Claude resets</h4>
-      {rows}
+    <section className={claimable ? 'offers claimable' : 'offers'} aria-label="Claude resets" id={resetsAnchor(a.id)} tabIndex={-1}>
+      <h4 style={{ gridRow: `span ${a.offers.length}` }}>Claude resets</h4>
+      <div className="offer-rows">
+        {a.offers.map((o) => (
+          <OfferRow key={o.program} email={a.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
+        ))}
+      </div>
     </section>
+  );
+}
+
+export function QuietOffers(props: { readonly account: AccountView }) {
+  const [summary, ...why] = props.account.quietOffers ?? [];
+  return (
+    <details className="offers-quiet">
+      <summary title={why.join(' · ')}>Resets: {summary}</summary>
+      <div className="offers-pop" aria-label="Claude resets">
+        <div className="offer-rows">
+          {props.account.offers.map((o) => (
+            <OfferRow key={o.program} email={props.account.email} offer={o} onClaim={() => undefined} />
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -39,7 +44,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <span className="offer-label" title={o.program}>
-        <Segments parts={[o.name.what, o.name.source]} />
+        <strong>{o.name.what}</strong> <span className="offer-source">{o.name.source}</span>
       </span>
       <div className="offer-state">
         <OfferState offer={o} />
@@ -70,7 +75,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
           </ul>
         )}
       </div>
-      {o.state.kind === 'claimable' && <ClaimButton name={resetNameText(o.name)} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />}
+      {o.state.kind === 'claimable' ? <ClaimButton name={resetNameText(o.name)} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} /> : <span />}
     </div>
   );
 }

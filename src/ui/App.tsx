@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../shared/domain';
 import { RefreshContext, useSnapshotPoll, type Connection } from './api';
-import { AccountCard } from './components/AccountCard';
+import { Accounts } from './components/Accounts';
 import { Banners } from './components/Banners';
 import { ClaimDialog } from './components/ClaimDialog';
 import { Header } from './components/Header';
@@ -32,13 +32,8 @@ export function App() {
         <div className={deck.cpa.kind === 'down' ? 'page cpa-down' : 'page'}>
           <Header deck={deck} connection={connection} />
           <Banners banners={deck.banners} connection={connection} />
-          <OverviewStrip deck={deck} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
-          <section className="cards" aria-label="Accounts">
-            {deck.accounts.length === 0 && <p className="muted">No Claude accounts in CPA yet.</p>}
-            {deck.accounts.map((a) => (
-              <AccountCard key={a.id} account={a} color={colors.get(a.id)!} onClaim={(program, grant) => setClaim({ account: a.id, program, grant })} />
-            ))}
-          </section>
+          <OverviewStrip deck={deck} colors={colors} />
+          <Accounts accounts={deck.accounts} columns={deck.limitColumns} colors={colors} onClaim={(account, program, grant) => setClaim({ account, program, grant })} />
           <HistoryPanel accounts={deck.accounts.map((a) => ({ id: a.id, email: a.email, color: colors.get(a.id)! }))} />
         </div>
         {claim && claimAccount && <ClaimDialog account={claimAccount} program={claim.program} grant={claim.grant} onClose={() => setClaim(null)} />}

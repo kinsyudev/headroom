@@ -68,7 +68,7 @@ try {
   assert((await text(page.getByTestId('tile-serving'))).includes('account1@example.com'), 'overview names account1 as serving');
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
-  assert(/\d\.\d\d of 3/.test(await text(page.getByTestId('tile-headroom'))), 'headroom in accounts worth');
+  assert(/\d+% session \d+% weekly of 3 accounts/.test(await text(page.getByTestId('tile-headroom'))), 'room left as a share of the 3 accounts');
   const pct = async (email: string, key: string) => text(card(email).getByTestId(`limit-${key}`).getByTestId('percent'));
   assert((await pct('account1@example.com', 'session')) === '12%', 'account1 session 12% from the poll');
   assert((await pct('account1@example.com', 'weekly_all')) === '27%', 'account1 weekly 27%');
