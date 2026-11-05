@@ -61,7 +61,7 @@ body::before {
   pointer-events: none;
   z-index: -1;
 }
-/* The ceiling: one hairline across the top of the page, the same line the wordmark, the active tab and every panel draw. */
+/* The ceiling: one hairline across the top of the page, the same line the wordmark, the active tab and every panel title draw. */
 body::after {
   content: '';
   position: fixed;
@@ -208,6 +208,22 @@ code {
   height: 2px;
   border-radius: 1px;
   background: currentColor;
+}
+/* The line over "room" again, short, above each panel's title. */
+:is(.stat, .panel-head, .card-title, .modal) h2,
+.toolbar-title {
+  position: relative;
+}
+:is(.stat, .panel-head, .card-title, .modal) h2::before,
+.toolbar-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -0.2em;
+  width: 20px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand);
 }
 .views {
   display: flex;
@@ -2386,18 +2402,4 @@ button.bar-body {
   .kpi:first-child {
     border-top: 0;
   }
-}
-
-/* The ceiling on every panel: the page's top hairline again, inside each frame's top edge. */
-:is(.summary, .panel, .card, .toolbar)::after {
-  content: '';
-  position: absolute;
-  inset: 0 28px auto;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ice-4) 22%, var(--ice-5) 50%, var(--ice-4) 78%, transparent);
-  opacity: 0.6;
-  pointer-events: none;
-}
-:is(.summary, .panel, .card) {
-  position: relative;
 }
