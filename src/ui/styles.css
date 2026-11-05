@@ -1272,6 +1272,15 @@ table.errors td.message {
   color: var(--accent);
 }
 
+@media (min-width: 1251px) {
+  .spend:has(.meter) > .cell-note {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+    white-space: normal;
+    text-wrap: balance;
+  }
+}
 
 @media (max-width: 1250px) {
   .ledger-head {

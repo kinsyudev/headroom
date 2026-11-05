@@ -13,6 +13,7 @@ import {
   type Instant,
   type JuniperTide,
   type Limit,
+  type Money,
   type Percent,
   type PercentLeft,
   type Profile,
@@ -43,6 +44,7 @@ import type {
   RoutingView,
   ServeLine,
   ServeOrderView,
+  SpendState,
   SpendView,
   StatusView,
   TroubleView,
@@ -507,8 +509,16 @@ function pollView({ enabled, percent, ...rest }: Spend, at: Instant, liveCritica
   const { used, limit } = rest;
   const left = percentLeftOrNull(percent);
   const remaining = limit && { ...limit, minor: Math.max(0, limit.minor - used.minor) };
-  const tone = meterTone(liveCritical ? 'critical' : rest.severity, left);
-  return { ...rest, state: !enabled ? 'off' : limit?.minor === 0 ? 'no_budget' : 'budget', left, tone, remaining, at };
+  const state = spendState(enabled, used, limit);
+  const tone = meterTone(liveCritical || state === 'cap_used' ? 'critical' : rest.severity, left);
+  return { ...rest, state, left, tone, remaining, at };
+}
+
+function spendState(enabled: boolean, used: Money, limit: Money | null): SpendState {
+  if (!enabled) return 'off';
+  if (limit === null) return 'budget';
+  if (limit.minor === 0) return 'no_budget';
+  return used.minor >= limit.minor ? 'cap_used' : 'budget';
 }
 
 export function derivePlan(profile: Source<Profile>): PlanView | null {

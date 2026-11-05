@@ -882,10 +882,10 @@ describe('card status line', () => {
   describe('what extra usage means for the account', () => {
     const stateOf = (name: string) => deriveSpend(feedsFrom(usage(name, 'normal'), T0).spend, null)?.poll?.state;
 
-    test('off, a zero cap and a cap with room are three different states', () => {
+    test('off, a zero cap and a used-up cap are three different states', () => {
       expect(stateOf('anthropic-usage-1.json')).toBe('off');
       expect(stateOf('anthropic-usage-2.json')).toBe('no_budget');
-      expect(stateOf('anthropic-usage-3.json')).toBe('budget');
+      expect(stateOf('anthropic-usage-3.json')).toBe('cap_used');
     });
 
     test('a cap spent to its limit or past it is used up, and a cap with room is still a budget', () => {
@@ -920,7 +920,8 @@ describe('card status line', () => {
       const read = usage('anthropic-usage-3.json', 'normal');
       if (read.mode !== 'normal') throw new Error('fixture is a normal read');
       const toneAt = (percent: number, headers: CpaAccount['headers'] = null) => {
-        const spend = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, percent: percent as never, severity: 'normal' as const }, at: T0 } };
+        const used = { ...read.spend!.used, minor: percent * 100 };
+        const spend = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, used, percent: percent as never, severity: 'normal' as const }, at: T0 } };
         return deriveSpend(spend, headers)?.poll?.tone;
       };
       expect(toneAt(12)).toBe('ample');

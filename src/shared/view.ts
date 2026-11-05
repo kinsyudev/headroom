@@ -196,8 +196,8 @@ export interface LimitView {
   readonly other: { readonly kind: 'poll' | 'headers'; readonly left: PercentLeft; readonly at: Instant } | null;
 }
 
-/** off: extra usage is disabled. no_budget: enabled with a cap of zero. budget: a cap above zero, or none set. */
-export type SpendState = 'off' | 'no_budget' | 'budget';
+/** off: extra usage is disabled. no_budget: enabled with a cap of zero. cap_used: a cap above zero spent to its limit or past it. budget: a cap with room, or none set. */
+export type SpendState = 'off' | 'no_budget' | 'cap_used' | 'budget';
 
 export interface SpendView {
   readonly poll: {

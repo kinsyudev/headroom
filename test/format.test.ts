@@ -1,7 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { INELIGIBLE_EXPLAIN } from '../src/shared/derive';
 import type { ClaimId, ClaimRecord, Instant } from '../src/shared/domain';
-import { claimText, reasonText, reasonTitle } from '../src/ui/format';
+import { claimText, money, reasonText, reasonTitle } from '../src/ui/format';
+
+describe('amounts', () => {
+  test('a whole amount drops its cents and any other amount keeps them', () => {
+    const usd = (minor: number) => ({ minor, currency: 'USD', exponent: 2 });
+    expect(money(usd(10_000))).toBe('$100');
+    expect(money(usd(10_062))).toBe('$100.62');
+    expect(money(usd(8_766))).toBe('$87.66');
+    expect(money(usd(0))).toBe('$0');
+  });
+});
 
 describe('raw codes in plain words', () => {
   test.each([

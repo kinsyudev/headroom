@@ -65,8 +65,10 @@ interface SpendFace {
   readonly says: string;
 }
 
+const resetsText = (o: Overage | null, now: number) => (o?.resetsAt && o.resetsAt > now ? `resets ${clockTime(o.resetsAt, now)}` : null);
+
 function liveFace(o: Overage, now: number): SpendFace | null {
-  const resets = o.resetsAt !== null && o.resetsAt > now ? `resets ${clockTime(o.resetsAt, now)}` : null;
+  const resets = resetsText(o, now);
   const why = o.reason ? reasonText(o.reason) : null;
   if (o.status === 'rejected') return { value: 'Cap reached', note: resets, tone: 'critical', says: [why ?? 'spend cap reached', 'extra-usage requests are rejected', resets].filter(Boolean).join('; ') };
   if (o.status === 'allowed_warning') return { value: 'Near cap', note: o.left === null ? resets : `${percent(o.left)} left`, tone: 'warning', says: 'near the spend cap; extra usage still allowed' };
@@ -78,6 +80,10 @@ function spendFace(s: SpendView, atWall: boolean, now: number): SpendFace {
   const live = s.live !== null && s.live.severity !== 'normal' ? liveFace(s.live, now) : null;
   if (p?.state === 'off') return { value: 'Off', note: p.disabledReason ? reasonText(p.disabledReason) : null, tone: 'quiet', says: 'off; requests stop at the plan limits' };
   if (p?.state === 'no_budget') return { value: 'Off', note: null, tone: 'quiet', says: 'off, with a zero budget set; requests stop at the plan limits' };
+  if (p?.state === 'cap_used') {
+    const says = ['the monthly extra-usage cap is used up, so extra-usage requests are rejected until it resets', resetsText(s.live, now)];
+    return { value: 'Cap used', note: p.limit && `${money(p.used)} of ${money(p.limit)}`, tone: 'critical', says: says.filter(Boolean).join('; ') };
+  }
   if (p?.state === 'budget') {
     const note = p.limit && p.remaining ? `${money(p.remaining)} of ${money(p.limit)} left` : `${money(p.used)} spent`;
     return { value: percent(p.left), note, tone: 'metered', says: live?.says ?? (p.limit ? 'room left under the cap' : 'on, with no cap set') };
@@ -120,7 +126,7 @@ export function SpendCell(props: { readonly spend: SpendView | null; readonly at
         {face.value}
       </span>
       {face.note && <span className="cell-note num">{face.note}</span>}
-      {p?.state === 'budget' && <Meter left={p.left} tone={p.tone} label="Extra usage left" />}
+      {(p?.state === 'budget' || p?.state === 'cap_used') && <Meter left={p.left} tone={p.tone} label="Extra usage left" />}
     </div>
   );
 }

@@ -69,8 +69,10 @@ export function compact(n: number): string {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
+/** A whole amount drops its cents, so a cap and what is left of it fit the narrow Extra usage column. */
 export function money(m: Money): string {
-  return new Intl.NumberFormat('en', { style: 'currency', currency: m.currency }).format(m.minor / 10 ** m.exponent);
+  const whole = m.minor % 10 ** m.exponent === 0;
+  return new Intl.NumberFormat('en', { style: 'currency', currency: m.currency, minimumFractionDigits: whole ? 0 : undefined }).format(m.minor / 10 ** m.exponent);
 }
 
 export function sourceError(e: SourceError): string {
