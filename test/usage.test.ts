@@ -296,9 +296,13 @@ describe('errors', () => {
 });
 
 describe('pace joins the quota window with what it has cost', () => {
-  const session = (used: number, resetsInMs: number): Limit => ({ kind: 'session', percent: used as Percent, severity: 'normal', resetsAt: (NOW + resetsInMs) as Instant, scopeModel: null, isActive: true });
-  const withLimits = (id: AccountId, limits: readonly Limit[]): AccountView[] =>
-    accounts.map((a) => (a.id === id ? { ...a, limits: mergeLimits({ value: limits, at: NOW }, null, NOW) } : { ...a, limits: [] }));
+  const DAY = 24 * HOUR;
+  const window = (kind: string, used: number, resetsInMs: number, scopeModel: string | null = null): Limit => ({ kind, percent: used as Percent, severity: 'normal', resetsAt: (NOW + resetsInMs) as Instant, scopeModel, isActive: true });
+  const session = (used: number, resetsInMs: number): Limit => window('session', used, resetsInMs);
+  const withDeck = (limits: Readonly<Record<AccountId, readonly Limit[]>>): AccountView[] =>
+    accounts.map((a) => ({ ...a, limits: a.id in limits ? mergeLimits({ value: limits[a.id]!, at: NOW }, null, NOW) : [] }));
+  const withLimits = (id: AccountId, limits: readonly Limit[]): AccountView[] => withDeck({ [id]: limits } as Record<AccountId, readonly Limit[]>);
+  const outlooks = (windows: readonly { readonly limit: { readonly key: string }; readonly pace: { readonly outlook: { readonly kind: string } } }[]) => windows.map((w) => [w.limit.key, w.pace.outlook.kind]);
   const cells = [
     cell('2026-11-04T10:00:00Z', ACC1, ok(100)),
     cell('2026-11-04T11:00:00Z', ACC1, tally({ outcomes: { ok: 6 }, output: 900 })),
@@ -309,7 +313,7 @@ describe('pace joins the quota window with what it has cost', () => {
   test('spent counts every model on the account from the hour the window opened; perPercent divides by what is used', () => {
     const v = view(cells, { range: '24h', model: 'claude-opus-5-5' }, {}, withLimits(ACC1, [session(40, 3 * HOUR)]));
     expect(v.pace).toHaveLength(1);
-    const p = v.pace[0]!;
+    const p = v.pace[0]!.steady[0]!;
     expect(p).toMatchObject({ account: ACC1, email: 'account1@example.com', limit: { key: 'session', label: 'Session' } });
     expect(p.pace.startsAt).toBe(at('2026-11-04T11:00:00Z'));
     expect(p.spent.requests).toBe(10);
@@ -317,8 +321,26 @@ describe('pace joins the quota window with what it has cost', () => {
   });
 
   test('under 1% used there is no cost per percent, and an account lens keeps only its own windows', () => {
-    expect(view(cells, { range: '24h' }, {}, withLimits(ACC1, [session(0.5, 3 * HOUR)])).pace[0]!.perPercent).toBeNull();
+    expect(view(cells, { range: '24h' }, {}, withLimits(ACC1, [session(0.5, 3 * HOUR)])).pace[0]!.steady[0]!.perPercent).toBeNull();
     expect(view(cells, { range: '24h', account: ACC3 }, {}, withLimits(ACC1, [session(40, 3 * HOUR)])).pace).toEqual([]);
+  });
+
+  test('a window that runs out or is at its limit keeps a bar, one that lasts folds, and both keep the order the card lists them in', () => {
+    const deck = withDeck({ [ACC1]: [window('weekly_scoped', 90, 6 * DAY, 'Fable'), window('weekly_all', 10, 6 * DAY), session(100, 3 * HOUR)] } as Record<AccountId, readonly Limit[]>);
+    const [one] = view(cells, { range: '24h' }, {}, deck).pace;
+    expect(outlooks(one!.attention)).toEqual([
+      ['session', 'at_limit'],
+      ['weekly_scoped:Fable', 'hits'],
+    ]);
+    expect(outlooks(one!.steady)).toEqual([['weekly_all', 'lasts']]);
+  });
+
+  test('a window too early to project folds with the ones that last, and an account with no open window is left out', () => {
+    const deck = withDeck({ [ACC1]: [window('weekly_all', 10, 6 * DAY)], [ACC2]: [window('weekly_all', 1, 6.95 * DAY)] } as Record<AccountId, readonly Limit[]>);
+    const v = view(cells, { range: '24h' }, {}, deck);
+    expect(v.pace.map((a) => a.account)).toEqual([ACC1, ACC2]);
+    expect(v.pace[1]!.attention).toEqual([]);
+    expect(outlooks(v.pace[1]!.steady)).toEqual([['weekly_all', 'too_early']]);
   });
 });
 

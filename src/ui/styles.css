@@ -95,6 +95,15 @@ code {
 .muted {
   color: var(--muted);
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .nowrap {
   white-space: nowrap;
@@ -1921,21 +1930,100 @@ table.errors td.message {
 
 /* Quota pace. */
 .pace-list {
+  --pace-cols: 150px minmax(170px, 230px) minmax(140px, 1fr) minmax(220px, 320px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pace-account {
+  border-top: 1px solid var(--axis);
+}
+.pace-account:first-child {
+  border-top-color: var(--grid);
+}
+.pace-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .pace-row {
   display: grid;
-  grid-template-columns: 150px minmax(170px, 230px) minmax(140px, 1fr) minmax(220px, 320px);
+  grid-template-columns: var(--pace-cols);
   grid-template-areas: 'who window bar outlook';
   column-gap: 24px;
   align-items: center;
   padding: 11px 0;
+}
+.pace-rows > .pace-row + .pace-row,
+.pace-rows + .pace-fold,
+.pace-fold .pace-row {
   border-top: 1px solid var(--grid);
 }
-.pace-row.first:not(:first-child) {
-  border-top-color: var(--axis);
+.pace-sum {
+  display: grid;
+  grid-template-columns: var(--pace-cols);
+  grid-template-areas: 'who chips chips outlook';
+  column-gap: 24px;
+  align-items: center;
+  margin-inline: -10px;
+  padding: 10px;
+  border-radius: 8px;
+  list-style: none;
+  cursor: pointer;
+}
+.pace-sum::-webkit-details-marker {
+  display: none;
+}
+.pace-sum:hover {
+  background: color-mix(in srgb, var(--ice-4) 7%, transparent);
+}
+.pace-chips {
+  grid-area: chips;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 28px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pace-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+.pace-chip strong {
+  font-size: 14px;
+}
+.pace-sum .pace-outlook {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+}
+.pace-toggle {
+  margin-left: 12px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.pace-sum:hover .pace-toggle {
+  color: var(--ink);
+}
+.pace-fold[open] .when-closed,
+.pace-fold:not([open]) .when-open {
+  display: none;
+}
+.pace-chevron {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 3px 3px 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 120ms;
+}
+.pace-fold[open] .pace-chevron {
+  margin-bottom: -2px;
+  transform: rotate(-135deg);
 }
 .pace-row.targeted {
   margin-inline: -10px;
@@ -2262,14 +2350,23 @@ button.bar-body {
   .kpi:nth-child(3) {
     border-left: 0;
   }
+  .pace-list {
+    --pace-cols: minmax(0, 0.6fr) minmax(0, 1.1fr) minmax(0, 1.5fr);
+  }
   .pace-row {
-    grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.1fr) minmax(0, 1.5fr);
     grid-template-areas:
       'who window outlook'
       'bar bar bar';
     column-gap: 16px;
     row-gap: 10px;
     padding: 9px 0 11px;
+  }
+  .pace-sum {
+    grid-template-areas:
+      'who chips chips'
+      '. outlook outlook';
+    column-gap: 16px;
+    row-gap: 6px;
   }
   .card {
     padding: 14px 16px 16px;

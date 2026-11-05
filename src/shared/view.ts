@@ -375,8 +375,8 @@ export interface AnalyticsView {
   readonly byEffort: readonly Part<Effort>[];
   /** Every account and model pair with traffic in the span, most requests first. */
   readonly byAccountModel: readonly { readonly account: AccountId; readonly model: string; readonly stats: UsageStats }[];
-  /** One row per open quota window per account in the lens. */
-  readonly pace: readonly PaceView[];
+  /** Each account in the lens that has an open quota window, in deck order. */
+  readonly pace: readonly PaceAccountView[];
   /** error_events inside the span that match the lens, newest first. */
   readonly errors: readonly ErrorEventView[];
 }
@@ -485,6 +485,17 @@ export interface PaceView {
   readonly spent: UsageStats;
   /** spent ÷ used: what one percent of this window has cost. Null under 1% used. */
   readonly perPercent: { readonly requests: number; readonly output: number; readonly freshInput: number } | null;
+}
+
+/**
+ * One account's open quota windows, in the order its card lists them, split by what each needs on the page. attention: it runs out before
+ * its reset or is at its limit, so it keeps a bar of its own. steady: it lasts to the reset or is too early to say, so one line can hold it.
+ */
+export interface PaceAccountView {
+  readonly account: AccountId;
+  readonly email: string;
+  readonly attention: readonly PaceView[];
+  readonly steady: readonly PaceView[];
 }
 
 export interface ErrorEventView {

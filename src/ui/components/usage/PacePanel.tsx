@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { AccountId } from '../../../shared/domain';
-import type { MeterTone, PaceView } from '../../../shared/view';
+import type { MeterTone, PaceAccountView, PaceView } from '../../../shared/view';
 import { useNow } from '../../deck';
 import { clockTime, compact, count, duration, PACE_TICK_HELP, shortName } from '../../format';
 import { paceAnchor, useJumpTarget } from '../../route';
@@ -44,26 +44,122 @@ function spentTitle(p: PaceView): string {
   ].join('\n');
 }
 
+/** What the one line for an account's steady windows says: they all last, they are all too early, or some of each. */
+function foldSays(steady: readonly PaceView[]): string {
+  const lasts = steady.filter((p) => p.pace.outlook.kind === 'lasts').length;
+  const early = steady.length - lasts;
+  const only = (n: number, one: string, many: string) => (n === 1 ? one : n === 2 ? `Both ${many}` : `All ${n} ${many}`);
+  if (early === 0) return only(lasts, 'Lasts to the reset', 'last to the reset');
+  if (lasts === 0) return only(early, 'Too early to say', 'too early to say');
+  return `${lasts} ${lasts === 1 ? 'lasts' : 'last'} to the reset, ${early} too early to say`;
+}
+
+function Who(props: { readonly account: PaceAccountView; readonly color: string | undefined }) {
+  return (
+    <>
+      <span className="swatch small" style={{ background: props.color }} aria-hidden />
+      <span className="pace-email" title={props.account.email}>
+        {shortName(props.account.email)}
+      </span>
+    </>
+  );
+}
+
+function PaceRow(props: { readonly p: PaceView; readonly who: ReactNode; readonly target: string | null; readonly now: number }) {
+  const { p, now } = props;
+  const look = LOOKS[p.pace.outlook.kind];
+  const left = Math.max(0, 100 - p.pace.used);
+  const id = paceAnchor(p.account, p.limit.key);
+  return (
+    <li id={id} tabIndex={-1} className={`pace-row ${props.target === id ? 'targeted' : ''}`}>
+      <span className="pace-who">{props.who}</span>
+      <span className="pace-window" title={spentTitle(p)}>
+        <strong>{p.limit.label}</strong>
+        <span className="muted num">
+          {Math.round(left)}% left · {Math.round(p.pace.elapsed)}% of the time gone
+        </span>
+      </span>
+      <span className="pace-bar">
+        <Meter left={left as never} tone={look.tone} label={`${p.limit.label} left on ${p.email}`} steady={100 - p.pace.elapsed} />
+      </span>
+      <span className={`pace-outlook ${look.cls}`}>
+        <span className="pace-icon" aria-hidden>
+          {look.icon}
+        </span>
+        <span>
+          <strong>{look.main(p, now)}</strong>
+          <span className="muted num">{look.sub(p, now)}</span>
+        </span>
+      </span>
+    </li>
+  );
+}
+
+/** The windows that last or are too early, as one line that keeps each one's percent left and reset time, and opens to their bars. */
+function PaceFold(props: { readonly account: PaceAccountView; readonly who: ReactNode; readonly target: string | null; readonly now: number }) {
+  const { account, now } = props;
+  const look = account.steady.some((p) => p.pace.outlook.kind === 'lasts') ? LOOKS.lasts : LOOKS.too_early;
+  const holdsTarget = account.steady.some((p) => paceAnchor(p.account, p.limit.key) === props.target);
+  return (
+    <details className="pace-fold" open={holdsTarget}>
+      <summary className="pace-sum">
+        <span className="pace-who">
+          {props.who ?? <span className="sr-only">{shortName(account.email)}</span>}
+        </span>
+        <span className="pace-chips">
+          {account.steady.map((p) => (
+            <span key={p.limit.key} className="pace-chip" title={spentTitle(p)}>
+              <strong>{p.limit.label}</strong> <span className="num">{Math.round(Math.max(0, 100 - p.pace.used))}% left</span>{' '}
+              <span className="muted num">resets {clockTime(p.pace.endsAt, now)}</span>
+            </span>
+          ))}
+        </span>
+        <span className={`pace-outlook ${look.cls}`}>
+          <span className="pace-icon" aria-hidden>
+            {look.icon}
+          </span>
+          <span>
+            <strong>{foldSays(account.steady)}</strong>
+          </span>
+          <span className="pace-toggle" aria-hidden>
+            <span className="when-closed">Show bars</span>
+            <span className="when-open">Hide bars</span>
+            <span className="pace-chevron" />
+          </span>
+        </span>
+      </summary>
+      <ul className="pace-rows">
+        {account.steady.map((p) => (
+          <PaceRow key={p.limit.key} p={p} who={null} target={props.target} now={now} />
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /**
- * Will each open quota window last until it resets, at the pace so far? A bullet bar per window: the fill is what is left, as on
- * the account cards, and the tick is where it would stand if the window were being used evenly. It reads the quota windows, not
- * the range or the filters, so it leads the view and the Explore bar sits below it.
+ * Will each open quota window last until it resets, at the pace so far? A window that runs out or sits at its limit gets a bullet bar:
+ * the fill is what is left, as on the account cards, and the tick is where it would stand if the window were being used evenly. The
+ * windows that last fold into one line per account, so a healthy account costs one line and the page opens on what needs a look. It
+ * reads the quota windows, not the range or the filters, so it leads the view and the Explore bar sits below it.
  */
-export function PacePanel(props: { readonly pace: readonly PaceView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
+export function PacePanel(props: { readonly pace: readonly PaceAccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
   const now = useNow();
   const target = useJumpTarget();
-  const trouble = props.pace.filter((p) => p.pace.outlook.kind === 'hits' || p.pace.outlook.kind === 'at_limit');
-  const headline = (() => {
-    const hits = props.pace.filter((p) => p.pace.outlook.kind === 'hits');
-    if (hits.length === 0) return trouble.length === 0 ? 'No window is on course to run out before it resets.' : 'Nothing else is on course to run out before it resets.';
-    return hits
-      .map((p) => {
-        const o = p.pace.outlook;
-        return o.kind === 'hits' ? `${shortName(p.email)} ${p.limit.label.toLowerCase()} runs out in ${duration(o.at - now)}, before it resets at ${clockTime(p.pace.endsAt, now)}` : '';
-      })
-      .join(' · ');
-  })();
-  const warn = props.pace.some((p) => p.pace.outlook.kind === 'hits');
+  const attention = props.pace.flatMap((a) => a.attention);
+  const hits = attention.filter((p) => p.pace.outlook.kind === 'hits');
+  const headline =
+    hits.length === 0
+      ? attention.length === 0
+        ? 'No window is on course to run out before it resets.'
+        : 'Nothing else is on course to run out before it resets.'
+      : hits
+          .map((p) => {
+            const o = p.pace.outlook;
+            return o.kind === 'hits' ? `${shortName(p.email)} ${p.limit.label.toLowerCase()} runs out in ${duration(o.at - now)}, before it resets at ${clockTime(p.pace.endsAt, now)}` : '';
+          })
+          .join(' · ');
+  const warn = hits.length > 0;
 
   return (
     <section className="card" aria-label="Quota pace" data-testid="pace">
@@ -80,42 +176,18 @@ export function PacePanel(props: { readonly pace: readonly PaceView[]; readonly 
         <p className="muted">No quota window is running. One opens with the next request.</p>
       ) : (
         <ul className="pace-list">
-          {props.pace.map((p, i) => {
-            const look = LOOKS[p.pace.outlook.kind];
-            const first = i === 0 || props.pace[i - 1]!.account !== p.account;
-            const left = Math.max(0, 100 - p.pace.used);
-            const steady = 100 - p.pace.elapsed;
-            const id = paceAnchor(p.account, p.limit.key);
+          {props.pace.map((a) => {
+            const who = <Who account={a} color={props.colors.get(a.account)} />;
             return (
-              <li key={id} id={id} tabIndex={-1} className={`pace-row ${first ? 'first' : ''} ${target === id ? 'targeted' : ''}`}>
-                <span className="pace-who">
-                  {first && (
-                    <>
-                      <span className="swatch small" style={{ background: props.colors.get(p.account) }} aria-hidden />
-                      <span className="pace-email" title={p.email}>
-                        {shortName(p.email)}
-                      </span>
-                    </>
-                  )}
-                </span>
-                <span className="pace-window" title={spentTitle(p)}>
-                  <strong>{p.limit.label}</strong>
-                  <span className="muted num">
-                    {Math.round(left)}% left · {Math.round(p.pace.elapsed)}% of the time gone
-                  </span>
-                </span>
-                <span className="pace-bar">
-                  <Meter left={left as never} tone={look.tone} label={`${p.limit.label} left on ${p.email}`} steady={steady} />
-                </span>
-                <span className={`pace-outlook ${look.cls}`}>
-                  <span className="pace-icon" aria-hidden>
-                    {look.icon}
-                  </span>
-                  <span>
-                    <strong>{look.main(p, now)}</strong>
-                    <span className="muted num">{look.sub(p, now)}</span>
-                  </span>
-                </span>
+              <li key={a.account} className="pace-account">
+                {a.attention.length > 0 && (
+                  <ul className="pace-rows">
+                    {a.attention.map((p, i) => (
+                      <PaceRow key={p.limit.key} p={p} who={i === 0 ? who : null} target={target} now={now} />
+                    ))}
+                  </ul>
+                )}
+                {a.steady.length > 0 && <PaceFold account={a} who={a.attention.length === 0 ? who : null} target={target} now={now} />}
               </li>
             );
           })}

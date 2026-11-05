@@ -5,6 +5,8 @@ import type {
   AnalyticsView,
   ErrorEventView,
   Grain,
+  PaceAccountView,
+  PaceOutlook,
   PaceView,
   Part,
   Percentiles,
@@ -246,9 +248,11 @@ function weekGrid(rows: readonly (readonly WeekCell[])[]): WeekGrid {
   return { rows, perDay, perHour, peak: empty ? null : { weekday: busiestDay as Weekday, hours: { from: busiestFrom, to: (busiestFrom + 3) % 24 } } };
 }
 
-function derivePace(cube: UsageCube, accounts: readonly AccountView[]): PaceView[] {
-  return accounts.flatMap((a) =>
-    a.limits.flatMap((l): PaceView[] => {
+const NEEDS_BAR: Readonly<Record<PaceOutlook['kind'], boolean>> = { hits: true, at_limit: true, lasts: false, too_early: false };
+
+function derivePace(cube: UsageCube, accounts: readonly AccountView[]): PaceAccountView[] {
+  return accounts.flatMap((a) => {
+    const windows = a.limits.flatMap((l): PaceView[] => {
       if (l.pace === null) return [];
       const from = Math.floor(l.pace.startsAt / HOUR_MS) * HOUR_MS;
       const spent = new Acc();
@@ -265,8 +269,10 @@ function derivePace(cube: UsageCube, accounts: readonly AccountView[]): PaceView
           perPercent: used < 1 ? null : { requests: s.requests / used, output: s.tokens.output / used, freshInput: s.tokens.freshInput / used },
         },
       ];
-    }),
-  );
+    });
+    if (windows.length === 0) return [];
+    return [{ account: a.id, email: a.email, attention: windows.filter((w) => NEEDS_BAR[w.pace.outlook.kind]), steady: windows.filter((w) => !NEEDS_BAR[w.pace.outlook.kind]) }];
+  });
 }
 
 /** Sums Tallies into UsageStats. Histograms merge into dense arrays, allocated only when a tally has bins. */

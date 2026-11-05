@@ -279,6 +279,22 @@ try {
     (await text(page.getByTestId('pace').locator('.pace-key'))).includes('The bar is what is left. The tick is where it would stand if you used the window evenly. A fill that ends left of the tick means you are using it faster than that.'),
     'the pace footnote uses the shared tick wording',
   );
+  const folds = page.getByTestId('pace').locator('.pace-fold');
+  assert((await folds.count()) === 3 && (await folds.evaluateAll((els) => els.every((el) => !(el as HTMLDetailsElement).open))), 'each account whose windows last folds them into one line, closed on open');
+  const foldLine = await text(folds.nth(1).locator('summary'));
+  assert(
+    /^account2\s*Weekly 99% left resets .+Weekly · Fable 100% left resets .+Both last to the reset/.test(foldLine),
+    `a folded line keeps each window's percent left and reset time, and says whether they last: "${foldLine}"`,
+  );
+  const lasting = paceRows.filter({ hasText: 'Lasts to the reset' }).first();
+  assert(!(await lasting.isVisible()), 'a window that lasts keeps its bar out of sight while its line is closed');
+  await folds.first().locator('summary').click();
+  assert(await lasting.isVisible(), "opening a line shows each of its windows' full rows");
+  await folds.first().locator('summary').click();
+  assert(
+    await page.getByTestId('week-strip').locator('.kpis').evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY <= window.innerHeight),
+    'the headline row sits inside the first screen at 1480 × 1000, because a healthy account costs the quota pace one line',
+  );
   assert((await page.locator('[data-testid="week-pattern"] rect.cell').count()) === 7 * 24, 'the weekday-by-hour grid has a cell for each of the 168 slots');
   assert((await text(page.getByTestId('kpi-requests'))).includes('vs the 7 days before'), 'Usage opens on 7 days, and the requests tile compares them with the 7 days before');
   const legend = page.getByTestId('over-time').getByRole('list', { name: 'Legend' });
