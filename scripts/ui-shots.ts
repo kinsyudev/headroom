@@ -53,14 +53,18 @@ async function open(width: number, height: number): Promise<Page> {
 }
 
 async function tiles(page: Page, name: string, what: string): Promise<void> {
+  const viewport = page.viewportSize()!;
+  // A fullPage capture resizes the window mid-shot, and the chart redraws blank on that resize; settle at full height first.
+  await page.setViewportSize({ width: viewport.width, height: await page.evaluate(() => document.documentElement.scrollHeight) });
+  await page.waitForTimeout(600);
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
-  const width = page.viewportSize()!.width;
   const n = Math.min(MAX_TILES, Math.ceil(height / TILE));
   for (let i = 0; i < n; i++) {
     const file = `${name}-${i + 1}.png`;
-    await page.screenshot({ path: join(out, file), fullPage: true, clip: { x: 0, y: i * TILE, width, height: Math.min(TILE, height - i * TILE) } });
+    await page.screenshot({ path: join(out, file), clip: { x: 0, y: i * TILE, width: viewport.width, height: Math.min(TILE, height - i * TILE) } });
     shots.push({ file, what: `${what}, part ${i + 1} of ${n} (page is ${height}px tall)` });
   }
+  await page.setViewportSize(viewport);
 }
 
 async function shot(name: string, what: string, take: (path: string) => Promise<unknown>): Promise<void> {
