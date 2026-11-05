@@ -74,6 +74,7 @@ export function addTotals(a: TokenTotals, b: TokenTotals): TokenTotals {
 export interface HistoryBucket {
   readonly start: Instant;
   readonly end: Instant;
+  readonly partial: boolean;
   readonly byAccount: ReadonlyMap<AccountId, TokenTotals>;
 }
 
@@ -100,7 +101,7 @@ export function foldHistory(rows: readonly HourRow[], range: HistoryRange, now: 
   }
   return {
     bucket: range === '24h' ? 'hour' : 'day',
-    buckets: sums.map((byAccount, i) => ({ start: starts[i] as Instant, end: starts[i + 1] as Instant, byAccount })),
+    buckets: sums.map((byAccount, i) => ({ start: starts[i] as Instant, end: starts[i + 1] as Instant, partial: starts[i + 1]! > now, byAccount })),
   };
 }
 

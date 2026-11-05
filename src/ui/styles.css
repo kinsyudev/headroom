@@ -982,6 +982,9 @@ span.banner-line {
 .panel-head h2 {
   font-size: 15px;
 }
+.panel-head .view {
+  margin-left: auto;
+}
 .legend,
 .legend-items {
   display: flex;
@@ -1017,6 +1020,10 @@ span.banner-line {
 .chart .grid {
   stroke: var(--grid);
   stroke-width: 1;
+}
+.chart .hatch {
+  fill: var(--surface);
+  fill-opacity: 0.55;
 }
 .tick {
   fill: var(--muted);
@@ -1054,6 +1061,11 @@ span.banner-line {
   margin-top: 4px;
   padding-top: 4px;
 }
+.tooltip-title + .tooltip-row.total {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
 .line-key {
   width: 12px;
   height: 2px;
@@ -1077,9 +1089,6 @@ span.banner-line {
   align-items: center;
   justify-content: space-between;
   gap: 6px 12px;
-}
-.table-head .columns {
-  display: none;
 }
 .table-fade {
   position: relative;
@@ -1131,6 +1140,9 @@ table.data td {
 }
 table.data .num {
   text-align: right;
+}
+table.data th.wrap {
+  white-space: normal;
 }
 table.errors td.message {
   white-space: normal;
@@ -1314,16 +1326,9 @@ table.errors td.message {
   .hero {
     --hero-size: 26px;
   }
-  .table-head .columns {
-    display: inline-flex;
-  }
   table.data th,
   table.data td {
     padding-inline: 5px;
-  }
-  .history-table[data-group='usage'] .col-cache,
-  .history-table[data-group='cache'] .col-usage {
-    display: none;
   }
   .acct-attention {
     grid-template-columns: minmax(0, 1fr) auto;

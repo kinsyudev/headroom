@@ -185,8 +185,9 @@ try {
   const bars = page.locator('.chart rect[tabindex="0"]');
   await bars.nth((await bars.count()) - 1).hover();
   await page.locator('.tooltip').waitFor();
+  assert((await page.locator('.tooltip-title').innerText()).includes('in progress'), 'tooltip on the latest bar says the hour is in progress');
   await page.getByTestId('history').screenshot({ path: join(SHOTS, 'e2e-4-history-hover.png') });
-  pass('history chart answers hover with every series');
+  pass('history chart answers hover on the in-progress hour');
 
   const popup = page.waitForEvent('popup');
   await page.getByTestId('add-account').click();

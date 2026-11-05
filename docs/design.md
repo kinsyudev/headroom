@@ -138,6 +138,7 @@ There is nothing else. No SQLite of our own.
 - Range filtering uses `julianday(timestamp)`.
 - The server returns sparse hourly rows bucketed in UTC (`strftime('%Y-%m-%dT%H:00:00Z', timestamp)`) for the range, per account and model.
 - The browser folds those rows into local hours or days. That keeps timezone and DST handling out of SQL.
+- `foldHistory` marks a bucket `partial` while its end is after the response's `generatedAt`. That is always the last bucket, and the chart draws it striped and labels it "now".
 - The response also carries per-model totals over the range and the 50 most recent `error_events` for the known accounts.
 - Results are memoized per range for 30 s.
 

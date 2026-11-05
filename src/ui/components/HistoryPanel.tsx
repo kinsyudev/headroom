@@ -6,7 +6,7 @@ import { useNow } from '../deck';
 import { clockTime, compact, reasonText } from '../format';
 import { Age, Clock } from './Countdown';
 import { Segments } from './Segments';
-import { StackedColumns } from './StackedColumns';
+import { StackedColumns, type Bucket } from './StackedColumns';
 import { TableScroll } from './TableScroll';
 
 type Metric = 'requests' | 'freshInput' | 'cacheRead' | 'output';
@@ -30,12 +30,37 @@ export interface HistoryAccount {
   readonly color: string;
 }
 
+type View = 'chart' | 'table';
+
+const VIEWS: readonly { readonly key: View; readonly label: string }[] = [
+  { key: 'chart', label: 'Chart' },
+  { key: 'table', label: 'Table' },
+];
+
 type ColumnGroup = 'usage' | 'cache';
 
 const COLUMN_GROUPS: readonly { readonly key: ColumnGroup; readonly label: string }[] = [
   { key: 'usage', label: 'Usage' },
   { key: 'cache', label: 'Cache and latency' },
 ];
+
+function Switch<T extends string>(props: {
+  readonly label: string;
+  readonly options: readonly { readonly key: T; readonly label: string }[];
+  readonly value: T;
+  readonly onChange: (key: T) => void;
+  readonly className?: string;
+}) {
+  return (
+    <div className={`segmented ${props.className ?? ''}`} role="group" aria-label={props.label}>
+      {props.options.map((o) => (
+        <button key={o.key} type="button" className={`btn small ${o.key === props.value ? 'selected' : 'quiet'}`} aria-pressed={o.key === props.value} onClick={() => props.onChange(o.key)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface ModelColumn {
   readonly label: string;
@@ -45,9 +70,10 @@ interface ModelColumn {
   readonly cell: (m: ModelRow, account: HistoryAccount | undefined) => ReactNode;
 }
 
+const RATE_LIMITED_TITLE = 'Requests answered with HTTP 429';
+
 const seconds = (ms: number | null) => (ms === null ? '—' : `${(ms / 1000).toFixed(1)}s`);
 
-const RATE_LIMITED_HELP = 'Requests refused as rate-limited (HTTP 429)';
 
 const MODEL_COLUMNS: readonly ModelColumn[] = [
   {
@@ -61,7 +87,7 @@ const MODEL_COLUMNS: readonly ModelColumn[] = [
   { label: 'Model', cell: (m) => m.model },
   { label: 'Requests', group: 'usage', num: true, cell: (m) => m.totals.requests.toLocaleString() },
   { label: 'Failed', group: 'usage', num: true, cell: (m) => m.totals.failed },
-  { label: 'Rate-limited', title: RATE_LIMITED_HELP, group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
+  { label: 'Rate-limited', title: RATE_LIMITED_TITLE, group: 'usage', num: true, cell: (m) => m.totals.rateLimited },
   { label: 'Uncached in', title: METRICS[1]!.title, group: 'cache', num: true, cell: (m) => compact(m.totals.freshInput) },
   { label: 'Cache read', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheRead) },
   { label: 'Cache write', group: 'cache', num: true, cell: (m) => compact(m.totals.cacheCreation) },
@@ -70,12 +96,10 @@ const MODEL_COLUMNS: readonly ModelColumn[] = [
   { label: 'First token', title: 'Average time to first token (TTFT)', group: 'cache', num: true, cell: (m) => seconds(m.avgTtftMs) },
 ];
 
-const columnClass = (c: ModelColumn) => [c.num && 'num', c.group && `col-${c.group}`].filter(Boolean).join(' ') || undefined;
-
 export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount[] }) {
   const [range, setRange] = useState<HistoryRange>('24h');
   const [metric, setMetric] = useState<Metric>('requests');
-  const [table, setTable] = useState(false);
+  const [view, setView] = useState<View>('chart');
   const [group, setGroup] = useState<ColumnGroup>('usage');
   const { history, loading, error } = useHistory(range);
   const now = useNow();
@@ -94,10 +118,14 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
     [folded, props.accounts, metric],
   );
   const limited = (i: number) => [...(folded?.buckets[i]?.byAccount.values() ?? [])].reduce((n, t: TokenTotals) => n + t.rateLimited, 0);
-  const label = (start: number) =>
-    folded?.bucket === 'hour' ? new Date(start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date(start).toLocaleDateString([], { month: 'short', day: 'numeric' });
-  const title = (start: number, end: number) =>
-    folded?.bucket === 'hour' ? `${clockTime(start, now)}–${clockTime(end, now)}` : new Date(start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  const columns = MODEL_COLUMNS.filter((c) => !c.group || c.group === group);
+  const label = (b: Bucket) => {
+    if (b.partial) return 'now';
+    return folded?.bucket === 'hour' ? new Date(b.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date(b.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+  const span = (b: Bucket) =>
+    folded?.bucket === 'hour' ? `${clockTime(b.start, now)}–${clockTime(b.end, now)}` : new Date(b.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  const title = (b: Bucket) => (b.partial ? `${span(b)} · in progress` : span(b));
   const emailOf = (id: AccountId | null) => props.accounts.find((a) => a.id === id);
 
   return (
@@ -118,9 +146,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
             </button>
           ))}
         </div>
-        <button type="button" className="btn quiet" aria-pressed={table} onClick={() => setTable((t) => !t)}>
-          {table ? 'Chart' : 'Table'}
-        </button>
+        <Switch className="view" label="View" options={VIEWS} value={view} onChange={setView} />
       </div>
       {error && <p className="banner warning">History unavailable: {error}</p>}
       {(folded || loading) && (
@@ -153,7 +179,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
       )}
       {folded && (
         <>
-          {table ? (
+          {view === 'table' ? (
             <TableScroll label={`Usage per ${folded.bucket}`}>
               <table className="data">
                 <thead>
@@ -164,7 +190,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                         {s.label}
                       </th>
                     ))}
-                    <th className="num" title={RATE_LIMITED_HELP}>
+                    <th className="num wrap" title={RATE_LIMITED_TITLE}>
                       Rate-limited
                     </th>
                   </tr>
@@ -172,7 +198,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                 <tbody>
                   {folded.buckets.map((b, i) => (
                     <tr key={b.start}>
-                      <td>{title(b.start, b.end)}</td>
+                      <td>{b.partial ? `${span(b)} · now` : span(b)}</td>
                       {series.map((s) => (
                         <td key={s.key} className="num">
                           {(s.values[i] ?? 0).toLocaleString()}
@@ -196,7 +222,7 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                 limited(i) > 0 ? (
                   <div className="tooltip-row">
                     <strong className="num">{limited(i)}</strong>
-                    <span className="muted">rate-limited (429)</span>
+                    <span className="muted">rate-limited</span>
                   </div>
                 ) : null
               }
@@ -207,23 +233,17 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
 
       {history && (
         <div className="history-tables">
-          <div className="history-table" data-group={group}>
+          <div className="history-table">
             <div className="table-head">
               <h3>Per model · {RANGE_LABEL[range].toLowerCase()}</h3>
-              <div className="segmented columns" role="group" aria-label="Columns">
-                {COLUMN_GROUPS.map((g) => (
-                  <button key={g.key} type="button" className={`btn small ${g.key === group ? 'selected' : 'quiet'}`} aria-pressed={g.key === group} onClick={() => setGroup(g.key)}>
-                    {g.label}
-                  </button>
-                ))}
-              </div>
+              <Switch label="Columns" options={COLUMN_GROUPS} value={group} onChange={setGroup} />
             </div>
             <TableScroll label="Per model totals">
               <table className="data">
                 <thead>
                   <tr>
-                    {MODEL_COLUMNS.map((c) => (
-                      <th key={c.label} className={columnClass(c)} title={c.title}>
+                    {columns.map((c) => (
+                      <th key={c.label} className={c.num ? 'num' : undefined} title={c.title}>
                         {c.label}
                       </th>
                     ))}
@@ -232,15 +252,15 @@ export function HistoryPanel(props: { readonly accounts: readonly HistoryAccount
                 <tbody>
                   {history.models.length === 0 && (
                     <tr>
-                      <td colSpan={MODEL_COLUMNS.length} className="muted">
+                      <td colSpan={columns.length} className="muted">
                         No requests in this range.
                       </td>
                     </tr>
                   )}
                   {history.models.map((m) => (
                     <tr key={`${m.account}:${m.model}`}>
-                      {MODEL_COLUMNS.map((c) => (
-                        <td key={c.label} className={columnClass(c)}>
+                      {columns.map((c) => (
+                        <td key={c.label} className={c.num ? 'num' : undefined}>
                           {c.cell(m, emailOf(m.account))}
                         </td>
                       ))}

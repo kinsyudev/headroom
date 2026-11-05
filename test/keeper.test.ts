@@ -132,4 +132,20 @@ describe('foldHistory in the browser time zone', () => {
     expect(buckets.at(-2)!.byAccount.get(ACC1)?.requests).toBe(5);
     expect(buckets.flatMap((b) => [...b.byAccount.keys()])).not.toContain(ACC2);
   });
+
+  test.each(['24h', '7d', '30d'] as const)('%s: only the bucket still running at now is partial', (range) => {
+    const flags = (now: number) => foldHistory([], range, now as Instant).buckets.map((b) => b.partial);
+    for (const now of [NOW, NOW + 1, NOW + 59 * 60_000]) {
+      const marked = flags(now);
+      expect(marked.at(-1)).toBe(true);
+      expect(marked.slice(0, -1).some(Boolean)).toBe(false);
+    }
+  });
+
+  test('a bucket that ends exactly at now is complete and the next one is partial', () => {
+    const { buckets } = foldHistory([], '24h', NOW);
+    expect(buckets.at(-2)!.end).toBe(NOW);
+    expect(buckets.at(-2)!.partial).toBe(false);
+    expect(buckets.at(-1)!.partial).toBe(true);
+  });
 });

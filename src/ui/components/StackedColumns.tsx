@@ -7,16 +7,23 @@ export interface Series {
   readonly values: readonly number[];
 }
 
+export interface Bucket {
+  readonly start: number;
+  readonly end: number;
+  readonly partial: boolean;
+}
+
 const H = 230;
 const PAD = { top: 14, right: 8, bottom: 26, left: 48 };
 const GAP = 2;
+const NOW_LABEL_CLEARANCE = 40;
 
 export function StackedColumns(props: {
-  readonly buckets: readonly { readonly start: number; readonly end: number }[];
+  readonly buckets: readonly Bucket[];
   readonly series: readonly Series[];
   readonly format: (n: number) => string;
-  readonly bucketLabel: (start: number, i: number) => string;
-  readonly tooltipTitle: (start: number, end: number) => string;
+  readonly bucketLabel: (bucket: Bucket) => string;
+  readonly tooltipTitle: (bucket: Bucket) => string;
   readonly extra?: (i: number) => ReactNode;
   readonly dim?: boolean;
 }) {
@@ -33,10 +40,17 @@ export function StackedColumns(props: {
   const bw = Math.max(2, Math.min(24, band - 4));
   const y = (v: number) => PAD.top + plotH - (v / yMax) * plotH;
   const labelEvery = Math.max(1, Math.ceil(64 / band));
+  const nowAt = props.buckets.findIndex((b) => b.partial);
+  const labelled = (b: Bucket, i: number) => b.partial || (i % labelEvery === 0 && (nowAt < 0 || (nowAt - i) * band >= NOW_LABEL_CLEARANCE));
 
   return (
     <div className={`chart ${props.dim ? 'dim' : ''}`} ref={ref} onPointerLeave={() => setHover(null)}>
       <svg width={width} height={H} role="img" aria-label="Stacked usage per account">
+        <defs>
+          <pattern id="partial-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect className="hatch" width="2.5" height="6" />
+          </pattern>
+        </defs>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={PAD.left} x2={PAD.left + plotW} y1={y(t)} y2={y(t)} className={t === 0 ? 'axis' : 'grid'} />
@@ -56,20 +70,25 @@ export function StackedColumns(props: {
             const top = y(acc);
             return bottom - top > 0.5 ? [{ key: s.key, color: s.color, top, bottom, si }] : [];
           });
+          const shape = (g: { top: number; bottom: number }, k: number, fill: string) =>
+            k === segs.length - 1 ? (
+              <path d={roundedTop(x, g.top, bw, g.bottom - g.top)} fill={fill} />
+            ) : (
+              <rect x={x} y={g.top} width={bw} height={g.bottom - g.top} fill={fill} />
+            );
           return (
             <g key={b.start}>
               <g opacity={hover === null || hover === i ? 1 : 0.55}>
-                {segs.map((g, k) =>
-                  k === segs.length - 1 ? (
-                    <path key={g.key} d={roundedTop(x, g.top, bw, g.bottom - g.top)} fill={g.color} />
-                  ) : (
-                    <rect key={g.key} x={x} y={g.top} width={bw} height={g.bottom - g.top} fill={g.color} />
-                  ),
-                )}
+                {segs.map((g, k) => (
+                  <g key={g.key}>
+                    {shape(g, k, g.color)}
+                    {b.partial && shape(g, k, 'url(#partial-hatch)')}
+                  </g>
+                ))}
               </g>
-              {i % labelEvery === 0 && (
+              {labelled(b, i) && (
                 <text x={x + bw / 2} y={H - 8} textAnchor="middle" className="tick">
-                  {props.bucketLabel(b.start, i)}
+                  {props.bucketLabel(b)}
                 </text>
               )}
               <rect
@@ -79,7 +98,7 @@ export function StackedColumns(props: {
                 height={plotH}
                 fill="transparent"
                 tabIndex={0}
-                aria-label={`${props.tooltipTitle(b.start, b.end)}: ${props.format(totals[i] ?? 0)}`}
+                aria-label={`${props.tooltipTitle(b)}: ${props.format(totals[i] ?? 0)}`}
                 onPointerEnter={() => setHover(i)}
                 onFocus={() => setHover(i)}
                 onBlur={() => setHover(null)}
@@ -90,14 +109,16 @@ export function StackedColumns(props: {
       </svg>
       {hover !== null && props.buckets[hover] && (
         <div className="tooltip" style={{ left: tooltipLeft(PAD.left + hover * band, band, PAD.left + plotW) }}>
-          <div className="tooltip-title">{props.tooltipTitle(props.buckets[hover].start, props.buckets[hover].end)}</div>
-          {props.series.map((s) => (
-            <div key={s.key} className="tooltip-row">
-              <span className="line-key" style={{ background: s.color }} />
-              <strong className="num">{props.format(s.values[hover] ?? 0)}</strong>
-              <span className="muted">{s.label}</span>
-            </div>
-          ))}
+          <div className="tooltip-title">{props.tooltipTitle(props.buckets[hover])}</div>
+          {props.series
+            .filter((s) => (s.values[hover] ?? 0) > 0)
+            .map((s) => (
+              <div key={s.key} className="tooltip-row">
+                <span className="line-key" style={{ background: s.color }} />
+                <strong className="num">{props.format(s.values[hover] ?? 0)}</strong>
+                <span className="muted">{s.label}</span>
+              </div>
+            ))}
           <div className="tooltip-row total">
             <strong className="num">{props.format(totals[hover] ?? 0)}</strong>
             <span className="muted">total</span>
