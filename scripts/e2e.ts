@@ -74,10 +74,26 @@ try {
   const latest = await text(servingTile.getByTestId('serving-latest'));
   assert(/^Latest request account[123] · \d+[sm] ago$/.test(latest), `overview names the account that answered the latest request and how long ago: "${latest}"`);
   assert((await text(card('account1@example.com').getByTestId('role'))) === '● New sessions', "account1's row chip says it serves and takes new sessions, as the tile does");
+  assert(
+    (await page.locator('[data-testid="role"]').allTextContents()).every((t) => !t.includes('Serving') && !t.includes('Serves')),
+    'no row chip uses a second word for serving: an account is New sessions, Active, Standby, Blocked or Disabled',
+  );
+  assert(await card('account1@example.com').getByTestId('make-primary').isHidden(), 'the account that already serves first offers no Serve first button');
+  assert(
+    /^Raise priority from 10 to 60, ten above the highest other account, so new sessions go here first$/.test((await card('account2@example.com').getByTestId('make-primary').getAttribute('title')) ?? ''),
+    "Serve first on account2 says what it does to priority",
+  );
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
-  const nextReset = await text(page.getByTestId('tile-next-reset'));
-  assert(/account3 session resets \d\d:\d\d$/.test(nextReset) && !nextReset.includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
+  const nextReset = await text(page.getByTestId('tile-next-reset').getByTestId('next-reset'));
+  assert(/^account3 session resets \d\d:\d\d$/.test(nextReset) && !(await text(page.getByTestId('tile-next-reset'))).includes('Blocked'), 'next reset says only the reset: account3 session, with no Blocked chip');
+  const runOut = page.getByTestId('tile-next-reset').getByTestId('run-out');
+  const runOutTitle = (await runOut.getAttribute('title')) ?? '';
+  assert(
+    /^! account1 session runs out ~\d\d:\d\d$/.test(await text(runOut)) &&
+      /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before its \d\d:\d\d reset\. New sessions then go to account2\./.test(runOutTitle),
+    `the strip warns in one line that account1's session runs out, and its tooltip says how long before the reset and that account2 takes over: "${await text(runOut)}" / "${runOutTitle}"`,
+  );
   assert(
     /^Serve order Session left Weekly left 1 account1 88% 73%\s*2 account2 100% 99%\s*– account3 blocked until \d\d:\d\d$/.test(await text(page.getByTestId('tile-headroom'))),
     'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
@@ -105,6 +121,21 @@ try {
   assert(((await card('account2@example.com').getByTestId('freshness').getAttribute('title')) ?? '').includes('weekly reset: held'), 'freshness tooltip names the held weekly reset read');
   await page.screenshot({ path: join(SHOTS, 'e2e-1-loaded.png'), fullPage: true });
   pass('overview and three cards render with real numbers');
+
+  const more = card('account1@example.com').getByTestId('more-actions');
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null);
+  await more.focus();
+  await page.keyboard.press('ArrowDown');
+  assert((await more.getAttribute('aria-expanded')) === 'true' && (await focused()) === 'refresh-quota', 'ArrowDown on More opens the menu on its first action');
+  await page.keyboard.press('ArrowDown');
+  assert((await focused()) === 'refresh-token', 'ArrowDown moves to the next action');
+  await page.keyboard.press('End');
+  assert((await focused()) === 'toggle-disabled', 'End moves to Disable, the last action');
+  await page.keyboard.press('ArrowDown');
+  assert((await focused()) === 'refresh-quota', 'ArrowDown past the last action wraps to the first');
+  await page.keyboard.press('Escape');
+  assert((await more.getAttribute('aria-expanded')) === 'false' && (await focused()) === 'more-actions' && (await card('account1@example.com').getByTestId('refresh-token').count()) === 0, 'Escape closes the menu and returns focus to More');
+  pass('each row keeps its rare actions in a More menu that works by keyboard');
   assert(mutations().length === 0, 'loading the page mutates nothing');
 
   async function step(name: string, click: () => Promise<void>, count: number, check: () => Promise<void>) {
@@ -116,13 +147,19 @@ try {
   }
 
   const c2 = card('account2@example.com');
-  await step('disable account2', () => c2.getByTestId('toggle-disabled').click(), 1, async () => {
+  const fromMore = async (row: Locator, testId: string, timeout?: number) => {
+    await row.getByTestId('more-actions').click();
+    await row.getByTestId(testId).click(timeout === undefined ? undefined : { timeout });
+  };
+  await step('disable account2', () => fromMore(c2, 'toggle-disabled'), 1, async () => {
     await c2.getByTestId('role').filter({ hasText: 'Disabled' }).waitFor();
     await c2.locator('.feedback.ok', { hasText: 'disabled' }).waitFor();
   });
-  await step('enable account2', () => c2.getByTestId('toggle-disabled').click(), 1, async () => {
-    await c2.getByTestId('toggle-disabled').filter({ hasText: 'Disable' }).waitFor();
+  await step('enable account2', () => c2.getByTestId('toggle-disabled').filter({ hasText: 'Enable' }).click(), 1, async () => {
     await until(async () => !(await text(c2.getByTestId('role'))).includes('Disabled'), 'account2 enabled');
+    await c2.getByTestId('more-actions').click();
+    await c2.getByTestId('toggle-disabled').filter({ hasText: 'Disable' }).waitFor();
+    await page.keyboard.press('Escape');
   });
   await step('make account2 primary', () => c2.getByTestId('make-primary').click(), 1, async () => {
     await c2.getByTestId('priority').filter({ hasText: '60' }).waitFor();
@@ -138,7 +175,7 @@ try {
     await until(async () => (await c3.locator('.cooldown').count()) === 0, 'cooldown gone from the card');
     await until(async () => !(await text(c3.getByTestId('role'))).includes('Blocked'), 'account3 no longer blocked');
   });
-  await step('refresh account1 token', () => c1.getByTestId('refresh-token').click(), 1, async () => {
+  await step('refresh account1 token', () => fromMore(c1, 'refresh-token'), 1, async () => {
     await c1.locator('.feedback.ok', { hasText: 'token refreshed' }).waitFor();
   });
   await step('switch routing to round-robin', () => page.getByTestId('strategy-round-robin').click(), 1, async () => {
@@ -186,7 +223,7 @@ try {
 
   const reads = () => stack.fake.calls.filter((c) => c.account === ACC1 && c.path.startsWith('/api/oauth/usage')).length;
   const before = reads();
-  await c1.getByTestId('refresh-quota').click({ timeout: 70_000 });
+  await fromMore(c1, 'refresh-quota', 70_000);
   await until(() => reads() === before + 1, 'Check now sends exactly one usage read for account1', 40_000);
   pass('check now sends one budgeted usage read and no mutation');
 

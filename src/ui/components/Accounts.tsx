@@ -1,28 +1,33 @@
 import type { CSSProperties } from 'react';
 import type { AccountId, GrantId, ProgramId } from '../../shared/domain';
-import type { AccountView, LimitColumn } from '../../shared/view';
-import { useNow } from '../deck';
-import { leftLabel, PACE_TICK_HELP, reasonTitle, SERVING_WHY } from '../format';
+import type { AccountView, LimitColumn, RoutingView, ServingWhy } from '../../shared/view';
+import { leftLabel, PACE_TICK_HELP, reasonTitle } from '../format';
 import { ActionButton } from './ActionButton';
 import { ActivityCell } from './ActivitySparkline';
-import { Countdown } from './Countdown';
-import { ModeLine, nextCheck } from './Freshness';
+import { ModeLine } from './Freshness';
 import { LimitCell, SpendCell } from './LimitRow';
 import { PriorityStepper } from './PriorityStepper';
 import { ResetOffers, resetsAnchor } from './ResetOffers';
 import { Trouble } from './Trouble';
-
-const REFRESH_HELD: Readonly<Record<NonNullable<AccountView['read']['refreshHeld']>['why'], { readonly short: string; readonly long: string }>> = {
-  reading: { short: 'already checking', long: 'A check is already running' },
-  rate_limited: { short: 'rate-limited', long: 'Rate-limited; waiting for the backoff' },
-  capped: { short: 'check cap full', long: 'At most 8 checks per account in 15 minutes; waiting for the oldest to age out' },
-  debounced: { short: 'once per minute', long: 'Once per minute per account' },
-};
+import { UpkeepMenu } from './UpkeepMenu';
 
 const EXTRA_USAGE_HELP = 'Extra usage: pay-as-you-go requests past the plan limits. Off, including a zero budget, requests stop at the plan limits.';
-const REQUESTS_HELP = 'Requests CPA routed to the account, per 10 minutes';
-const PRIMARY_HELP = 'First in the serve order, so new sessions go here; raise another account above it to change';
-const NEW_SESSIONS_HELP = 'New sessions go here: first in line under fill-first.';
+const REQUESTS_HELP = 'Requests CPA routed to the account, one bar per 10 minutes. The count beside them covers the same bars.';
+const NEW_SESSIONS_HELP = 'New sessions go here: first in the serve order under fill-first.';
+const ACTIVE_HELP: Readonly<Record<ServingWhy, string>> = {
+  fill_first_target: 'Answered a request in the last 2 min, and first in the serve order.',
+  affinity: 'Answered a request in the last 2 min, finishing sessions that started here. New sessions go to the account first in the serve order.',
+  round_robin: 'Answered a request in the last 2 min. Round-robin takes turns, so it takes new sessions in its turn.',
+};
+
+/** What Serve first does to this account's priority, or why it has nothing left to do. */
+function serveFirstTitle(r: RoutingView, can: boolean): string {
+  if (!can) return 'Already the highest priority, above every other account';
+  const disabled = r.role.kind === 'disabled';
+  const lift =
+    r.firstTo === null ? 'Enable this account. Its priority already outranks every other account' : `Raise priority from ${r.priority} to ${r.firstTo}, ten above the highest other account${disabled ? ', and enable it' : ''}`;
+  return `${lift}, ${r.ranksByPriority ? 'so new sessions go here first' : 'which fill-first reads. Round-robin ignores priority'}`;
+}
 
 export function Accounts(props: {
   readonly accounts: readonly AccountView[];
@@ -61,10 +66,8 @@ function AccountRow(props: {
   readonly color: string;
   readonly onClaim: (program: ProgramId, grant: GrantId | null) => void;
 }) {
-  const now = useNow();
   const a = props.account;
   const r = a.routing;
-  const held = a.read.refreshHeld;
   const offersOpen = a.quietOffers === null;
   return (
     <article className={`acct role-${r.role.kind}`} data-testid={`card-${a.email}`} data-account={a.id}>
@@ -101,64 +104,37 @@ function AccountRow(props: {
 
       <footer className="acct-foot">
         <div className="foot-group routing">
+          {a.can.enable && (
+            <ActionButton
+              kind="account.setDisabled"
+              input={{ account: a.id, disabled: false }}
+              title="Put this account back in rotation"
+              pendingLabel="Enabling…"
+              done="enabled"
+              variant="strong"
+              testId="toggle-disabled"
+            >
+              Enable
+            </ActionButton>
+          )}
+          <PriorityStepper account={a.id} routing={r} />
           <ActionButton
             kind="account.makePrimary"
             input={{ account: a.id }}
             disabled={!a.can.makePrimary}
-            title={
-              r.primary
-                ? PRIMARY_HELP
-                : a.can.makePrimary
-                  ? 'Raise priority above every other account, so new sessions go here first'
-                  : 'Already first in priority, outranking every other account'
-            }
+            hidden={r.primary}
+            title={serveFirstTitle(r, a.can.makePrimary)}
             pendingLabel="Saving…"
             done={(o) => (o.changed ? `priority ${o.priority}` : 'already first')}
-            variant={r.primary ? 'state' : 'quiet'}
             testId="make-primary"
           >
-            {r.primary ? '★ Serves first' : 'Serve first'}
+            Serve first
           </ActionButton>
-          <PriorityStepper account={a.id} routing={r} />
         </div>
         <span className="foot-spacer" aria-hidden />
-        <div className="foot-group check">
-          <ModeLine account={a} />
-          <ActionButton
-            kind="quota.refresh"
-            input={{ account: a.id }}
-            disabled={held !== null}
-            title={[held === null ? 'Check Anthropic usage now' : REFRESH_HELD[held.why].long, nextCheck(a, now)].filter(Boolean).join('\n')}
-            done={(o) => (o.scheduled[0]?.held ? `not queued: ${REFRESH_HELD[o.scheduled[0].held].short}` : 'check queued')}
-            variant="ghost"
-            testId="refresh-quota"
-          >
-            ↻ Check now{(held?.why === 'debounced' || held?.why === 'capped') && held.until !== null ? <span className="muted"> <Countdown at={held.until} /></span> : null}
-          </ActionButton>
-        </div>
         <div className="foot-group upkeep">
-          <span className="foot-divider" aria-hidden />
-          <ActionButton
-            kind="account.refreshToken"
-            input={{ account: a.id }}
-            pendingLabel="Refreshing…"
-            done={(o) => (o.ok ? 'token refreshed' : 'CPA said not ok')}
-            variant="ghost"
-            testId="refresh-token"
-          >
-            Refresh token
-          </ActionButton>
-          <ActionButton
-            kind="account.setDisabled"
-            input={{ account: a.id, disabled: a.can.disable }}
-            title={a.can.disable ? 'Take this account out of rotation' : 'Put this account back in rotation'}
-            pendingLabel={a.can.disable ? 'Disabling…' : 'Enabling…'}
-            done={a.can.disable ? 'disabled' : 'enabled'}
-            variant={a.can.disable ? 'ghost-danger' : 'strong'}
-            testId="toggle-disabled"
-          >
-            {a.can.disable ? 'Disable' : 'Enable'}
-          </ActionButton>
+          <ModeLine account={a} />
+          <UpkeepMenu account={a} />
         </div>
       </footer>
     </article>
@@ -179,9 +155,16 @@ export function RoutingBadge(props: { readonly routing: AccountView['routing'] }
   const takesNew = isTarget && ranksByPriority;
   switch (role.kind) {
     case 'serving':
-      return (
-        <span className="badge good role" data-testid="role" title={takesNew ? `${NEW_SESSIONS_HELP} Answered a request in the last 2 min.` : `Answered a request in the last 2 min: ${SERVING_WHY[role.why]}`}>
-          ● {takesNew ? 'New sessions' : 'Serving'}
+      return takesNew ? (
+        <span className="badge good role" data-testid="role" title={`${NEW_SESSIONS_HELP} Answered a request in the last 2 min.`}>
+          ● New sessions
+        </span>
+      ) : (
+        <span className="badge neutral role" data-testid="role" title={ACTIVE_HELP[role.why]}>
+          <span className="role-live" aria-hidden>
+            ●
+          </span>{' '}
+          Active
         </span>
       );
     case 'standby':

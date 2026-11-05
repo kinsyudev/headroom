@@ -3,7 +3,7 @@ import type { AccountId } from '../../shared/domain';
 import type { AccountView } from '../../shared/view';
 import { useAnalytics } from '../api';
 import { useNow } from '../deck';
-import { bucketText, compact, count } from '../format';
+import { bucketText, compact, count, shortName } from '../format';
 import { Age } from './Countdown';
 import { Legend } from './charts/ChartCard';
 import { StackedColumns } from './charts/StackedColumns';
@@ -23,7 +23,8 @@ export function HistoryPanel(props: { readonly accounts: readonly AccountView[];
       usage
         ? usage.dimensions.accounts.map((a, j) => ({
             key: a.id,
-            label: a.email,
+            label: shortName(a.email),
+            email: a.email,
             color: props.colors.get(a.id)!,
             values: usage.timeline.map((b) => b.byAccount[j]!.stats.requests),
           }))
@@ -63,7 +64,7 @@ export function HistoryPanel(props: { readonly accounts: readonly AccountView[];
               ]}
             />
           </span>
-          {series.length > 0 && <Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color }))} />}
+          {series.length > 0 && <Legend items={series.map((s) => ({ key: s.key, label: s.label, color: s.color, title: s.email }))} />}
         </div>
       )}
       {usage && (

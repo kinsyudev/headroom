@@ -3,9 +3,8 @@ import type { AccountId } from '../../shared/domain';
 import type { RoutingView } from '../../shared/view';
 import { useAction } from '../api';
 import { useNow, usePaused } from '../deck';
+import { SERVE_ORDER_HELP } from '../format';
 import { DONE_SHOWN_MS } from './ActionButton';
-
-const PRIORITY_HELP = 'Higher priority takes new sessions first. Only fill-first routing uses it; round-robin spreads sessions across every available account.';
 
 export function PriorityStepper(props: { readonly account: AccountId; readonly routing: RoutingView }) {
   const set = useAction('account.setPriority');
@@ -41,9 +40,11 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
         aria-busy={set.pending}
         data-state={set.status.phase}
         data-paused={paused !== null || undefined}
-        title={paused ?? PRIORITY_HELP}
+        title={paused ?? undefined}
       >
-        <span className="stepper-label">Priority</span>
+        <span className="stepper-label help" title={paused ?? SERVE_ORDER_HELP}>
+          Priority
+        </span>
         <span className="stepper-box">
           {button('priority-down', `−${step}`, stepTo.down, `Lower priority to ${stepTo.down}`, 'Already at the lowest priority')}
           <span className="stepper-value num" data-testid="priority" data-saved={saved}>
@@ -51,7 +52,7 @@ export function PriorityStepper(props: { readonly account: AccountId; readonly r
           </span>
           {button('priority-up', `+${step}`, stepTo.up, `Raise priority to ${stepTo.up}`, 'Already at the highest priority')}
         </span>
-        <span className="stepper-note">{ranksByPriority ? 'higher serves first' : 'unused in round-robin'}</span>
+        {!ranksByPriority && <span className="stepper-note">unused in round-robin</span>}
       </span>
       {saved && (
         <span className="feedback ok" role="status">

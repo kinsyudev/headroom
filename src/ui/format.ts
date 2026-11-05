@@ -1,12 +1,6 @@
 import type { ClaimRecord, Money, PercentLeft, SourceError } from '../shared/domain';
 import { clearsText, INELIGIBLE_EXPLAIN, REASON_TEXT } from '../shared/derive';
-import type { Grain, ServingWhy } from '../shared/view';
-
-export const SERVING_WHY: Readonly<Record<ServingWhy, string>> = {
-  fill_first_target: 'first in line (fill-first)',
-  affinity: 'session affinity',
-  round_robin: 'round-robin',
-};
+import type { Grain } from '../shared/view';
 
 const CLAIM_RESULT: Readonly<Record<string, string>> = {
   already_used: 'already used this week',
@@ -58,6 +52,10 @@ export function clockTime(at: number, now: number): string {
 
 /** The one place a column says which way its figures run: the header, the narrow row label and the meter's name. */
 export const leftLabel = (window: string): string => `${window} left`;
+
+/** How the serve order works, in the one wording the Serve order heading and every Priority label use. */
+export const SERVE_ORDER_HELP =
+  'Fill-first sends each new session to the highest-priority account that can take it, so 1 in the serve order takes the next one. Serve first and the priority buttons move an account up or down the order. Blocked and disabled accounts take nothing until they are back. Round-robin ignores priority and takes turns.';
 
 /** What the pace tick on a quota meter means, in the one wording every place that explains it uses. */
 export const PACE_TICK_HELP =

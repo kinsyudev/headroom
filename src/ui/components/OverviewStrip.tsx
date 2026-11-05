@@ -1,15 +1,17 @@
 import { Fragment } from 'react';
 import type { AccountId, Instant } from '../../shared/domain';
-import type { DeckView, ServeLine } from '../../shared/view';
-import { leftLabel, percent, reasonTitle, shortName } from '../format';
+import type { DeckView, RunOutView, ServeLine } from '../../shared/view';
+import { clockTime, duration, leftLabel, percent, reasonTitle, SERVE_ORDER_HELP, shortName } from '../format';
+import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor } from './ResetOffers';
 import { Segments } from './Segments';
 
-const ORDER_HELP = {
-  ranked: 'Where CPA sends a new session: fill-first tries the highest priority first, so 1 takes the next new session. Blocked and disabled accounts take nothing until they are back.',
-  rotates: 'Round-robin takes turns through the accounts in line. Blocked and disabled accounts take nothing until they are back.',
-};
+/** One window running out, said in full for the strip line's tooltip. */
+function runOutText(r: RunOutView, now: number): string {
+  const then = r.after === null ? '' : r.after.kind === 'next' ? ` New sessions then go to ${shortName(r.after.email)}.` : ' No account is left to take new sessions.';
+  return `${shortName(r.email)} ${r.limit.label.toLowerCase()} runs out ~${clockTime(r.at, now)}, ${duration(r.resetsAt - r.at)} before its ${clockTime(r.resetsAt, now)} reset.${then}`;
+}
 
 export function OverviewStrip(props: { readonly deck: DeckView; readonly colors: ReadonlyMap<AccountId, string> }) {
   const o = props.deck.overview;
@@ -43,6 +45,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
     );
   const inLine = o.order.lines.filter((l) => l.kind === 'in_line');
   const claimAccounts = o.claimable;
+  const runOut = o.runningOut[0];
   return (
     <section className="summary" aria-label="Overview" data-testid="overview">
       {cpa.kind === 'down' && (
@@ -124,7 +127,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
             <p className="hero num">
               <Countdown at={o.nextReset.at} />
             </p>
-            <p className="stat-sub">
+            <p className="stat-sub" data-testid="next-reset">
               <Segments
                 parts={[
                   who(o.nextReset.account, o.nextReset.email),
@@ -140,6 +143,12 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
             <p className="hero muted">—</p>
             <p className="stat-sub">No window with a known reset</p>
           </>
+        )}
+        {runOut && (
+          <a className="stat-sub cell-pace" href={usageLink(paceAnchor(runOut.account, runOut.limit.key))} title={`${o.runningOut.map((r) => runOutText(r, props.deck.now)).join('\n')}\nOpen its pace in Usage`} data-testid="run-out">
+            <span aria-hidden>! </span>
+            {who(runOut.account, runOut.email)} {runOut.limit.label.toLowerCase()} runs out ~<Clock at={runOut.at} />
+          </a>
         )}
       </div>
 
@@ -163,8 +172,10 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly colors:
         </p>
       </div>
 
-      <div className="stat order" data-testid="tile-headroom" title={o.order.rotates ? ORDER_HELP.rotates : ORDER_HELP.ranked}>
-        <h2>{o.order.rotates ? 'Serve order · rotates' : 'Serve order'}</h2>{' '}
+      <div className="stat order" data-testid="tile-headroom">
+        <h2 className="help" title={SERVE_ORDER_HELP}>
+          {o.order.rotates ? 'Serve order · rotates' : 'Serve order'}
+        </h2>{' '}
         {o.order.lines.length === 0 ? (
           <p className="stat-sub order-none">No accounts yet</p>
         ) : (

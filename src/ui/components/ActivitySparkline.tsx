@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AccountView } from '../../shared/view';
 import { useNow } from '../deck';
-import { clockTime } from '../format';
+import { clockTime, duration } from '../format';
 
 const W = 240;
 const H = 22;
@@ -26,9 +26,10 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
   const total = b.reduce((n, x) => n + x.success + x.failed, 0);
   const failed = b.reduce((n, x) => n + x.failed, 0);
   const since = clockTime(b[0]!.start, now);
+  const span = duration(b.length * TEN_MIN);
   const h = hover === null ? null : b[hover]!;
   return (
-    <figure className="cell activity" title={`${props.help}, since ${since}. A red tick under a bar marks failed requests.`}>
+    <figure className="cell activity" title={`${props.help} The bars start at ${since}. A red tick under a bar marks failed requests.`}>
       <span className="cell-label">Requests</span>
       <figcaption className="cell-value num">
         {h ? (
@@ -41,20 +42,16 @@ export function ActivityCell(props: { readonly buckets: AccountView['activity'];
         ) : (
           <>
             {total}
-            <span className="cell-unit">
-              {' '}
-              <span className="nowrap">since {since}</span>
-              {failed > 0 && (
-                <>
-                  {' '}
-                  <span className="nowrap">· {failed} failed</span>
-                </>
-              )}
-            </span>
+            <span className="cell-unit"> in the last {span}</span>
           </>
         )}
+        {failed > 0 && (
+          <span className="cell-fail">
+            <span className="fail-key" aria-hidden /> {failed} failed
+          </span>
+        )}
       </figcaption>
-      <svg className="spark" viewBox={`0 0 ${W} ${H + TICK + 2}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests since ${since}, ${failed} failed`} onPointerLeave={() => setHover(null)}>
+      <svg className="spark" viewBox={`0 0 ${W} ${H + TICK + 2}`} preserveAspectRatio="none" role="img" aria-label={`${total} requests in the last ${span}, ${failed} failed`} onPointerLeave={() => setHover(null)}>
         <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} className="axis" />
         {b.map((x, i) => {
           const n = x.success + x.failed;

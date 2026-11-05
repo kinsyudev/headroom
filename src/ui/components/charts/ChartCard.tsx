@@ -84,13 +84,15 @@ export interface LegendItem {
   /** A glyph that says what the colour says, for series that carry a status. */
   readonly icon?: string;
   readonly mark?: KeyMark;
+  /** What the short label stands for, shown on hover: the full email behind "account1". */
+  readonly title?: string;
 }
 
 export function Legend(props: { readonly items: readonly LegendItem[] }) {
   return (
     <ul className="legend-items" aria-label="Legend">
       {props.items.map((s) => (
-        <li key={s.key} className="legend-item">
+        <li key={s.key} className="legend-item" title={s.title}>
           <Key mark={s.mark ?? 'square'} color={s.color} />
           {s.icon && (
             <span className="legend-icon" aria-hidden>
