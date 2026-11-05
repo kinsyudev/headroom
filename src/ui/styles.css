@@ -1654,7 +1654,7 @@ table.errors td.message {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
 }
 
-/* The week strip. */
+/* The headline row. */
 .kpis {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

@@ -8,6 +8,9 @@ const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export const RANGE_LABEL: Readonly<Record<UsageRange, string>> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' };
 
+/** How long a range is, as the span it is compared with: "the 7 days before". */
+export const RANGE_SPAN: Readonly<Record<UsageRange, string>> = { '24h': '24 hours', '7d': '7 days', '30d': '30 days' };
+
 /** The one row of filters. Everything below it, except the quota pace, is drawn from what it picks. */
 export function Toolbar(props: {
   readonly range: UsageRange;

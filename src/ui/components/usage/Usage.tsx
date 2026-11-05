@@ -4,6 +4,7 @@ import type { AccountView, AnalyticsLens, UsageRange } from '../../../shared/vie
 import { useAnalytics } from '../../api';
 import { Mark } from '../../brand';
 import { CachePanel } from './CachePanel';
+import { Headline } from './Headline';
 import { Mix } from './Mix';
 import { OverTime } from './OverTime';
 import { PacePanel } from './PacePanel';
@@ -11,15 +12,16 @@ import { ByModelTable, ErrorsTable, FailuresPanel } from './Reliability';
 import { Speed } from './Speed';
 import { Toolbar } from './Toolbar';
 import { WeekPattern } from './WeekPattern';
-import { WeekStrip } from './WeekStrip';
 
 /**
- * Usage is what Claude did for you: the week against the one before, the quota pace, and then the history to explore.
- * Three lenses read one cube. `all` is the month with no filters: it feeds the week strip and the model list. `explore` follows the
- * toolbar. `pattern` is the month with the toolbar's account and model, because a weekly rhythm needs a month to show.
+ * Usage is what Claude did for you: the selected range against the span before it, the quota pace, and then the history to explore.
+ * The toolbar leads, and the headline and every chart read what it picks, so one range holds the numbers together. It opens on the
+ * week, the span the dim bars and the same-day-last-week marks compare best. Three lenses read one cube. `all` is the month with no
+ * filters: it feeds the pace and the model list. `explore` follows the toolbar. `pattern` is the month with the toolbar's account and
+ * model, because a weekly rhythm needs a month to show.
  */
 export function Usage(props: { readonly accounts: readonly AccountView[]; readonly colors: ReadonlyMap<AccountId, string> }) {
-  const [range, setRange] = useState<UsageRange>('30d');
+  const [range, setRange] = useState<UsageRange>('7d');
   const [account, setAccount] = useState<AccountId | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const filters = useMemo((): Pick<AnalyticsLens, 'account' | 'model'> => ({ ...(account === null ? {} : { account }), ...(model === null ? {} : { model }) }), [account, model]);
@@ -51,8 +53,6 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
   return (
     <div className="usage" data-testid="analytics">
       {explore.error && <p className="banner warning">History could not be refreshed: {explore.error}. Showing the last reading.</p>}
-      <WeekStrip view={a} colors={props.colors} emailOf={emailOf} />
-      <PacePanel pace={all.view.pace} colors={props.colors} />
       <Toolbar
         range={range}
         onRange={setRange}
@@ -64,10 +64,12 @@ export function Usage(props: { readonly accounts: readonly AccountView[]; readon
         colors={props.colors}
         models={a.dimensions.models}
       />
+      <Headline view={e} week={pattern.view.week} colors={props.colors} emailOf={emailOf} />
+      <PacePanel pace={a.pace} colors={props.colors} />
       <OverTime view={e} colors={props.colors} dim={dim} />
       <div className="grid-2 pattern">
         <WeekPattern view={pattern.view} />
-        <CachePanel view={e} week={a.weeks} dim={dim} />
+        <CachePanel view={e} dim={dim} />
       </div>
       <Mix view={e} colors={props.colors} account={account} model={model} onAccount={setAccount} onModel={setModel} />
       <Speed view={e} />

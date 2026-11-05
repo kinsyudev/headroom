@@ -5,7 +5,7 @@ import { bucketText, compact, count, share } from '../../format';
 import { ChartCard, Legend } from '../charts/ChartCard';
 import { Delta } from '../charts/Delta';
 import { StackedColumns } from '../charts/StackedColumns';
-import { RANGE_LABEL } from './Toolbar';
+import { RANGE_LABEL, RANGE_SPAN } from './Toolbar';
 
 const DOMAIN = { max: 1, ticks: [0, 0.25, 0.5, 0.75, 1] } as const;
 const PARTS = [
@@ -18,7 +18,7 @@ const PARTS = [
  * How much of the input Claude reads is served from cache. Each column is a whole: the three ways input arrives add to 100%, so the
  * scale starts at zero and the thin slice at the top is all there is left to win.
  */
-export function CachePanel(props: { readonly view: AnalyticsView; readonly week: AnalyticsView['weeks']; readonly dim: boolean }) {
+export function CachePanel(props: { readonly view: AnalyticsView; readonly dim: boolean }) {
   const now = useNow();
   const v = props.view;
   const { label, title } = bucketText(v.lens.grain, now);
@@ -36,8 +36,8 @@ export function CachePanel(props: { readonly view: AnalyticsView; readonly week:
       })),
     [v.timeline],
   );
-  const cur = props.week.now.figures.stats.cacheReadShare;
-  const prev = props.week.before?.figures.stats.cacheReadShare ?? null;
+  const cur = v.total.cacheReadShare;
+  const prev = v.previous?.stats.cacheReadShare ?? null;
   const pts = cur !== null && prev !== null ? (cur - prev) * 100 : null;
   const table = useMemo(
     () => ({
@@ -66,7 +66,7 @@ export function CachePanel(props: { readonly view: AnalyticsView; readonly week:
         <div>
           <p className="figure">{share(t.cacheReadShare)}</p>
           <p className="figure-label">of input served from cache</p>
-          <Delta change={pts === null ? null : pts / 100} text={`${Math.abs(pts ?? 0).toFixed(1)} pt`} better="up" flatBelow={0.0005} vs="last 7 days vs the 7 before" />
+          <Delta change={pts === null ? null : pts / 100} text={`${Math.abs(pts ?? 0).toFixed(1)} pt`} better="up" flatBelow={0.0005} span={RANGE_SPAN[v.lens.range]} />
         </div>
         <div>
           <p className="figure">{t.outputPerRequest === null ? '—' : count(t.outputPerRequest)}</p>

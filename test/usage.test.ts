@@ -170,6 +170,7 @@ describe('the span one range earlier', () => {
     expect(v.previous!.stats.requests).toBe(2 + 11 + 4 + 6 + 8);
     expect(v.previous!.start).toBe(v.timeline[0]!.previous!.start);
     expect(v.previous!.end).toBe(today.previous!.end);
+    expect(v.timeline.reduce((n, b) => n + b.previous!.stats.requests, 0)).toBe(v.previous!.stats.requests);
     expect(v.total.requests).toBe(40);
   });
 
@@ -267,76 +268,6 @@ describe('weekday by hour', () => {
 
   test('no requests, no peak', () => {
     expect(view([], { range: '7d' }).week.peak).toBeNull();
-  });
-});
-
-describe('the last seven days against the seven before', () => {
-  const FROM_NOW = (ms: number) => new Date(NOW + ms).toISOString();
-  const day = 24 * HOUR;
-  const history = [
-    cell(FROM_NOW(-14 * day), ACC1, ok(1)),
-    cell(FROM_NOW(-10 * day), ACC1, ok(20)),
-    cell(FROM_NOW(-8 * day - HOUR), ACC3, ok(5), 'claude-sonnet-5-5'),
-    cell(FROM_NOW(-7 * day), ACC1, ok(30)),
-    cell(FROM_NOW(-3 * day), ACC3, ok(10), 'claude-sonnet-5-5'),
-    cell(FROM_NOW(-HOUR), ACC1, tally({ outcomes: { ok: 40 }, output: 800 })),
-    cell(FROM_NOW(0), ACC1, ok(1_000)),
-  ];
-
-  test('both sides are 168 complete hours ending at the top of the hour, and the hour still filling is left out', () => {
-    const w = view(history).weeks;
-    expect(w.hours).toBe(168);
-    expect(w.now.end).toBe(NOW);
-    expect(w.now.start).toBe((NOW - 7 * day) as Instant);
-    expect(w.before!.start).toBe((NOW - 14 * day) as Instant);
-    expect(w.before!.end).toBe(w.now.start);
-    expect(w.now.figures.stats.requests).toBe(30 + 10 + 40);
-    expect(w.before!.figures.stats.requests).toBe(1 + 20 + 5);
-  });
-
-  test('top models and accounts are ranked by requests with their share, and hold only series that had traffic', () => {
-    const w = view(history).weeks;
-    expect(w.now.figures.byModel.map((p) => [p.key, p.stats.requests])).toEqual([
-      ['claude-opus-5-5', 70],
-      ['claude-sonnet-5-5', 10],
-    ]);
-    expect(w.now.figures.byAccount.map((p) => p.key)).toEqual([ACC1, ACC3]);
-    expect(w.now.figures.byAccount[0]!.share!.requests).toBeCloseTo(70 / 80);
-    expect(w.before!.figures.byAccount.map((p) => p.key)).toEqual([ACC1, ACC3]);
-  });
-
-  test('fourteen day blocks, oldest first, hold the same requests as the two sides', () => {
-    const w = view(history).weeks;
-    expect(w.blocks).toHaveLength(14);
-    expect(w.blocks[0]!.start).toBe(w.before!.start);
-    expect(w.blocks.every((b, i) => b.end - b.start === day && (i === 0 || b.start === w.blocks[i - 1]!.end))).toBe(true);
-    expect(w.blocks.at(-1)!.end).toBe(NOW);
-    const sum = (from: number, to: number) => w.blocks.slice(from, to).reduce((n, b) => n + b.stats.requests, 0);
-    expect(sum(0, 7)).toBe(w.before!.figures.stats.requests);
-    expect(sum(7, 14)).toBe(w.now.figures.stats.requests);
-    expect(w.blocks.at(-1)!.stats.tokens.output).toBe(800);
-  });
-
-  test('the range does not move it, and an account or model lens narrows it', () => {
-    expect(view(history, { range: '24h' }).weeks.now.figures.stats.requests).toBe(80);
-    expect(view(history, { range: '30d' }).weeks.now.figures.stats.requests).toBe(80);
-    const one = view(history, { range: '24h', account: ACC3 }).weeks;
-    expect(one.now.figures.stats.requests).toBe(10);
-    expect(one.before!.figures.stats.requests).toBe(5);
-    expect(view(history, { range: '24h', model: 'claude-sonnet-5-5' }).weeks.now.figures.stats.requests).toBe(10);
-  });
-
-  test('without history reaching back to the start of the earlier week, or while catching up, there is nothing to compare against', () => {
-    expect(view(history.slice(3)).weeks.before).toBeNull();
-    expect(view(history, { range: '24h' }, { catchingUp: true }).weeks.before).toBeNull();
-    expect(view(history.slice(3)).weeks.now.figures.stats.requests).toBe(80);
-  });
-
-  test('an empty history is empty on both sides and the blocks keep their width', () => {
-    const w = view([]).weeks;
-    expect(w.now.figures.stats.requests).toBe(0);
-    expect(w.now.figures.byModel).toEqual([]);
-    expect(w.blocks).toHaveLength(14);
   });
 });
 

@@ -13,7 +13,7 @@ const GAP = 3;
 const TIP_W = 190;
 
 /**
- * Fourteen blocks as a sparkline: the first `split` are the earlier period, drawn dim, and the rest are the latest, drawn bright.
+ * Blocks as a sparkline: the first `split` are the earlier period, drawn dim, and the rest are the latest, drawn bright.
  * The bars start at zero and share one scale, so the two periods can be compared by eye.
  */
 export const Blocks = memo(function Blocks(props: {

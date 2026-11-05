@@ -12,9 +12,7 @@ import type {
   UsageRange,
   UsageStats,
   WeekCell,
-  WeekFigures,
   WeekGrid,
-  WeekOverWeek,
   Weekday,
 } from './view';
 
@@ -194,7 +192,6 @@ function foldCube(cube: UsageCube, lens: AnalyticsView['lens'], accounts: readon
       };
     }),
     week: weekGrid(week.map((row, wd) => row.map((acc, hour): WeekCell => ({ weekday: wd as Weekday, hour, occurrences: occurrences[wd]![hour]!, stats: acc.stats() })))),
-    weeks: foldWeeks(cube, new Set(accountIndex.keys()), lens.model),
     byAccount: parts(dimAccounts.map((a, j) => [a.id, byAccount[j]!]), totalStats),
     byModel: parts(models.map((m) => [m, byModel.get(m)!]), totalStats),
     byEffort: parts(efforts.map((e) => [e, byEffort.get(e)!]), totalStats),
@@ -247,38 +244,6 @@ function weekGrid(rows: readonly (readonly WeekCell[])[]): WeekGrid {
   const busiestFrom = perHour.map((_, h) => h).reduce((best, h) => (window(h) > window(best) ? h : best), 0);
   const empty = perDay.every((n) => n === 0);
   return { rows, perDay, perHour, peak: empty ? null : { weekday: busiestDay as Weekday, hours: { from: busiestFrom, to: (busiestFrom + 3) % 24 } } };
-}
-
-const WEEK_HOURS = 7 * 24;
-
-function foldWeeks(cube: UsageCube, accounts: ReadonlySet<AccountId>, model: string | null): WeekOverWeek {
-  const end = Math.floor(cube.generatedAt / HOUR_MS) * HOUR_MS;
-  const nowStart = end - WEEK_HOURS * HOUR_MS;
-  const beforeStart = nowStart - WEEK_HOURS * HOUR_MS;
-  const cells = cube.cells.filter((c) => c.hour >= beforeStart && c.hour < end && accounts.has(c.account) && (model === null || c.model === model));
-  const figures = (from: number, to: number): WeekFigures => {
-    const total = new Acc();
-    const byModel = new Map<string, Acc>();
-    const byAccount = new Map<AccountId, Acc>();
-    for (const c of cells) {
-      if (c.hour < from || c.hour >= to) continue;
-      total.add(c.tally);
-      getOr(byModel, c.model, () => new Acc()).add(c.tally);
-      getOr(byAccount, c.account, () => new Acc()).add(c.tally);
-    }
-    const stats = total.stats();
-    const ranked = <K>(m: Map<K, Acc>) => parts([...m].sort(([, a], [, b]) => b.requests() - a.requests()).filter(([, a]) => a.requests() > 0), stats);
-    return { stats, byModel: ranked(byModel), byAccount: ranked(byAccount) };
-  };
-  const blocks = Array.from({ length: 14 }, () => new Acc());
-  for (const c of cells) blocks[Math.floor((c.hour - beforeStart) / DAY_MS)]!.add(c.tally);
-  const reachesBack = !cube.catchingUp && cube.cells.length > 0 && cube.cells[0]!.hour <= beforeStart + DAY_MS;
-  return {
-    hours: WEEK_HOURS,
-    now: { start: nowStart as Instant, end: end as Instant, figures: figures(nowStart, end) },
-    before: reachesBack ? { start: beforeStart as Instant, end: nowStart as Instant, figures: figures(beforeStart, nowStart) } : null,
-    blocks: blocks.map((acc, i) => ({ start: (beforeStart + i * DAY_MS) as Instant, end: (beforeStart + (i + 1) * DAY_MS) as Instant, stats: acc.stats() })),
-  };
 }
 
 function derivePace(cube: UsageCube, accounts: readonly AccountView[]): PaceView[] {
