@@ -179,6 +179,7 @@ The page has two views, Monitor and Usage, chosen by the hash (`#usage` opens Us
 - **Color has one job each.** Account identity is `--id-1` to `--id-5`, magnitude is the ice ramp, and status is green, amber and red. A failure series is a status, so it wears the status colors with a glyph. 499 is the client hanging up, so it stays gray.
 - **Palette checks are a test.** `test/palette.test.ts` reads `:root` in `styles.css` and fails when a text token drops under 4.5:1 on any surface, a mark token under 3:1, or two neighbouring account colors, or an account color and a status color, come within 15 of each other.
 - **The line over "room" marks a heading.** The same 2px ice line, short, sits above every `h2` that titles a frame: each stat tile, panel, card, the toolbar and the claim dialog. A frame's top edge carries no line of its own, so the mark appears where the reader starts reading. Meters and charts carry it only as a real limit, such as the 100% cap on the cache-hit bar.
+- **One face, two widths.** Every number uses the system face with tabular figures, set once on `body`. The wordmark and every figure set large (`.hero.num`, `.kpi-value`, `.figure`) use the same face at its expanded width, heavier than the text around them, so the name and the readout share one voice. The serving account's address is a name and not a figure, so it keeps proportional figures.
 
 ## Synthesis decision
 

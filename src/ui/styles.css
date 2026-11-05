@@ -50,6 +50,7 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 14px/1.45 var(--font);
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 body::before {
@@ -86,10 +87,6 @@ h4 {
 code {
   font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ink-2);
-}
-
-.num {
-  font-variant-numeric: tabular-nums;
 }
 
 .muted {
@@ -208,6 +205,19 @@ code {
   height: 2px;
   border-radius: 1px;
   background: currentColor;
+}
+/* The display cut: the wordmark and every figure set large share the system face at its expanded width. */
+.wordmark,
+.hero.num,
+.kpi-value,
+.figure {
+  font-stretch: expanded;
+}
+.hero.num,
+.kpi-value,
+.figure {
+  font-weight: 650;
+  letter-spacing: -0.02em;
 }
 /* The line over "room" again, short, above each panel's title. */
 :is(.stat, .panel-head, .card-title, .modal) h2,
@@ -485,7 +495,6 @@ code {
   background: var(--surface-2);
   border-radius: 5px;
   padding: 1px 7px;
-  font-variant-numeric: tabular-nums;
 }
 .chip.state-aging {
   color: var(--warning);
@@ -627,6 +636,7 @@ a.cell-pace:hover {
   gap: 10px;
   min-height: calc(var(--hero-size) * 1.15);
   font-size: clamp(20px, calc((100cqi - 22px) / 11.5), var(--hero-size));
+  font-variant-numeric: normal;
 }
 .hero-id .swatch.small {
   width: 12px;
@@ -1220,7 +1230,6 @@ a.cell-pace:hover {
 .step {
   font: inherit;
   font-size: 13px;
-  font-variant-numeric: tabular-nums;
   line-height: 1;
   width: 42px;
   min-height: 32px;
@@ -1358,7 +1367,6 @@ a.cell-pace:hover {
 .tick {
   fill: var(--muted);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 .tooltip {
   position: absolute;
@@ -1810,9 +1818,7 @@ table.errors td.message {
 .kpi-value {
   margin: 0;
   font-size: 30px;
-  font-weight: 600;
   line-height: 1.1;
-  letter-spacing: -0.01em;
 }
 .kpi-value.kpi-text {
   font-size: 24px;
@@ -2205,9 +2211,7 @@ table.errors td.message {
 }
 .figure {
   font-size: 24px;
-  font-weight: 600;
   line-height: 1.1;
-  letter-spacing: -0.01em;
 }
 .figure-label {
   margin-top: 2px;
