@@ -120,11 +120,12 @@ export interface ServeOrderView {
 }
 
 /**
- * session and weekly are what the account's row draws as left; null where it has no reading of that window.
+ * state: one word for an account in line. new_sessions: first in line under fill-first, where the next new session lands, as the
+ * Serving tile says. active: it answered in the last 2 min, as its row chip says. standby: neither.
  * until: when a blocked account is back, said as the reset of the window holding it when that reset is what frees it, as its row says.
  */
 export type ServeLine = { readonly account: AccountId; readonly email: string } & (
-  | { readonly kind: 'in_line'; readonly rank: number; readonly session: PercentLeft | null; readonly weekly: PercentLeft | null }
+  | { readonly kind: 'in_line'; readonly rank: number; readonly state: 'new_sessions' | 'active' | 'standby' }
   | { readonly kind: 'blocked'; readonly until: Instant | null; readonly reason: string }
   | { readonly kind: 'disabled' }
 );

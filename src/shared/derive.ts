@@ -915,15 +915,15 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   };
 }
 
-const windowLeft = (limits: readonly LimitView[], key: string) => limits.find((l) => l.key === key)?.left ?? null;
-
 /** Fill-first's rule, as routing and Make primary read it: the highest priority CPA can send to goes first. */
 function deriveServeOrder(accounts: readonly AccountView[], rotates: boolean): ServeOrderView {
   const who = (a: AccountView) => ({ account: a.id, email: a.email });
   const inLine = accounts
     .filter((a) => a.routing.role.kind === 'serving' || a.routing.role.kind === 'standby')
     .sort((x, y) => y.routing.priority - x.routing.priority || byRecent(x, y))
-    .map((a, i): ServeLine => ({ ...who(a), kind: 'in_line', rank: i + 1, session: windowLeft(a.limits, 'session'), weekly: windowLeft(a.limits, 'weekly_all') }));
+    .map(
+      (a, i): ServeLine => ({ ...who(a), kind: 'in_line', rank: i + 1, state: !rotates && i === 0 ? 'new_sessions' : a.routing.role.kind === 'serving' ? 'active' : 'standby' }),
+    );
   const blocked = accounts
     .flatMap((a) =>
       a.routing.role.kind === 'blocked' ? [{ ...who(a), kind: 'blocked' as const, until: a.trouble?.limit?.liftsAt ?? a.routing.role.until, reason: a.routing.role.reason }] : [],

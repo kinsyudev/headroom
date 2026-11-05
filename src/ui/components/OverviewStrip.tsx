@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import type { AccountId, Instant } from '../../shared/domain';
 import type { DeckView, ServeLine } from '../../shared/view';
-import { leftLabel, percent, reasonTitle, runOutText, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
+import { reasonTitle, runOutText, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
 import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
 import { resetsAnchor, VerdictLine } from './ResetOffers';
@@ -162,33 +162,26 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly slots: 
         {o.order.lines.length === 0 ? (
           <p className="stat-sub order-none">No accounts yet</p>
         ) : (
-          <>
-            <span className="order-col">{leftLabel('Session')}</span> <span className="order-col">{leftLabel('Weekly')}</span>{' '}
-            <ol className="order-lines">
-              {o.order.lines.map((l) => (
-                <li className="order-line" key={l.account}>
-                  <span className="order-rank num">{l.kind !== 'in_line' ? '–' : o.order.rotates ? '' : l.rank}</span>{' '}
-                  <span className="order-who">{who(l.account, l.email)}</span> {place(l)}
-                </li>
-              ))}
-            </ol>
-          </>
+          <ol className="order-lines">
+            {o.order.lines.map((l) => (
+              <li className="order-line" key={l.account}>
+                <span className="order-rank num">{l.kind !== 'in_line' ? '–' : o.order.rotates ? '' : l.rank}</span>{' '}
+                <span className="order-who">{who(l.account, l.email)}</span> {place(l)}
+              </li>
+            ))}
+          </ol>
         )}
       </div>
     </section>
   );
 }
 
+const IN_LINE: Readonly<Record<Extract<ServeLine, { kind: 'in_line' }>['state'], string>> = { new_sessions: 'taking new sessions', active: 'active', standby: 'standby' };
+
 function place(l: ServeLine) {
   switch (l.kind) {
     case 'in_line':
-      return l.session === null && l.weekly === null ? (
-        <span className="order-status muted">not read yet</span>
-      ) : (
-        <>
-          <span className="order-left num">{percent(l.session)}</span> <span className="order-left num">{percent(l.weekly)}</span>
-        </>
-      );
+      return <span className={l.state === 'new_sessions' ? 'order-status lead' : 'order-status'}>{IN_LINE[l.state]}</span>;
     case 'blocked':
       return (
         <span className="order-status blocked" title={reasonTitle(l.reason)}>

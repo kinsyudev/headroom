@@ -100,9 +100,12 @@ try {
       /^account1 session runs out ~\d\d:\d\d, (\d+h )?\d+m before its \d\d:\d\d reset\. New sessions then go to account2\./.test(runOutTitle),
     `the strip warns in one line that account1's session runs out, and its tooltip says how long before the reset and that account2 takes over: "${await text(runOut)}" / "${runOutTitle}"`,
   );
+  // account2 may have answered in the last 2 min, so its word follows its own row chip: Active or Standby.
+  const word2 = (await text(card('account2@example.com').getByTestId('role'))).includes('Active') ? 'active' : 'standby';
+  const order = await text(page.getByTestId('tile-headroom'));
   assert(
-    /^Serve order Session left Weekly left 1 account1 88% 73%\s*2 account2 100% 99%\s*– account3 blocked until \d\d:\d\d$/.test(await text(page.getByTestId('tile-headroom'))),
-    'serve order: account1 then account2 by priority with the room their rows show, then account3 out, blocked until its session reset frees it',
+    new RegExp(`^Serve order 1 account1 taking new sessions\\s*2 account2 ${word2}\\s*– account3 blocked until \\d\\d:\\d\\d$`).test(order),
+    `serve order: account1 then account2 by priority, each with the one word its row chip says and no percentages, then account3 out, blocked until its session reset frees it: "${order}"`,
   );
   const runsOut = await text(card('account1@example.com').getByTestId('limit-session').getByTestId('pace-note'));
   assert(

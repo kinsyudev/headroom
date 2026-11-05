@@ -600,16 +600,13 @@ describe('the serve order', () => {
   const change = (id: AccountId, f: (a: CpaAccount) => CpaAccount) => cpaAccounts().map((a) => (a.id === id ? f(a) : a));
   const quiet = (a: CpaAccount): CpaAccount => ({ ...a, cooldowns: [], unavailable: false, nextRetryAfter: null, statusMessage: null });
 
-  test('fill-first: the accounts in line by priority with the room their rows draw, then the blocked one, back when its session resets', () => {
+  test('fill-first: the accounts in line by priority, the first taking new sessions and the next on standby, then the blocked one, back when its session resets', () => {
     const d = deriveDeck(snapshot({ feeds: threeRead, serving: [seen(ACC1)] }), T0);
-    const column = (key: string) => d.accounts.map((a) => a.limits.find((l) => l.key === key)!.left as number | null);
-    expect(column('session')).toEqual([88, 100, 0]);
-    expect(column('weekly_all')).toEqual([73, 99, 40]);
     expect(d.overview.order).toEqual({
       rotates: false,
       lines: [
-        { account: ACC1, email: 'account1@example.com', kind: 'in_line', rank: 1, session: 88, weekly: 73 },
-        { account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, session: 100, weekly: 99 },
+        { account: ACC1, email: 'account1@example.com', kind: 'in_line', rank: 1, state: 'new_sessions' },
+        { account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, state: 'standby' },
         { account: ACC3, email: 'account3@example.com', kind: 'blocked', until: at('2026-11-04T14:20:00.412Z'), reason: 'credential_quota' },
       ],
     } as never);
@@ -628,7 +625,7 @@ describe('the serve order', () => {
     expect(o.order.lines[2]).toMatchObject({ kind: 'blocked', until: at('2026-11-04T14:20:17.000Z') });
   });
 
-  test('rank 1 is where the Serving tile says a new session lands, even while another account serves by affinity', () => {
+  test('rank 1 is where the Serving tile says a new session lands, even while another account serves by affinity and says active, as its row does', () => {
     const o = overview({ serving: [seen(ACC2)] });
     expect(o.serving.map((s) => s.account)).toEqual([ACC2]);
     expect(o.target?.account).toBe(ACC1);
@@ -637,6 +634,7 @@ describe('the serve order', () => {
       [ACC2, 2],
       [ACC3, 'blocked'],
     ]);
+    expect(o.order.lines.slice(0, 2)).toMatchObject([{ state: 'new_sessions' }, { state: 'active' }]);
   });
 
   test('a higher priority moves an account up the line', () => {
@@ -649,7 +647,7 @@ describe('the serve order', () => {
     expect(o.target?.account).toBe(ACC2);
   });
 
-  test('among equal priorities the account answered from most recently goes first, as the Serving tile predicts', () => {
+  test('among equal priorities the account answered from most recently goes first, as the Serving tile predicts, and only it takes new sessions', () => {
     const accounts = change(ACC3, (a) => ({ ...quiet(a), headers: null }));
     const o = overview({ accounts, feeds: { ...threeRead, [ACC3]: threeRead[ACC2]! }, serving: [seen(ACC1, 10 * MIN), seen(ACC3, 5 * MIN)] });
     expect(o.target?.account).toBe(ACC3);
@@ -658,16 +656,17 @@ describe('the serve order', () => {
       [ACC1, 2],
       [ACC2, 3],
     ]);
+    expect(o.order.lines.map((l) => l.kind === 'in_line' && l.state)).toEqual(['new_sessions', 'standby', 'standby']);
   });
 
-  test('an account at its limit that CPA no longer blocks is in line where its priority puts it, with nothing left', () => {
+  test('an account at its limit that CPA no longer blocks is in line where its priority puts it', () => {
     const o = overview({ accounts: change(ACC3, quiet), serving: [seen(ACC1)] });
     expect(places(o)).toEqual([
       [ACC1, 1],
       [ACC3, 2],
       [ACC2, 3],
     ]);
-    expect(o.order.lines[1]).toMatchObject({ kind: 'in_line', session: 0, weekly: 40 });
+    expect(o.order.lines[1]).toMatchObject({ kind: 'in_line', state: 'standby' });
   });
 
   test('blocked accounts follow the line, soonest back first, and disabled ones come last', () => {
@@ -685,15 +684,18 @@ describe('the serve order', () => {
     expect(o.target).toBeNull();
   });
 
-  test('round-robin keeps the same list and says the order rotates', () => {
-    const fillFirst = overview({ serving: [seen(ACC1)] }).order;
-    expect(fillFirst.rotates).toBe(false);
-    expect(overview({ serving: [seen(ACC1)], strategy: 'round-robin' }).order).toEqual({ ...fillFirst, rotates: true });
+  test('round-robin keeps the same list and says the order rotates, and no account takes new sessions by priority, so they read active or standby as their rows do', () => {
+    const fillFirst = overview({ serving: [seen(ACC1)] });
+    const rotating = overview({ serving: [seen(ACC1)], strategy: 'round-robin' });
+    expect(fillFirst.order.rotates).toBe(false);
+    expect(rotating.order.rotates).toBe(true);
+    expect(places(rotating)).toEqual(places(fillFirst));
+    expect(rotating.order.lines.slice(0, 2)).toMatchObject([{ state: 'active' }, { state: 'standby' }]);
   });
 
-  test('an account with no limits read yet still takes requests, so it is in line with no figures', () => {
+  test('an account with no limits read yet still takes requests, so it is in line', () => {
     const o = overview({ accounts: change(ACC2, (a) => ({ ...a, headers: null })), feeds: { [ACC1]: threeRead[ACC1]! }, serving: [seen(ACC1)] });
-    expect(o.order.lines[1]).toEqual({ account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, session: null, weekly: null } as never);
+    expect(o.order.lines[1]).toEqual({ account: ACC2, email: 'account2@example.com', kind: 'in_line', rank: 2, state: 'standby' } as never);
   });
 });
 
