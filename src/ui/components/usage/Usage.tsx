@@ -16,7 +16,7 @@ import { WeekPattern } from './WeekPattern';
 /**
  * Usage opens on the quota pace, which neither the range nor the filters change, and then the toolbar and what it scopes: the
  * selected range against the span before it, and the history to explore. The headline and every chart below the toolbar read what it
- * picks, so one range holds the numbers together. It opens on the week, the span the dim bars and the same-day-last-week ghosts
+ * picks, so one range holds the numbers together. It opens on the week, the span the dim bars and the same-day-last-week level marks
  * compare best. Three lenses read one cube. `all` is the month with no filters: it feeds the pace and the model list. `explore`
  * follows the toolbar. `pattern` is the month with the toolbar's account and model, because a weekly rhythm needs a month to show.
  */

@@ -4,7 +4,7 @@ import type { AnalyticsView, UsageStats } from '../../../shared/view';
 import { useNow } from '../../deck';
 import { bucketText, compact, count, shortName } from '../../format';
 import { ChartCard, Legend } from '../charts/ChartCard';
-import { StackedColumns, type Bucket } from '../charts/StackedColumns';
+import { PREVIOUS_COLOR, StackedColumns, type Bucket } from '../charts/StackedColumns';
 import { Switch } from '../charts/Switch';
 import { RANGE_LABEL } from './Toolbar';
 
@@ -65,7 +65,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
       title={`${m.noun} over time`}
       sub={`${RANGE_LABEL[v.lens.range]} · per ${v.lens.grain} · by account`}
       actions={<Switch label="Measure" options={METRICS} value={metric} onChange={setMetric} />}
-      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: 'var(--ink)', mark: 'ghost' as const }] : [])]} />}
+      legend={<Legend items={[...series.map((s) => ({ key: s.key, label: s.label, color: s.color })), ...(previous ? [{ key: 'last-week', label: LAST_WEEK_NAME, color: PREVIOUS_COLOR, mark: 'line' as const }] : [])]} />}
       table={table}
       testId="over-time"
     >
@@ -75,7 +75,7 @@ export function OverTime(props: { readonly view: AnalyticsView; readonly colors:
         format={format}
         bucketLabel={label}
         tooltipTitle={title}
-        label={`${m.noun} per ${v.lens.grain}, stacked by account${previous ? `, with ${LAST_WEEK_NAME.toLowerCase()} as a dim column behind` : ''}`}
+        label={`${m.noun} per ${v.lens.grain}, stacked by account${previous ? `, with ${LAST_WEEK_NAME.toLowerCase()} marked as a level across each column` : ''}`}
         dim={props.dim}
         height={260}
         previous={previous}

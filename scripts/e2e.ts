@@ -304,7 +304,9 @@ try {
     'the over-time legend names the three accounts by their short names, with no email, and the same day last week',
   );
   assert((await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').count()) === 7, 'the opening 7 days draw seven days, the last one still filling');
-  assert((await page.getByTestId('over-time').locator('.chart .prev-bar').count()) === 7, 'each of the seven days carries its same-day-last-week ghost column');
+  const levels = page.getByTestId('over-time').locator('.chart .prev-level');
+  assert((await levels.count()) === 7, 'each of the seven days carries its same-day-last-week level mark');
+  assert((await levels.evaluateAll((els) => els.every((el) => el.getBoundingClientRect().height <= 6))), 'last week reads as a thin level across its column, not as a box');
   await page.getByTestId('over-time').locator('.chart rect[tabindex="0"]').nth(5).hover();
   const overTip = await text(page.locator('.tooltip'));
   assert(overTip.includes('Same day last week') && overTip.includes('account1') && !overTip.includes('@'), 'hovering a day gives the figure for the same day last week and names accounts by their short names');

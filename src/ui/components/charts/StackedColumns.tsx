@@ -20,7 +20,11 @@ export interface Bucket {
 const PAD = { top: 14, right: 8, bottom: 26, left: 48 };
 const GAP = 2;
 const NOW_LABEL_CLEARANCE = 40;
-const GHOST_OVERHANG = 5;
+const LEVEL_OVERHANG = 5;
+const LEVEL_THICKNESS = 2;
+
+/** One neutral for what a column is compared with, so the mark on the chart, the legend key and the tooltip row are the same line. */
+export const PREVIOUS_COLOR = 'var(--muted)';
 
 /** A fixed vertical scale from zero, for a chart whose values are shares and not counts. */
 export interface Domain {
@@ -28,7 +32,7 @@ export interface Domain {
   readonly ticks: readonly number[];
 }
 
-/** The same buckets one span earlier, drawn as a dim ghost column behind each one on the chart's one scale. null leaves a column without. */
+/** The same buckets one span earlier, drawn as a thin level across each column at its earlier value, on the chart's one scale. null leaves a column without. */
 export interface Previous {
   readonly label: (bucket: Bucket) => string;
   readonly values: readonly (number | null)[];
@@ -116,13 +120,13 @@ export const StackedColumns = memo(function StackedColumns(props: {
           return (
             <g key={b.start}>
               <g opacity={hover === null || hover === i ? 1 : 0.55}>
-                {p != null && <rect className="prev-bar" x={x - GHOST_OVERHANG} y={y(p)} width={bw + 2 * GHOST_OVERHANG} height={Math.max(1, y(0) - y(p))} rx={2} />}
                 {segs.map((g, k) => (
                   <g key={g.key}>
                     {shape(g, k, g.color)}
                     {b.partial && shape(g, k, 'url(#partial-hatch)')}
                   </g>
                 ))}
+                {p != null && <rect className="prev-level" x={x - LEVEL_OVERHANG} y={y(p) - LEVEL_THICKNESS / 2} width={bw + 2 * LEVEL_OVERHANG} height={LEVEL_THICKNESS} rx={1} fill={PREVIOUS_COLOR} />}
               </g>
               {labelled(b, i) && (
                 <text x={x + bw / 2} y={H - 8} textAnchor="middle" className="tick">
@@ -155,7 +159,7 @@ export const StackedColumns = memo(function StackedColumns(props: {
         >
           {props.previous && prev[hover] != null && (
             <div className="tooltip-row">
-              <Key mark="ghost" color="var(--ink)" />
+              <Key mark="line" color={PREVIOUS_COLOR} />
               <strong className="num">{props.format(prev[hover])}</strong>
               <span className="muted">
                 {props.previous.label(props.buckets[hover])}

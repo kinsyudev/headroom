@@ -1294,13 +1294,10 @@ a.cell-pace:hover {
   display: inline-block;
   flex: none;
 }
-.key.square,
-.key.ghost {
+.key.square {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-}
-.key.square {
   background: var(--key);
 }
 .key.line,
@@ -1314,10 +1311,6 @@ a.cell-pace:hover {
 }
 .key.dash {
   background: repeating-linear-gradient(90deg, var(--key) 0 4px, transparent 4px 7px);
-}
-.key.ghost {
-  border: 1px dashed var(--ink-2);
-  background: color-mix(in srgb, var(--key) 14%, transparent);
 }
 .chart {
   position: relative;
@@ -2134,11 +2127,10 @@ table.errors td.message {
   stroke: var(--surface);
   stroke-width: 2;
 }
-.chart .prev-bar {
-  fill: color-mix(in srgb, var(--ink) 14%, transparent);
-  stroke: var(--ink-2);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
+.chart .prev-level {
+  stroke: var(--surface);
+  stroke-width: 3;
+  paint-order: stroke;
 }
 .chart .end-label {
   fill: var(--ink-2);
