@@ -56,7 +56,7 @@ bun scripts/e2e.ts
 
 `scripts/e2e.ts` starts Headroom on :18338 against the fake CPA and clicks every action in Chromium. It then checks that the fake recorded exactly the expected mutations. Screenshots go to `var/screenshots/` and the step log goes to `var/e2e-report.json`.
 
-To check the real setup without changing it, stop the LaunchAgent and run `bun scripts/live-check.ts`. It starts its own Headroom on :1338 against the real CPA and keeper and waits for the first budgeted reads, about six Anthropic calls. It prints what the page shows, probes the guard with requests that can't mutate anything, saves `var/screenshots/live.png`, and stops Headroom.
+To check the real setup without changing it, leave the LaunchAgent running and run `bun scripts/live-check.ts`. It needs Headroom up on :1338 and exits with a message when nothing answers. It never starts a Headroom, because a second one doubles the Anthropic usage reads and rate-limits every account for about 35 minutes. It reads `/api/snapshot` and prints what the page shows, sends one GET with a foreign Host header and expects 421, loads the page in headless Chromium without clicking, reports page errors and saves `var/screenshots/live.png`. It sends no POST. Set `HEADROOM_PORT` to check an instance on another port.
 
 ## What the page shows
 
