@@ -179,10 +179,10 @@ export interface TroubleView {
 export type WindowPhase = 'open' | 'idle' | 'lapsed';
 
 /**
- * How loudly a meter is drawn: its severity, except that a normal reading with most of its room left is 'ample' and
- * recedes, and one with a quarter or less left is 'low', drawn as the warning is.
+ * What a meter's fill says, by status alone. warning: the window is on course to run out before it resets, or, with no
+ * pace to project from, a quarter or less is left. critical: at the limit. Everything else is normal and draws neutral.
  */
-export type MeterTone = Severity | 'ample' | 'low';
+export type MeterTone = Severity;
 
 export interface LimitView {
   readonly key: string;

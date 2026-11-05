@@ -32,6 +32,12 @@ const deltaE = (a: string, b: string) => {
   const [x, y] = [oklab(a), oklab(b)];
   return 100 * Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
 };
+const chroma = (hex: string) => Math.hypot(oklab(hex)[1], oklab(hex)[2]);
+const hue = (hex: string) => (Math.atan2(oklab(hex)[2], oklab(hex)[1]) * 180) / Math.PI;
+const hueGap = (a: string, b: string) => {
+  const d = Math.abs(hue(a) - hue(b)) % 360;
+  return Math.min(d, 360 - d);
+};
 
 const SURFACES = ['page', 'surface', 'surface-2', 'raised'] as const;
 
@@ -40,7 +46,7 @@ describe('the palette keeps the page legible', () => {
     for (const surface of SURFACES) expect(contrast(token(name), token(surface))).toBeGreaterThanOrEqual(4.5);
   });
 
-  test.each(['ice-3', 'ice-4', 'ice-5', 'ice-6', 'quiet', 'critical', 'id-1', 'id-2', 'id-3', 'id-4', 'id-5'])('mark token --%s clears 3:1 on the card surface', (name) => {
+  test.each(['ice-3', 'ice-4', 'ice-5', 'ice-6', 'quiet', 'slate', 'critical', 'id-1', 'id-2', 'id-3', 'id-4', 'id-5'])('mark token --%s clears 3:1 on the card surface', (name) => {
     expect(contrast(token(name), token('surface'))).toBeGreaterThanOrEqual(3);
   });
 });
@@ -52,7 +58,23 @@ describe('identity hues are told apart from each other and from the status colou
     for (let i = 1; i < identity.length; i++) expect(deltaE(identity[i - 1]!, identity[i]!)).toBeGreaterThanOrEqual(15);
   });
 
+  test('the first three, which sit side by side in the serve order and every legend, are 15 apart as every pair', () => {
+    const [a, b, c] = identity as [string, string, string];
+    for (const [x, y] of [[a, b], [b, c], [a, c]] as const) expect(deltaE(x, y)).toBeGreaterThanOrEqual(15);
+  });
+
   test('no identity hue sits within 15 of a status colour, the same floor the dataviz method sets between series', () => {
     for (const hue of identity) for (const status of ['good', 'warning', 'critical', 'critical-ink'].map(token)) expect(deltaE(hue, status)).toBeGreaterThanOrEqual(15);
+  });
+
+  test("no identity hue is in the brand blue's family: each is at least 45° of hue from it", () => {
+    for (const h of identity) expect(hueGap(h, token('brand'))).toBeGreaterThanOrEqual(45);
+  });
+});
+
+describe('quantity is drawn apart from identity and brand', () => {
+  test('the meter fill is a neutral, with too little chroma to read as an account or the brand', () => {
+    expect(chroma(token('slate'))).toBeLessThan(0.04);
+    for (const name of ['brand', 'id-1', 'id-2', 'id-3', 'id-4', 'id-5']) expect(chroma(token(name))).toBeGreaterThan(0.1);
   });
 });

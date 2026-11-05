@@ -24,12 +24,14 @@
   --brand-ink: var(--ice-6);
   --accent: var(--brand);
   --link: var(--ice-5);
-  /* Account identity: validated against --surface, adjacent pairs, and kept away from the status hues below. */
+  /* Quantity: how much room a meter holds, in a neutral that is neither an account nor the brand. Status recolors it. */
+  --slate: #7d8b9e;
+  /* Account identity: validated against --surface, kept out of the brand blue's hue family and away from the status hues below. */
   --id-1: #876fe4;
   --id-2: #18a7a1;
-  --id-3: #2570cc;
-  --id-4: #9d82cc;
-  --id-5: #94771a;
+  --id-3: #bb29a6;
+  --id-4: #94771a;
+  --id-5: #9d82cc;
   /* Status: reserved. Green, amber and red mean good, warning and critical and nothing else. */
   --good: #0ca30c;
   --warning: #fab219;
@@ -848,18 +850,14 @@ span.banner-line {
 }
 
 .meter {
-  --track: color-mix(in srgb, var(--ice-5) 13%, var(--surface-2));
-  --fill: var(--ice-5);
+  --track: color-mix(in srgb, var(--slate) 14%, var(--surface-2));
+  --fill: var(--slate);
   position: relative;
   height: 6px;
   border-radius: 3px;
   background: var(--track);
 }
-.meter.tone-ample {
-  --fill: var(--ice-3);
-}
-.meter.tone-warning,
-.meter.tone-low {
+.meter.tone-warning {
   --fill: var(--warning);
   --track: color-mix(in srgb, var(--warning) 18%, var(--surface-2));
 }

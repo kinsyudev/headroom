@@ -40,6 +40,7 @@ import type {
   OfferState,
   OfferView,
   OverviewView,
+  PaceOutlook,
   PlanView,
   ReadView,
   RoutingView,
@@ -401,14 +402,22 @@ interface Observation {
 const percentLeft = (used: Percent): PercentLeft => Math.min(100, Math.max(0, 100 - used)) as PercentLeft;
 const percentLeftOrNull = (used: Percent | null): PercentLeft | null => (used === null ? null : percentLeft(used));
 
-/** Over half left is room to spare: the meter recedes so the windows running low are the ones that stand out. */
-const AMPLE_LEFT = 50;
-
+/** With no pace to project from, a quarter or less left is what says the room is running out. */
 const LOW_LEFT = 25;
 
-export function meterTone(severity: Severity, left: PercentLeft | null): MeterTone {
-  if (severity !== 'normal' || left === null) return severity;
-  return left > AMPLE_LEFT ? 'ample' : left <= LOW_LEFT ? 'low' : severity;
+export function meterTone(severity: Severity, left: PercentLeft | null, outlook: PaceOutlook['kind'] | null): MeterTone {
+  if (severity !== 'normal') return severity;
+  switch (outlook) {
+    case 'at_limit':
+      return 'critical';
+    case 'hits':
+      return 'warning';
+    case 'lasts':
+      return 'normal';
+    case 'too_early':
+    case null:
+      return left !== null && left <= LOW_LEFT ? 'warning' : 'normal';
+  }
 }
 
 export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: HeaderQuota | null, now: Instant): LimitView[] {
@@ -445,6 +454,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
     const otherLive = other && !(other.resetsAt !== null && other.resetsAt <= now);
     const left = lapsed ? null : percentLeft(draw.percent);
     const severity = lapsed ? 'normal' : draw.severity;
+    const p = lapsed || draw.resetsAt === null ? null : pace(draw.kind, draw.percent, draw.resetsAt, now);
     return {
       key: rowKey(draw.kind, draw.scopeModel),
       label: limitLabel(draw.kind, draw.scopeModel),
@@ -452,12 +462,12 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       percent: lapsed ? null : draw.percent,
       left,
       severity,
-      tone: meterTone(severity, left),
+      tone: meterTone(severity, left, p?.outlook.kind ?? null),
       resetsAt: draw.resetsAt,
       limiting: !lapsed && draw.isActive && draw.severity !== 'normal',
       source: draw.source,
       other: otherLive ? otherView(other) : null,
-      pace: lapsed || draw.resetsAt === null ? null : pace(draw.kind, draw.percent, draw.resetsAt, now),
+      pace: p,
     };
   });
   if (poll && !rows.has(rowKey('session', null))) {
@@ -468,7 +478,7 @@ export function mergeLimits(poll: Sample<readonly Limit[]> | null, headers: Head
       percent: null,
       left: 100 as PercentLeft,
       severity: 'normal',
-      tone: 'ample',
+      tone: 'normal',
       resetsAt: null,
       limiting: false,
       source: { kind: 'poll', at: poll.at },
@@ -553,7 +563,7 @@ function pollView({ enabled, percent, ...rest }: Spend, at: Instant, liveCritica
   const left = percentLeftOrNull(percent);
   const remaining = limit && { ...limit, minor: Math.max(0, limit.minor - used.minor) };
   const state = spendState(enabled, used, limit);
-  const tone = meterTone(liveCritical || state === 'cap_used' ? 'critical' : rest.severity, left);
+  const tone = meterTone(liveCritical || state === 'cap_used' ? 'critical' : rest.severity, left, null);
   return { ...rest, state, left, tone, remaining, at };
 }
 

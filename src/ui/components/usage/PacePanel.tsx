@@ -10,7 +10,7 @@ type Look = { readonly tone: MeterTone; readonly icon: string; readonly cls: str
 /** What each outlook looks like. The icon and the words say it, and the colour only repeats it. */
 const LOOKS: Readonly<Record<PaceView['pace']['outlook']['kind'], Look>> = {
   lasts: {
-    tone: 'ample',
+    tone: 'normal',
     icon: '✓',
     cls: 'ok',
     main: () => 'Lasts to the reset',
@@ -30,7 +30,7 @@ const LOOKS: Readonly<Record<PaceView['pace']['outlook']['kind'], Look>> = {
     },
   },
   at_limit: { tone: 'critical', icon: '✕', cls: 'crit', main: () => 'At its limit', sub: (p, now) => `Resets ${clockTime(p.pace.endsAt, now)}, in ${duration(p.pace.endsAt - now)}` },
-  too_early: { tone: 'ample', icon: '○', cls: 'quiet', main: () => 'Too early to say', sub: () => 'Under 5% of the window has passed' },
+  too_early: { tone: 'normal', icon: '○', cls: 'quiet', main: () => 'Too early to say', sub: () => 'Under 5% of the window has passed' },
 };
 
 /** What the window has cost so far, and what one percent of it is worth. */

@@ -215,27 +215,35 @@ describe('window lifecycle', () => {
     expect(left(0)).toMatchObject({ percent: 0, left: 100 });
   });
 
-  describe('how loudly the meter draws a window', () => {
-    const toneOf = (used: number, severity: Severity) => {
-      const poll = { value: usage('anthropic-usage-2.json', 'normal').limits.map((l) => (l.kind === 'session' ? { ...l, percent: used as never, severity } : l)), at: T0 };
-      return mergeLimits(poll, null, T0)[0]!.tone;
+  describe('what the meter fill says', () => {
+    const HOUR = 3_600_000;
+    const toneOf = (kind: string, used: number, resetsInMs: number | null, severity: Severity = 'normal') => {
+      const l: Limit = { kind, percent: used as Percent, severity, resetsAt: resetsInMs === null ? null : plus(T0, resetsInMs), scopeModel: null, isActive: false };
+      return mergeLimits({ value: [l], at: T0 }, null, T0).find((v) => v.key === kind)!.tone;
     };
 
     test.each([
-      ['most of it left', 12, 'normal', 'ample'],
-      ['one point over half left', 49, 'normal', 'ample'],
-      ['exactly half left', 50, 'normal', 'normal'],
-      ['a little over a quarter left', 74, 'normal', 'normal'],
-      ['exactly a quarter left is low', 75, 'normal', 'low'],
-      ['under a quarter left', 92, 'normal', 'low'],
-      ['a warning keeps its tone however much is left', 12, 'warning', 'warning'],
-      ['a window at its limit', 100, 'critical', 'critical'],
-    ] as const)('%s: %p%% used at %s severity is %s', (_label, used, severity, tone) => {
-      expect(toneOf(used, severity)).toBe(tone);
+      ['most of the session left, but burning faster than time, runs out before the reset', 12, 4.5 * HOUR, 'normal', 'warning'],
+      ['a quarter of the session left with a tenth of the time to go lasts, so it stays neutral', 75, 0.5 * HOUR, 'normal', 'normal'],
+      ['half used in half the time lasts exactly to the reset', 50, 2.5 * HOUR, 'normal', 'normal'],
+      ['a full window is critical however Anthropic grades it', 100, 3 * HOUR, 'normal', 'critical'],
+      ['a warning from Anthropic keeps its tone though the pace lasts', 10, HOUR, 'warning', 'warning'],
+      ['a critical reading stays critical', 100, HOUR, 'critical', 'critical'],
+      ['too early to project, a quarter or less left warns', 80, 5 * HOUR - 6 * MIN, 'normal', 'warning'],
+      ['too early to project, more than a quarter left is neutral', 30, 5 * HOUR - 6 * MIN, 'normal', 'normal'],
+    ] as const)('%s', (_what, used, resetsIn, severity, tone) => {
+      expect(toneOf('session', used, resetsIn, severity)).toBe(tone);
     });
 
-    test('an idle window has all of its room, and a lapsed one has no reading to be loud about', () => {
-      expect(mergeLimits(pollOf('anthropic-usage-1.json', T0), null, T0)[0]).toMatchObject({ phase: 'idle', tone: 'ample' });
+    test('with no pace to go on, a quarter or less left warns', () => {
+      expect(toneOf('monthly', 75, HOUR)).toBe('warning');
+      expect(toneOf('monthly', 74, HOUR)).toBe('normal');
+      expect(toneOf('session', 80, null)).toBe('warning');
+      expect(toneOf('session', 30, null)).toBe('normal');
+    });
+
+    test('an idle window has all of its room, and a lapsed one has no reading to warn about', () => {
+      expect(mergeLimits(pollOf('anthropic-usage-1.json', T0), null, T0)[0]).toMatchObject({ phase: 'idle', tone: 'normal' });
       expect(mergeLimits(pollOf('anthropic-usage-3.json', T0), null, AFTER_COOLDOWN)[0]).toMatchObject({ phase: 'lapsed', tone: 'normal' });
     });
   });
@@ -919,7 +927,7 @@ describe('card status line', () => {
       expect(poll({ limit: null, percent: null })).toMatchObject({ left: null, remaining: null });
     });
 
-    test('the meter is quiet with most of the cap left, plain under half, and critical once the live overage is rejected', () => {
+    test('the meter is neutral while the cap has room, warns at a quarter or less left, and is critical once the live overage is rejected', () => {
       const read = usage('anthropic-usage-3.json', 'normal');
       if (read.mode !== 'normal') throw new Error('fixture is a normal read');
       const toneAt = (percent: number, headers: CpaAccount['headers'] = null) => {
@@ -927,8 +935,9 @@ describe('card status line', () => {
         const spend = { ...feedsFrom(read, T0).spend, last: { value: { ...read.spend!, used, percent: percent as never, severity: 'normal' as const }, at: T0 } };
         return deriveSpend(spend, headers)?.poll?.tone;
       };
-      expect(toneAt(12)).toBe('ample');
-      expect(toneAt(60)).toBe('normal');
+      expect(toneAt(12)).toBe('normal');
+      expect(toneAt(74)).toBe('normal');
+      expect(toneAt(75)).toBe('warning');
       expect(toneAt(12, { ...account(ACC3).headers!, observedAt: plus(T0, MIN) })).toBe('critical');
     });
   });
