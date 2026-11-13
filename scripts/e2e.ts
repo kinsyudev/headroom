@@ -88,7 +88,10 @@ try {
   assert(/\d+h \d+m|\d+m/.test(await text(page.getByTestId('tile-next-reset').locator('.hero'))), 'next reset countdown');
   assert((await text(page.getByTestId('tile-claimable').locator('.hero'))) === '2', 'two claimable resets');
   const verdict = await text(page.getByTestId('tile-claimable').getByTestId('claim-verdict'));
+  assert(/bonus reset/.test(await text(card('account3@example.com').getByTestId('offers-summary'))), "account3's resets panel is one summary line until claim mode");
+  await card('account3@example.com').getByTestId('claim-mode').click();
   const panelVerdict = await text(card('account3@example.com').getByTestId('claim-verdict'));
+  await card('account3@example.com').getByTestId('claim-mode').click();
   assert(
     verdict === 'Not needed now: account1 and account2 have room' && new RegExp(`^${verdict}; account3 is back at ${CLOCK}$`).test(panelVerdict),
     `the Claimable tile and account3's claim panel say in one line why a claim is not needed now, and the panel when account3 is back: "${verdict}" / "${panelVerdict}"`,
@@ -269,7 +272,13 @@ try {
   const settledOffer = await text(c3.getByTestId('offer-juniper_tide'));
   assert((await c3.getByTestId('claim-juniper_tide').count()) === 0 && /Claimed|Next at/.test(settledOffer), `before the next read the used offer reads "${settledOffer}" and has no Claim button`);
   pass('a settled claim never shows the old offer as claimable');
-  await until(async () => (await text(c3.getByTestId('offer-juniper_tide'))).includes('Next at'), 'the wall read a minute after the claim shows the reset as used', 120_000);
+  const usedWeekly = async () => {
+    const row = c3.getByTestId('offer-juniper_tide');
+    if ((await row.count()) > 0) return (await text(row)).includes('Next at');
+    const summary = c3.getByTestId('offers-summary');
+    return (await summary.count()) > 0 && (await text(summary)).includes('weekly next');
+  };
+  await until(usedWeekly, 'the wall read a minute after the claim shows the reset as used', 120_000);
   await until(async () => (await text(page.getByTestId('tile-claimable').locator('.hero'))) === '0', 'overview drops the used resets');
   pass('post-claim wall read shows the weekly reset as used and the overview drops it');
 

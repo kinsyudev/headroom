@@ -37,7 +37,7 @@ function useClaimMode(account: string): readonly [boolean, (on: boolean) => void
   return [on, setOn];
 }
 
-/** Claim buttons stay hidden until the operator asks to claim, so the panel reads as what each account holds. */
+/** One summary line until the operator asks to claim; only then the verdict, every grant and the Claim buttons. */
 export function ResetOffers(props: { readonly account: AccountView; readonly verdict: ClaimVerdict | null; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const a = props.account;
   const claimable = a.offers.some((o) => o.state.kind === 'claimable');
@@ -48,24 +48,52 @@ export function ResetOffers(props: { readonly account: AccountView; readonly ver
       <h4>
         Resets you can claim
         <span className="offers-note">
-          {props.verdict && <VerdictLine verdict={props.verdict} email={a.email} back />}
+          {choosing ? props.verdict && <VerdictLine verdict={props.verdict} email={a.email} back /> : <span data-testid="offers-summary"><Segments parts={[...a.offers].sort((x, y) => Number(y.state.kind === 'claimable') - Number(x.state.kind === 'claimable')).map(summaryOf)} /></span>}
           {claimable && (
-            <button type="button" className="btn ghost offers-toggle" aria-pressed={choosing} data-testid="claim-mode" onClick={() => setOpen(!choosing)}>
+            <button type="button" className="btn ghost offers-toggle" aria-expanded={choosing} data-testid="claim-mode" onClick={() => setOpen(!choosing)}>
               {choosing ? 'Done' : 'Claim a reset…'}
             </button>
           )}
         </span>
       </h4>
-      <div className="offer-list">
-        {a.offers.map((o) => (
-          <OfferRow key={o.program} email={a.email} offer={o} choosing={choosing} onClaim={(grant) => props.onClaim(o.program, grant)} />
-        ))}
-      </div>
+      {choosing && (
+        <div className="offer-list">
+          {a.offers.map((o) => (
+            <OfferRow key={o.program} email={a.email} offer={o} onClaim={(grant) => props.onClaim(o.program, grant)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly choosing: boolean; readonly onClaim: (grant: GrantId | null) => void }) {
+function summaryOf(o: OfferView): ReactNode {
+  const s = o.state;
+  switch (s.kind) {
+    case 'claimable': {
+      if (o.grants.length === 0) return o.name;
+      const n = o.grants.filter((g) => g.usable).length;
+      return `${n} ${o.short} reset${n === 1 ? '' : 's'}`;
+    }
+    case 'held':
+      return `${o.short} offered at limit`;
+    case 'waiting':
+      return s.until === null ? `${o.short} paused` : (
+        <>
+          {o.short} next <Clock at={s.until} />
+        </>
+      );
+    case 'in_flight':
+      return s.phase === 'maybe_sent' ? `${o.short}: outcome unknown, checking` : `${o.short}: ${s.phase === 'sending' ? 'claiming…' : 'waiting for a fresh read'}`;
+    case 'unknown':
+      return s.why === 'failing' ? `${o.short}: read failing` : null;
+    case 'ineligible':
+    case 'not_enrolled':
+      return null;
+  }
+}
+
+function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: (grant: GrantId | null) => void }) {
   const o = props.offer;
   const several = o.grants.length > 1;
   const claimable = o.state.kind === 'claimable' ? o.state : null;
@@ -81,7 +109,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
             {o.grants.map((g) => (
               <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
                 <Segments parts={grantTerms(g, true)} />
-                {props.choosing && claimable && g.usable && (
+                {claimable && g.usable && (
                   <ClaimButton name={g.label} short="this" email={props.email} testId={`claim-${o.program}-${g.id}`} onClick={() => props.onClaim(g.id)} />
                 )}
               </li>
@@ -90,7 +118,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
         )}
       </div>
       {claimable ? (
-        props.choosing && !several && <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={() => props.onClaim(claimable.grant)} />
+        !several && <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={() => props.onClaim(claimable.grant)} />
       ) : (
         <div className="offer-state">
           <OfferState offer={o} />
