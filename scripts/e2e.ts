@@ -63,7 +63,7 @@ try {
   console.log(`deck ${stack.url} · fake CPA ${stack.fake.url}`);
   await page.goto(stack.url);
   await until(async () => Object.values((await snapshot()).feeds).filter((f) => f.limits.last && f.profile.last).length === 3, 'first Anthropic reads for all three accounts', 120_000);
-  await until(async () => (await page.getByTestId('claim-juniper_tide').count()) === 1, 'account3 wall read shows a claimable reset');
+  await until(async () => (await page.getByTestId('claim-mode').count()) === 1, 'account3 wall read shows a claimable reset');
   pass('three accounts read through the budgeted scheduler');
 
   assert((await page.locator('[data-testid^="card-"]').count()) === 3, 'three account cards');
@@ -227,6 +227,8 @@ try {
     await until(async () => (await page.getByTestId('strategy-round-robin').isDisabled()) && (await page.getByTestId('strategy-fill-first').isEnabled()), 'round-robin active');
   });
 
+  assert((await c3.locator('[data-testid^="claim-juniper_tide"], [data-testid^="claim-cedar_ember"]').count()) === 0, 'no Claim button shows until the operator asks to claim');
+  await c3.getByTestId('claim-mode').click();
   assert(
     (await text(c3.getByTestId('claim-juniper_tide'))) === 'Claim weekly…' && (await text(c3.getByTestId('claim-cedar_ember'))) === 'Claim bonus…',
     'each Claim button names its reset',

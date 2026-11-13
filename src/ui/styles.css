@@ -1195,6 +1195,10 @@ a.cell-pace:hover {
 }
 .offers-note {
   grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
   font-size: 13px;
   font-weight: 400;
   text-transform: none;
@@ -1226,6 +1230,9 @@ a.cell-pace:hover {
 .offer-state {
   color: var(--ink-2);
   min-width: 0;
+}
+.offers-toggle {
+  margin-left: auto;
 }
 .grants {
   margin: 0;

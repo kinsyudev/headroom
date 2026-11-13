@@ -86,7 +86,7 @@ try {
   await until(async () => Object.values((await snapshot()).feeds).filter((f) => f.limits.last && f.profile.last).length === 3, 'first Anthropic reads for all three accounts', 150_000);
 
   const desk = await open(1480, TILE);
-  await until(async () => (await desk.getByTestId('claim-juniper_tide').count()) === 1, 'account3 shows a claimable reset', 60_000);
+  await until(async () => (await desk.getByTestId('claim-mode').count()) === 1, 'account3 shows a claimable reset', 60_000);
   await desk.waitForTimeout(1_000);
   await tiles(desk, 'desktop', 'Whole page at 1480px wide, scrolled top to bottom');
 
@@ -126,6 +126,7 @@ try {
 
   await desk.evaluate(() => window.scrollTo(0, 0));
   await shot('claim-dialog', 'The confirmation dialog after clicking Claim on account3 weekly session reset (not confirmed)', async (path) => {
+    await desk.getByTestId('claim-mode').click();
     await desk.getByTestId('claim-juniper_tide').click();
     await desk.getByTestId('claim-dialog').waitFor({ timeout: 5_000 });
     await desk.waitForTimeout(300);

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { GrantId, ProgramId } from '../../shared/domain';
 import type { AccountView, ClaimVerdict, GrantView, OfferView } from '../../shared/view';
 import { useNow } from '../deck';
@@ -18,31 +18,54 @@ export function VerdictLine(props: { readonly verdict: ClaimVerdict; readonly em
   );
 }
 
+const CLAIM_EVENT = 'headroom:claim-mode';
+
+/** Asks an account's resets panel to show its Claim buttons, as following the overview's "Review" link does. */
+export function openClaimMode(account: string): void {
+  window.dispatchEvent(new CustomEvent(CLAIM_EVENT, { detail: account }));
+}
+
+function useClaimMode(account: string): readonly [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === account) setOn(true);
+    };
+    window.addEventListener(CLAIM_EVENT, open);
+    return () => window.removeEventListener(CLAIM_EVENT, open);
+  }, [account]);
+  return [on, setOn];
+}
+
+/** Claim buttons stay hidden until the operator asks to claim, so the panel reads as what each account holds. */
 export function ResetOffers(props: { readonly account: AccountView; readonly verdict: ClaimVerdict | null; readonly onClaim: (program: ProgramId, grant: GrantId | null) => void }) {
   const a = props.account;
   const claimable = a.offers.some((o) => o.state.kind === 'claimable');
+  const [open, setOpen] = useClaimMode(a.id);
+  const choosing = open && claimable;
   return (
     <div className={claimable ? 'offers claimable' : 'offers'}>
       <h4>
         Resets you can claim
-        {props.verdict && (
-          <span className="offers-note">
-            {' '}
-            <VerdictLine verdict={props.verdict} email={a.email} back />
-          </span>
-        )}
+        <span className="offers-note">
+          {props.verdict && <VerdictLine verdict={props.verdict} email={a.email} back />}
+          {claimable && (
+            <button type="button" className="btn ghost offers-toggle" aria-pressed={choosing} data-testid="claim-mode" onClick={() => setOpen(!choosing)}>
+              {choosing ? 'Done' : 'Claim a reset…'}
+            </button>
+          )}
+        </span>
       </h4>
       <div className="offer-list">
         {a.offers.map((o) => (
-          <OfferRow key={o.program} email={a.email} offer={o} onClaim={(grant) => props.onClaim(o.program, grant)} />
+          <OfferRow key={o.program} email={a.email} offer={o} choosing={choosing} onClaim={(grant) => props.onClaim(o.program, grant)} />
         ))}
       </div>
     </div>
   );
 }
 
-/** Several grants each get their own Claim button, so any usable one can be spent, not only the one Anthropic would pick next. */
-function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: (grant: GrantId | null) => void }) {
+function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly choosing: boolean; readonly onClaim: (grant: GrantId | null) => void }) {
   const o = props.offer;
   const several = o.grants.length > 1;
   const claimable = o.state.kind === 'claimable' ? o.state : null;
@@ -58,7 +81,7 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
             {o.grants.map((g) => (
               <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
                 <Segments parts={grantTerms(g, true)} />
-                {claimable && g.usable && (
+                {props.choosing && claimable && g.usable && (
                   <ClaimButton name={g.label} short="this" email={props.email} testId={`claim-${o.program}-${g.id}`} onClick={() => props.onClaim(g.id)} />
                 )}
               </li>
@@ -66,9 +89,9 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
           </ul>
         )}
       </div>
-      {claimable && !several ? (
-        <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={() => props.onClaim(claimable.grant)} />
-      ) : claimable ? null : (
+      {claimable ? (
+        props.choosing && !several && <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={() => props.onClaim(claimable.grant)} />
+      ) : (
         <div className="offer-state">
           <OfferState offer={o} />
         </div>

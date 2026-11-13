@@ -4,7 +4,7 @@ import type { DeckView, ServeLine } from '../../shared/view';
 import { reasonTitle, runOutText, runOutWhen, SERVE_ORDER_HELP, shortName } from '../format';
 import { paceAnchor, usageLink } from '../route';
 import { Age, Clock, Countdown } from './Countdown';
-import { resetsAnchor, VerdictLine } from './ResetOffers';
+import { openClaimMode, resetsAnchor, VerdictLine } from './ResetOffers';
 import { Segments } from './Segments';
 import { Swatch, type Slot } from './Swatch';
 
@@ -146,7 +146,7 @@ export function OverviewStrip(props: { readonly deck: DeckView; readonly slots: 
           ) : (
             <Segments
               parts={claimAccounts.map((g) => (
-                <a className="jump" href={`#${resetsAnchor(g.account)}`}>
+                <a className="jump" href={`#${resetsAnchor(g.account)}`} onClick={() => openClaimMode(g.account)}>
                   {g.resets.length === 1 ? 'Review' : `Review ${g.resets.length}`} on {who(g.account, g.email)} ↓
                 </a>
               ))}
