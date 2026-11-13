@@ -384,6 +384,14 @@ describe('offers and claimability', () => {
     expect(offers(failing, true).cedar_ember).toEqual({ kind: 'unknown', why: 'failing' });
   });
 
+  test('a grant that clears the weekly extra-usage window says so in words, never by its code', () => {
+    const f = feedsFrom(synthetic, T0);
+    const overage = { ...f, cedar: { ...f.cedar, last: { value: c({ grants: [{ ...grant, clears: ['seven_day', 'seven_day_overage_included'] }] }), at: T0 } } };
+    const o = offersOf(overage).find((x) => x.program === 'cedar_ember')!;
+    expect(o.grants[0]!.clearsText).toBe('the weekly limit and the weekly extra-usage limit');
+    expect(o.name).toBe('Weekly and weekly extra-usage reset · bonus, 2 of 3 left');
+  });
+
   test('a grant says in plain words what it clears and keeps the raw window codes', () => {
     const cedarOffer = offersOf(feedsFrom(synthetic, T0)).find((o) => o.program === 'cedar_ember')!;
     expect(cedarOffer.grants[0]).toMatchObject({ clears: ['five_hour'], clearsText: 'the session (5h) limit' });
@@ -405,7 +413,7 @@ describe('offers and claimability', () => {
 
     test('both resets clear the session limit, so each is a session reset, told apart by its program and a lone grant by what is left of it', () => {
       expect(names(feedsFrom(synthetic, T0))).toEqual({
-        juniper_tide: ['Session reset', 'Session reset · weekly'],
+        juniper_tide: ['Session reset', 'Weekly session reset'],
         cedar_ember: ['Session reset', 'Session reset · bonus, 2 of 3 left'],
       });
     });
@@ -422,7 +430,7 @@ describe('offers and claimability', () => {
       ['a bonus clearing both', ['five_hour', 'seven_day'], ['Session and weekly reset', 'Session and weekly reset · bonus, 2 of 3 left']],
       ['a bonus naming nothing', [], ['Bonus reset', 'Bonus reset, 2 of 3 left']],
     ] as const)('%s is named by what it clears, and the weekly one stays a session reset', (_label, clears, bonus) => {
-      expect(names(withGrants([{ ...grant, clears: [...clears] }]))).toEqual({ juniper_tide: ['Session reset', 'Session reset · weekly'], cedar_ember: [...bonus] });
+      expect(names(withGrants([{ ...grant, clears: [...clears] }]))).toEqual({ juniper_tide: ['Session reset', 'Weekly session reset'], cedar_ember: [...bonus] });
     });
 
     test.each([
@@ -457,6 +465,18 @@ describe('offers and claimability', () => {
         },
       ]);
       expect(d.overview.claimableCount).toBe(2);
+    });
+
+    test('every usable grant counts as its own claimable reset, so three grants on one account count three', () => {
+      const second = { ...grant, id: 'grant_example_2' as GrantId, label: 'Second', resetsLeft: 1, resetsTotal: 1 };
+      const spent = { ...grant, id: 'grant_example_3' as GrantId, label: 'Spent', resetsLeft: 0 };
+      const d = deriveDeck(snapshot({ feeds: { [ACC3]: withGrants([grant, second, spent]) } }), T0);
+      expect(d.overview.claimable[0]!.resets.map((r) => [r.program, r.grant, r.detail])).toEqual([
+        ['juniper_tide', null, null],
+        ['cedar_ember', 'grant_example_1', '2 of 3 left'],
+        ['cedar_ember', 'grant_example_2', '1 of 1 left'],
+      ]);
+      expect(d.overview.claimableCount).toBe(3);
     });
 
     test('an account with nothing claimable is left out of the overview and the count', () => {
