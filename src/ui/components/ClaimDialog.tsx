@@ -20,8 +20,9 @@ export function ClaimDialog(props: {
   const [record, setRecord] = useState<ClaimRecord | null>(null);
   const offer = a.offers.find((o) => o.program === props.program)!;
   const grant = offer.grants.find((g) => g.id === props.grant) ?? null;
-  const stillClaimable = offer.state.kind === 'claimable';
-  const confirmLabel = `Claim ${offer.phrase} on ${shortName(a.email)}`;
+  const said = grant ?? offer;
+  const stillClaimable = offer.state.kind === 'claimable' && (grant === null || grant.usable);
+  const confirmLabel = `Claim ${said.phrase} on ${shortName(a.email)}`;
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -70,7 +71,7 @@ export function ClaimDialog(props: {
           <dt>Reset type</dt>
           <dd>
             <span id="claim-name" title={props.program}>
-              {offer.name}
+              {said.name}
             </span>
           </dd>
           {grant && (
@@ -82,12 +83,12 @@ export function ClaimDialog(props: {
             </>
           )}
           <dt>Effect</dt>
-          <dd>{offer.effect}</dd>
-          {offer.selfResets.length > 0 && (
+          <dd>{said.effect}</dd>
+          {said.selfResets.length > 0 && (
             <>
               <dt>Without it</dt>
               <dd>
-                {offer.selfResets.map((r, i) => (
+                {said.selfResets.map((r, i) => (
                   <span key={r.what}>
                     {i > 0 && ' and '}
                     {r.what} resets on its own at <Clock at={r.at} /> <span className="muted">(in <Countdown at={r.at} />)</span>

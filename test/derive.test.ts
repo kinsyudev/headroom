@@ -479,6 +479,17 @@ describe('offers and claimability', () => {
       expect(d.overview.claimableCount).toBe(3);
     });
 
+    test('each grant describes its own claim, so picking a grant other than the default never shows the default grant\'s effect', () => {
+      const fable = { ...grant, id: 'grant_example_2' as GrantId, label: 'Fable', resetsLeft: 1, resetsTotal: 1, clears: ['seven_day_overage_included'] };
+      const o = offersOf(withGrants([{ ...grant, clears: ['five_hour', 'seven_day'] }, fable])).find((x) => x.program === 'cedar_ember')!;
+      expect(o.grants[1]).toMatchObject({
+        name: 'Weekly extra-usage reset · bonus',
+        phrase: 'bonus weekly extra-usage reset',
+        effect: 'Clears the weekly extra-usage limit. Uses 1 of 1 left on "Fable".',
+        selfResets: [],
+      });
+    });
+
     test('an account with nothing claimable is left out of the overview and the count', () => {
       const d = deriveDeck(snapshot({ feeds: { [ACC1]: feedsFrom(usage('anthropic-usage-at-wall-1.json', 'wall'), T0) } }), T0);
       expect(d.overview.claimable).toEqual([]);

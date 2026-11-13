@@ -1233,6 +1233,13 @@ a.cell-pace:hover {
   list-style: none;
   font-size: 13px;
 }
+.grants li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 32px;
+}
 
 .acct-foot {
   grid-column: 1 / -1;

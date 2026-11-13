@@ -240,7 +240,7 @@ try {
   await c3.getByTestId('claim-juniper_tide').click();
   await dialog.waitFor();
   const facts = await text(dialog);
-  for (const s of ['account3@example.com', 'Team · Max 5x', 'Session reset · weekly', 'Clears the session (5h) limit now', 'This cannot be undone']) {
+  for (const s of ['account3@example.com', 'Team · Max 5x', 'Weekly session reset', 'Clears the session (5h) limit now', 'This cannot be undone']) {
     assert(facts.includes(s), `claim dialog names "${s}"`);
   }
   assert(!facts.includes('juniper_tide'), 'claim dialog shows no raw program code');

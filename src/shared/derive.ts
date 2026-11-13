@@ -112,14 +112,11 @@ export const INELIGIBLE_EXPLAIN: Readonly<Record<string, string>> = {
   not_usable_now: 'No grant is usable right now.',
 };
 
-const WINDOW_WORDS: Readonly<Record<string, string>> = {
-  five_hour: 'the session (5h) limit',
-  seven_day: 'the weekly limit',
-};
-
-const WINDOW_LIMIT: Readonly<Record<string, string>> = {
-  five_hour: 'session',
-  seven_day: 'weekly_all',
+/** A usage window a reset can clear: its name in a reset's name, its words in a sentence, and the limit row it resets, if Headroom shows one. */
+const WINDOWS: Readonly<Record<string, { readonly name: string; readonly words: string; readonly limit: string | null }>> = {
+  five_hour: { name: 'session', words: 'the session (5h) limit', limit: 'session' },
+  seven_day: { name: 'weekly', words: 'the weekly limit', limit: 'weekly_all' },
+  seven_day_overage_included: { name: 'weekly extra-usage', words: 'the weekly extra-usage limit', limit: null },
 };
 
 const JUNIPER_CLEARS: readonly string[] = ['five_hour'];
@@ -669,9 +666,9 @@ export function programReadAt(feeds: AccountFeeds, program: ProgramId): Instant 
   return (program === 'juniper_tide' ? feeds.juniper : feeds.cedar).last?.at ?? null;
 }
 
-/** A reset named by the limits it clears, then by its program: "Session reset · weekly". One that names nothing goes by its program alone. */
+/** A reset named by the limits it clears, then by its program: "Session reset · bonus". One that names nothing goes by its program alone. */
 function resetNames(clears: readonly string[], short: string): Pick<OfferView, 'what' | 'name' | 'phrase'> {
-  const limits = clears.map((w) => limitLabel(WINDOW_LIMIT[w] ?? w, null).toLowerCase()).join(' and ');
+  const limits = clears.map((w) => WINDOWS[w]?.name ?? w).join(' and ');
   const named = `${limits || short} reset`;
   const what = named.charAt(0).toUpperCase() + named.slice(1);
   return { what, name: limits ? `${what} · ${short}` : what, phrase: limits ? `${short} ${named}` : named };
@@ -679,7 +676,7 @@ function resetNames(clears: readonly string[], short: string): Pick<OfferView, '
 
 function selfResets(clears: readonly string[], limits: readonly LimitView[]): OfferView['selfResets'] {
   return clears.flatMap((w) => {
-    const l = limits.find((x) => x.key === WINDOW_LIMIT[w]);
+    const l = limits.find((x) => x.key === WINDOWS[w]?.limit);
     return l?.phase === 'open' && l.resetsAt !== null ? [{ what: `the ${l.label.toLowerCase()} limit`, at: l.resetsAt }] : [];
   });
 }
@@ -724,6 +721,7 @@ export function deriveOffers(
     {
       program: 'juniper_tide',
       ...resetNames(JUNIPER_CLEARS, 'weekly'),
+      name: PROGRAM_LABEL.juniper_tide,
       short: 'weekly',
       effect: `Clears ${clearsText(JUNIPER_CLEARS)} now. One per week.`,
       selfResets: selfResets(JUNIPER_CLEARS, limits),
@@ -741,16 +739,23 @@ export function deriveOffers(
       selfResets: selfResets(cedarClears, limits),
       state: cedar,
       dataAt: c.last?.at ?? null,
-      grants: grants.map((g) => ({
-        id: g.id,
-        label: g.label,
-        resetsLeft: g.resetsLeft,
-        resetsTotal: g.resetsTotal,
-        endsAt: g.endsAt,
-        clears: g.clears,
-        clearsText: clearsText(g.clears),
-        usable: cv !== null && usableGrant(cv, g),
-      })),
+      grants: grants.map((g) => {
+        const own = resetNames(g.clears, 'bonus');
+        return {
+          id: g.id,
+          label: g.label,
+          resetsLeft: g.resetsLeft,
+          resetsTotal: g.resetsTotal,
+          endsAt: g.endsAt,
+          clears: g.clears,
+          clearsText: clearsText(g.clears),
+          usable: cv !== null && usableGrant(cv, g),
+          name: own.name,
+          phrase: own.phrase,
+          effect: `Clears ${clearsText(g.clears)}. Uses 1 of ${g.resetsLeft} left on "${g.label}".`,
+          selfResets: selfResets(g.clears, limits),
+        };
+      }),
     },
   ];
 }
@@ -792,7 +797,7 @@ export function quietOffers(offers: readonly OfferView[]): readonly string[] | n
 }
 
 export function clearsText(clears: readonly string[]): string {
-  return clears.length === 0 ? 'nothing named' : clears.map((w) => WINDOW_WORDS[w] ?? w).join(' and ');
+  return clears.length === 0 ? 'nothing named' : clears.map((w) => WINDOWS[w]?.words ?? w).join(' and ');
 }
 
 export function explainOffer(state: OfferState): string {
@@ -882,11 +887,10 @@ export function deriveOverview(accounts: readonly AccountView[], evidence: 'keep
   };
   const claimable: ClaimableView[] = accounts.flatMap((a) => {
     const offers = a.offers.filter((o) => o.state.kind === 'claimable');
-    const resets = offers.flatMap((o) => {
+    const resets = offers.flatMap((o): ClaimableView['resets'] => {
       if (o.state.kind !== 'claimable') return [];
-      const grant = o.state.grant;
-      const g = o.grants.find((x) => x.id === grant);
-      return [{ program: o.program, grant, name: o.name, detail: g ? `${g.resetsLeft} of ${g.resetsTotal} left` : null }];
+      if (o.state.grant === null) return [{ program: o.program, grant: null, name: o.name, detail: null }];
+      return o.grants.filter((g) => g.usable).map((g) => ({ program: o.program, grant: g.id, name: o.name, detail: `${g.resetsLeft} of ${g.resetsTotal} left` }));
     });
     return resets.length === 0 ? [] : [{ account: a.id, email: a.email, resets, verdict: verdict(a, offers) }];
   });

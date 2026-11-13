@@ -34,16 +34,18 @@ export function ResetOffers(props: { readonly account: AccountView; readonly ver
       </h4>
       <div className="offer-list">
         {a.offers.map((o) => (
-          <OfferRow key={o.program} email={a.email} offer={o} onClaim={() => props.onClaim(o.program, o.state.kind === 'claimable' ? o.state.grant : null)} />
+          <OfferRow key={o.program} email={a.email} offer={o} onClaim={(grant) => props.onClaim(o.program, grant)} />
         ))}
       </div>
     </div>
   );
 }
 
-function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: () => void }) {
+/** Several grants each get their own Claim button, so any usable one can be spent, not only the one Anthropic would pick next. */
+function OfferRow(props: { readonly email: string; readonly offer: OfferView; readonly onClaim: (grant: GrantId | null) => void }) {
   const o = props.offer;
   const several = o.grants.length > 1;
+  const claimable = o.state.kind === 'claimable' ? o.state : null;
   return (
     <div className={`offer offer-${o.state.kind}`} data-testid={`offer-${o.program}`}>
       <strong className="offer-name" title={o.program}>
@@ -56,14 +58,17 @@ function OfferRow(props: { readonly email: string; readonly offer: OfferView; re
             {o.grants.map((g) => (
               <li key={g.id} className={g.usable ? 'usable' : 'muted'}>
                 <Segments parts={grantTerms(g, true)} />
+                {claimable && g.usable && (
+                  <ClaimButton name={g.label} short="this" email={props.email} testId={`claim-${o.program}-${g.id}`} onClick={() => props.onClaim(g.id)} />
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
-      {o.state.kind === 'claimable' ? (
-        <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={props.onClaim} />
-      ) : (
+      {claimable && !several ? (
+        <ClaimButton name={o.name} short={o.short} email={props.email} testId={`claim-${o.program}`} onClick={() => props.onClaim(claimable.grant)} />
+      ) : claimable ? null : (
         <div className="offer-state">
           <OfferState offer={o} />
         </div>

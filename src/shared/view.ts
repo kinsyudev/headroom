@@ -323,6 +323,11 @@ export interface GrantView {
   readonly clears: readonly string[];
   readonly clearsText: string;
   readonly usable: boolean;
+  /** How the claim dialog describes claiming this grant, which may clear different limits than the grant its offer would pick. */
+  readonly name: string;
+  readonly phrase: string;
+  readonly effect: string;
+  readonly selfResets: OfferView['selfResets'];
 }
 
 export interface OfferView {
@@ -331,7 +336,7 @@ export interface OfferView {
   readonly what: string;
   /**
    * The reset's one name, from the card row to the claim dialog: what it clears, then which program, then what is left of a lone
-   * grant ("Session reset · weekly", "Session reset · bonus, 2 of 3 left").
+   * grant ("Weekly session reset", "Session reset · bonus, 2 of 3 left").
    */
   readonly name: string;
   /** The reset in a sentence, program first, as the confirm button says it: "weekly session reset", or "bonus reset" when it names no limit. */
