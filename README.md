@@ -56,6 +56,8 @@ bun run package
 
 It writes `dist/headroom-<version>-darwin-arm64.tar.gz` and `dist/headroom-<version>-darwin-x64.tar.gz`. Each holds the binary with the UI baked in, `install.sh`, a coworker README and the font license. `packaging/README.md` is the coworker README. To check a binary, run `HEADROOM_BIN=<path> bun scripts/e2e.ts`.
 
+`.github/workflows/release.yml` runs the same build and the e2e check against the packaged arm64 binary on every push. A pushed `v*` tag also publishes both tarballs and `SHA256SUMS` as a GitHub release, with a build provenance attestation per tarball.
+
 ## Check it
 
 ```sh

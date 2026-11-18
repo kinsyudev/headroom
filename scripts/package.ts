@@ -15,7 +15,7 @@ function run(cmd: string[]): string {
   return r.stdout.toString().trim();
 }
 
-const version = run(['git', 'describe', '--always', '--dirty']);
+const version = run(['git', 'describe', '--tags', '--always', '--dirty']);
 
 const ui = await buildUi(join(ROOT, 'src/ui/index.html'));
 const inlined: Record<string, { b64: string; type: string }> = {};
