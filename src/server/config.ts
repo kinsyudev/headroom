@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export interface Config {
@@ -14,6 +15,8 @@ export interface Config {
   readonly claudeCliVersion: string;
 }
 
+declare const HEADROOM_PACKAGED: boolean | undefined;
+
 export const FALLBACK_CLI_VERSION = '2.1.311';
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -25,9 +28,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     cpaAddress: withoutCredentials(cpaBaseUrl),
     envPath: env.HEADROOM_ENV_FILE ?? '/opt/homebrew/etc/cpa-usage-keeper.env',
     keeperDbPath: env.HEADROOM_KEEPER_DB ?? '/opt/homebrew/var/cpa-usage-keeper/app.db',
-    stateDir: env.HEADROOM_STATE_DIR ?? join(import.meta.dir, '../../var'),
+    stateDir: env.HEADROOM_STATE_DIR ?? defaultStateDir(),
     claudeCliVersion: env.HEADROOM_CLI_VERSION ?? detectCliVersion(),
   };
+}
+
+/** A compiled binary's import.meta.dir is a read-only virtual path, so state goes where macOS apps keep it. */
+function defaultStateDir(): string {
+  const packaged = typeof HEADROOM_PACKAGED !== 'undefined' && HEADROOM_PACKAGED;
+  return packaged ? join(homedir(), 'Library/Application Support/Headroom') : join(import.meta.dir, '../../var');
 }
 
 function withoutCredentials(url: string): string {

@@ -26,7 +26,8 @@ export async function startStack(opts: { readonly port?: number; readonly log?: 
 
   const logPath = opts.log ?? join(ROOT, 'var/fake-stack.log');
   mkdirSync(join(ROOT, 'var'), { recursive: true });
-  const app = Bun.spawn(['bun', 'run', join(ROOT, 'src/main.ts')], {
+  const bin = process.env.HEADROOM_BIN;
+  const app = Bun.spawn(bin ? [bin] : ['bun', 'run', join(ROOT, 'src/main.ts')], {
     cwd: ROOT,
     env: {
       ...process.env,
