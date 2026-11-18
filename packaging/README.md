@@ -15,7 +15,7 @@ tar -xzf headroom-*-darwin-*.tar.gz
 ./install.sh
 ```
 
-The script copies `headroom` to `~/.local/bin`, writes a LaunchAgent named `dev.headroom`, and starts it. It restarts Headroom after a crash, at most once every 30 seconds. Run the script again to upgrade.
+The script copies `headroom` to `~/.local/bin`, writes a LaunchAgent named `dev.headroom`, and starts it. It restarts Headroom after a crash, at most once every 30 seconds. Run the script again to upgrade. Each run rewrites the LaunchAgent, so set your overrides again.
 
 Open <http://127.0.0.1:1338>.
 

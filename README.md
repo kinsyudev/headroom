@@ -46,6 +46,16 @@ These environment variables override the defaults. Tests and `scripts/fake-stack
 | `HEADROOM_STATE_DIR` | `var/` in this checkout |
 | `HEADROOM_CLI_VERSION` | the output of `claude --version`, else `2.1.311` |
 
+## Package it
+
+To build a self-contained binary for coworkers, run:
+
+```sh
+bun run package
+```
+
+It writes `dist/headroom-<version>-darwin-arm64.tar.gz` and `dist/headroom-<version>-darwin-x64.tar.gz`. Each holds the binary with the UI baked in, `install.sh`, a coworker README and the font license. `packaging/README.md` is the coworker README. To check a binary, run `HEADROOM_BIN=<path> bun scripts/e2e.ts`.
+
 ## Check it
 
 ```sh
