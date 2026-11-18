@@ -4,12 +4,13 @@ import { createClaims } from './server/claims';
 import { loadConfig, readManagementKey } from './server/config';
 import { createCpa } from './server/cpa';
 import { handlers } from './server/handlers';
-import { buildUi, serve } from './server/http';
+import { serve } from './server/http';
 import { openKeeper } from './server/keeper';
 import { createOAuthFlows } from './server/oauth';
 import { createObserver } from './server/observer';
 import { createPoller } from './server/poller';
 import { openStateFile } from './server/state';
+import { loadUi } from './server/ui-assets';
 import type { Snapshot } from './shared/domain';
 
 const config = loadConfig();
@@ -38,7 +39,7 @@ const snapshot = (): Snapshot => ({
 const server = serve({
   hostname: config.hostname,
   port: config.port,
-  assets: await buildUi(join(import.meta.dir, 'ui/index.html')),
+  assets: await loadUi(),
   snapshot,
   usage: () => keeper.usage(observer.accounts().map((a) => a.id)),
   handlers,
