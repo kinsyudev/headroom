@@ -11,6 +11,7 @@ import { createObserver } from './server/observer';
 import { createPoller } from './server/poller';
 import { openStateFile } from './server/state';
 import { loadUi } from './server/ui-assets';
+import { createWatchdog } from './server/watchdog';
 import type { Snapshot } from './shared/domain';
 
 const config = loadConfig();
@@ -23,8 +24,17 @@ const poller = createPoller({ anthropic, accounts: observer.accounts, linkOk: ()
 const keeper = openKeeper(config.keeperDbPath, clock.now);
 const claims = createClaims({ anthropic, cpa, poller, clock, state });
 const oauth = createOAuthFlows({ cpa, observer, now: clock.now });
+const watchdog = createWatchdog({ now: clock.now, graceMs: 30_000 });
 
-const snapshot = (): Snapshot => ({
+const snapshot = (): Snapshot => {
+  if (watchdog.timersDead()) {
+    console.error('Timers stopped firing, as after a hibernate wake; exiting so launchd restarts Headroom');
+    process.exit(1);
+  }
+  return readSnapshot();
+};
+
+const readSnapshot = (): Snapshot => ({
   generatedAt: clock.now(),
   cpaBaseUrl: config.cpaAddress,
   link: cpa.link(),
@@ -46,7 +56,7 @@ const server = serve({
   ctx: { cpa, observer, poller, claims, oauth },
 });
 
-startAfterBind(server, [observer, keeper, poller]);
+startAfterBind(server, [watchdog, observer, keeper, poller]);
 console.log(`Headroom on ${server.url} (CPA ${config.cpaBaseUrl}, claude-cli/${config.claudeCliVersion}, link ${cpa.link().kind})`);
 
 function startAfterBind(_bound: ReturnType<typeof serve>, loops: readonly { start(): void }[]): void {
@@ -57,6 +67,7 @@ async function shutdown(): Promise<void> {
   poller.stop();
   observer.stop();
   keeper.stop();
+  watchdog.stop();
   await server.stop();
   process.exit(0);
 }
