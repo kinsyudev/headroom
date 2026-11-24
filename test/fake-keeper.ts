@@ -126,8 +126,12 @@ const SERVER_STATUS: readonly (readonly [number, number])[] = [
   [503, 6.5],
   [529, 6.5],
 ];
-/** account3 hits its limit about every third day. The 429s come in a burst at one instant, then its session fails over to account1. */
-const WALL = { chance: 1 / 3, burstMax: 3, recoverMinMs: 110 * MINUTE, recoverMaxMs: 240 * MINUTE } as const;
+/**
+ * account3 hits its limit every third day block, not by chance, so any 7-day window holds a 429 burst whatever the date,
+ * and a burst is at least two 429s, so the error log always has a run of identical errors to merge.
+ * The 429s come in a burst at one instant, then its session fails over to account1.
+ */
+const WALL = { everyBlocks: 3, burstMin: 2, burstMax: 3, recoverMinMs: 110 * MINUTE, recoverMaxMs: 240 * MINUTE } as const;
 /**
  * account1 keeps a successful request at most this far apart, so it reads as serving at any hour: the gap, plus up to
  * one feed tick (10 s) and one serving read (5 s), stays under SERVING_WINDOW_MS (120 s).
@@ -183,7 +187,7 @@ function generateBlock(start: number, o: FakeOptions): Block {
   const target = o.requestsPerDay * WEEKDAY_WEIGHT[weekday]! * lognormal(r, 1, DAY_NOISE_SIGMA);
   const incidentStart = start + r() * DAY;
   const incident = r() < INCIDENT.chance ? { from: incidentStart, to: incidentStart + lognormal(r, INCIDENT.medianMs, INCIDENT.sigma) } : null;
-  const wall = r() < WALL.chance;
+  const wall = Math.floor(start / DAY) % WALL.everyBlocks === 0;
 
   const sessions: Draft[][] = [];
   for (let total = 0; total < target; ) {
@@ -275,7 +279,7 @@ function wallEpisode(r: Rand, sessions: Draft[][]): Draft[] {
   const j = Math.floor(s.length / 3);
   const at = Math.max(s[j - 1]!.at, s[j]!.at - SECOND);
   for (let i = j; i < s.length; i++) s[i] = { ...s[i]!, account: KEEPER_ACC1 };
-  const burst = 1 + Math.floor(r() * WALL.burstMax);
+  const burst = WALL.burstMin + Math.floor(r() * (WALL.burstMax - WALL.burstMin + 1));
   return Array.from({ length: burst }, () => {
     const latencyMs = Math.round(lognormal(r, 456, 0.3));
     return ({ at, account: KEEPER_ACC3, model: s[j]!.model, effort: s[j]!.effort ?? '', session: s[j]!.session ?? null, status: 429, input: 0, cacheRead: 0, cacheCreation: 0, output: 0, reasoning: 0, ttftMs: Math.round(latencyMs * 0.8), latencyMs });

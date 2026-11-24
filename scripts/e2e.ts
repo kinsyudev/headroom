@@ -415,13 +415,14 @@ try {
   assert((await cancelledFigure.count()) === 1, 'cancelled requests stay counted in the failures figures as "cancelled by you", because they are not a fault');
   const figureColor = (figure: typeof cancelledFigure) => figure.evaluate((el) => getComputedStyle(el).color);
   assert((await figureColor(cancelledFigure)) !== (await figureColor(failureFigures.first().locator('.figure'))), 'the cancelled figure is muted, in a colour of its own against the succeeded figure');
+  await page.locator('.toolbar').getByRole('button', { name: 'account3' }).click();
   const failureBars = page.getByTestId('failures').locator('.chart rect[tabindex="0"]');
   let coded = false;
   for (let i = 0; i < (await failureBars.count()) && !coded; i++) {
     await failureBars.nth(i).hover();
     coded = /429 rate-limited|5xx server error|499 cancelled/.test(await text(page.locator('.tooltip')));
   }
-  assert(coded, 'the failures tooltip keeps the status codes');
+  assert(coded, "the failures tooltip keeps the status codes, on account3's rate limits");
   const heads = await page.getByTestId('by-model').locator('thead th').allTextContents();
   assert(['Rate-limited', 'Cancelled', 'Server errors'].every((h) => heads.includes(h)) && !heads.some((h) => /^(429|499|5xx)$/.test(h)), 'the account and model table names its failure columns in words');
   assert(((await page.getByTestId('by-model').locator('thead th', { hasText: 'Rate-limited' }).getAttribute('title')) ?? '').includes('429'), 'the rate-limited header keeps the 429 code in its tooltip');
@@ -444,7 +445,7 @@ try {
   assert(logLines.length > 0 && logLines.every((l) => /^\S+\s+\d{3}\s.+\saccount\d\s+last\s(today \d\d:\d\d|[A-Z][a-z]{2} \d{1,2} \d\d:\d\d)/.test(l.trim())), `each log line reads status, message, account and the time of the last one, dated like the chart axes: ${logLines.join(' | ')}`);
   assert(logLines.every((l) => !/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d\d:\d\d\b/.test(l)), 'no time in the log reads as a weekday, which looks a week old the day after');
   assert(logLines.every((l) => !l.includes('@') && !l.includes('—')), 'the log names accounts by their short names and shows no empty placeholder');
-  assert(logLines.some((l) => /×\d+/.test(l)), 'identical errors on one account are one line with a count');
+  assert(logLines.some((l) => /×\d+/.test(l)), `identical errors on one account are one line with a count: ${logLines.join(' | ')}`);
   assert((await page.getByTestId('analytics').getByText('Recent errors and rate limits', { exact: true }).count()) === 0, 'the error log is a section of Failures and no longer a panel of its own');
   await page.getByTestId('analytics').screenshot({ path: join(SHOTS, 'e2e-4b-usage.png') });
   await page.getByTestId('nav-monitor').click();
